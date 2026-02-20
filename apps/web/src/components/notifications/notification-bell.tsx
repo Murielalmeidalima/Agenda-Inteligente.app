@@ -30,7 +30,7 @@ export function NotificationBell() {
        .from('notifications')
        .select('*')
        .eq('company_id', profile.company_id)
-       .or(`user_id.is.null,user_id.eq.${profile.id}`)
+       .or(`profile_id.is.null,profile_id.eq.${profile.id}`)
        .order('created_at', { ascending: false })
        .limit(10);
      
