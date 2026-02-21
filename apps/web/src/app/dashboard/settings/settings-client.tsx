@@ -242,20 +242,25 @@ export default function SettingsClient() {
       });
       fetchProcedures();
     } else {
-      console.error('Error creating service:', error);
+      console.error('Error creating service:', JSON.stringify(error, null, 2));
+      alert(`Erro ao criar serviço: ${error.message || 'Verifique as permissões RLS da tabela procedures.'}`);
     }
+
   };
 
   const handleDeleteService = async (id: string) => {
+    if (!companyId) return;
     const { error } = await supabase
       .from('procedures')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('company_id', companyId); // ← garante que só deleta da própria empresa
 
     if (!error) {
       fetchProcedures();
     }
   };
+
 
   return (
     <div className="space-y-10 animate-fade-in pb-20">

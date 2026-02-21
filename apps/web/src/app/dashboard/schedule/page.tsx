@@ -35,8 +35,9 @@ export default async function SchedulePage() {
   }
 
   if (!profile.approved) {
-     redirect('/auth/login'); // Or a dedicated pending page
+    redirect('/auth/pending'); // página dedicada — não causa loop com middleware
   }
+
 
   // Buscar Agendamentos, Clientes e Procedimentos (Join)
   const { data: appointments, error } = await supabase

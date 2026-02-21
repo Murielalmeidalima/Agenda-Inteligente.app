@@ -21,6 +21,20 @@
                 "^lint"
             ]
         },
+        "test": {
+            "dependsOn": [
+                "^build"
+            ],
+            "outputs": [
+                "coverage/**"
+            ],
+            "inputs": [
+                "src/**/*.tsx",
+                "src/**/*.ts",
+                "test/**/*.tsx",
+                "test/**/*.ts"
+            ]
+        },
         "dev": {
             "cache": false,
             "persistent": true

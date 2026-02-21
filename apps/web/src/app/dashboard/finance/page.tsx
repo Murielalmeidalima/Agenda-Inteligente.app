@@ -49,7 +49,20 @@ export default function FinancePage() {
     try {
       setLoading(true);
       const supabase = createBrowserClient();
-      
+
+      // Passo 1: buscar company_id do usuário atual
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile?.company_id) { setLoading(false); return; }
+
+      // Passo 2: buscar transações apenas da empresa do usuário
       const { data, error } = await supabase
         .from('transactions')
         .select(`
@@ -57,6 +70,7 @@ export default function FinancePage() {
           financial_categories(name, icon, color),
           financial_accounts(name)
         `)
+        .eq('company_id', profile.company_id) // ← isolamento por tenant
         .order('date', { ascending: false });
 
       if (error) throw error;
@@ -73,13 +87,13 @@ export default function FinancePage() {
       }
     } catch (err: any) {
       console.error('Fetch failed', err?.message || err);
-      // Fallback seguro em caso de erro real (sem dados demo)
       setTransactions([]);
       setStats({ income: 0, expense: 0, balance: 0 });
     } finally {
       setLoading(false);
     }
   }
+
 
   return (
     <div className="space-y-10 animate-fade-in">

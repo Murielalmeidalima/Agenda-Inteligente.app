@@ -59,7 +59,7 @@ export function LogoImage({ className, size = 40 }: LogoProps) {
       style={{ width: size * 3, height: size * 1.2 }}
     >
       <img
-        src={`/images/logo.jpg?v=${Date.now()}`}
+        src="/images/logo.jpg"
         alt="Agenda Inteligente"
         className="w-full h-full object-contain"
         onError={(e) => {

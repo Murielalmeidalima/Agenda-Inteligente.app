@@ -46,9 +46,24 @@ export default function ClientsPage() {
   async function fetchClients() {
     try {
       const supabase = createBrowserClient();
+
+      // Passo 1: buscar o company_id do usuário atual
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Não autenticado');
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError || !profile?.company_id) throw new Error('Perfil não encontrado');
+
+      // Passo 2: buscar apenas clientes da empresa do usuário
       const { data, error } = await supabase
         .from('clients')
         .select('*')
+        .eq('company_id', profile.company_id) // ← isolamento por tenant
         .order('full_name', { ascending: true });
 
       if (error) throw error;
@@ -62,6 +77,7 @@ export default function ClientsPage() {
       setLoading(false);
     }
   }
+
 
   const filteredClients = clients.filter(client => 
     client.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||

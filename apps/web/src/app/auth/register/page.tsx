@@ -1,3 +1,5 @@
+'use client';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@/lib/supabase-browser';
@@ -43,68 +45,110 @@ export default function RegisterPage() {
 
     try {
       const supabase = createBrowserClient();
-      
+      let userId: string;
+
+      // ─── Etapa 1: Criar usuário no Auth ────────────────────────────────────
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
       });
 
       if (signUpError) {
-        setError(signUpError.message);
-        setLoading(false);
+        // Usuário já existe mas o cadastro ficou incompleto (sem empresa/perfil)
+        // Tenta fazer login para completar o setup
+        if (signUpError.message?.includes('already registered') || signUpError.message?.includes('already been registered')) {
+          console.log('[REGISTER] Usuário já existe, tentando completar cadastro...');
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: formData.email,
+            password: formData.password,
+          });
+          if (signInError) {
+            setError('Este e-mail já está cadastrado. Tente fazer login ou use outro e-mail.');
+            setLoading(false);
+            return;
+          }
+          userId = signInData.user!.id;
+        } else {
+          setError('Erro ao criar conta: ' + signUpError.message);
+          setLoading(false);
+          return;
+        }
+      } else {
+        if (!authData.user) {
+          setError('Erro ao criar usuário. Tente novamente.');
+          setLoading(false);
+          return;
+        }
+        userId = authData.user.id;
+      }
+
+      // ─── Etapa 2: Verificar se já tem empresa/perfil ────────────────────────
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id, company_id')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (existingProfile?.company_id) {
+        // Tudo já está configurado — ir para o sucesso
+        console.log('[REGISTER] Perfil já existe e está completo.');
+        setSuccess(true);
         return;
       }
 
-      if (!authData.user) {
-        setError('Erro ao criar usuário');
-        setLoading(false);
-        return;
-      }
-
-      // Create Company
-      const { data: companyData, error: companyError } = await supabase
+      // ─── Etapa 3: Criar empresa ─────────────────────────────────────────────
+      // INSERT separado do SELECT para não acionar a policy SELECT que causa recursão
+      const companyId = crypto.randomUUID();
+      const { error: companyError } = await supabase
         .from('companies')
-        .insert({ name: formData.companyName })
-        .select()
-        .single();
+        .insert({ id: companyId, name: formData.companyName });
 
       if (companyError) {
-        console.error('Company creation error:', companyError);
-        setError('Erro ao criar empresa');
+        console.error('[REGISTER] Erro ao criar empresa:', JSON.stringify(companyError));
+        setError('Erro ao criar empresa. Verifique as permissões no Supabase (RLS da tabela companies).');
         setLoading(false);
         return;
       }
 
-      // Upsert Profile (Safer against triggers)
+
+      // ─── Etapa 4: Criar/atualizar perfil ───────────────────────────────────
       const { error: profileError } = await supabase
         .from('profiles')
         .upsert({
-          id: authData.user.id,
-          company_id: companyData.id,
+          id: userId,
+          company_id: companyId,
           full_name: formData.fullName,
           email: formData.email,
           role: 'admin',
-          approved: false, // Explicitly set pending
-          preferences: { theme: 'system', notifications: { email: true, push: true } }
+          approved: false
+          // Não incluir 'preferences' — a coluna pode não existir e causa erro silencioso
         }, { onConflict: 'id' });
 
       if (profileError) {
-        console.error('Profile creation error:', profileError);
-        // Ignore duplicate key if upsert worked logic
-        if (!profileError.message.includes('duplicate key')) {
-             setError('Erro ao criar perfil');
-             setLoading(false);
-             return;
+        console.error('[REGISTER] Erro ao criar perfil:', JSON.stringify(profileError));
+        if (!profileError.message?.includes('duplicate key')) {
+          setError('Erro ao criar perfil: ' + profileError.message);
+          setLoading(false);
+          return;
         }
       }
 
+      // ─── Etapa 5: Sign out ─────────────────────────────────────────────────
+      // CRÍTICO: o signUp() cria uma sessão automaticamente.
+      // O usuário ainda precisa de aprovação do admin antes de acessar o dashboard.
+      // Se não fizer signOut aqui, o middleware vai detectar sessão ativa,
+      // tentar acessar o dashboard, ver que approved=false e criar um LOOP de redirect.
+      await supabase.auth.signOut();
+
+      console.log('[REGISTER] ✅ Cadastro completo! Sessão encerrada — aguardando aprovação.');
       setSuccess(true);
-      
+
     } catch (err: any) {
-      console.error('Registration error:', err);
-      setError('Erro ao criar conta: ' + (err.message || 'Desconhecido'));
+      console.error('[REGISTER] Exceção:', err.message);
+      setError('Erro inesperado: ' + (err.message || 'Desconhecido'));
       setLoading(false);
     }
+
   };
 
   if (success) {
