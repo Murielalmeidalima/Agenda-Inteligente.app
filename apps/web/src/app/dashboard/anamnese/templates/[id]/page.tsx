@@ -2,7 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Button, Input, TextArea, Label, Card } from '@projeto/ui';
+import { 
+  Button, 
+  Input, 
+  TextArea, 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue, 
+  Label, 
+  Card 
+} from '@projeto/ui';
 import { Save, ArrowLeft, Trash2 } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import QuestionEditor from '@/components/anamnese/question-editor';
@@ -14,6 +25,9 @@ export default function EditTemplatePage() {
   const params = useParams();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [validityValue, setValidityValue] = useState<number>(6);
+  const [validityUnit, setValidityUnit] = useState<'days' | 'months' | 'years'>('months');
+  const [externalFormUrl, setExternalFormUrl] = useState('');
   const [questions, setQuestions] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -35,6 +49,9 @@ export default function EditTemplatePage() {
       
       setName(data.name);
       setDescription(data.description || '');
+      setValidityValue(data.validity_value || 6);
+      setValidityUnit(data.validity_unit || 'months');
+      setExternalFormUrl(data.external_form_url || '');
       // Sort questions by order
       const sortedQuestions = (data.anamnese_questions || []).sort((a: any, b: any) => a.order - b.order);
       setQuestions(sortedQuestions);
@@ -61,6 +78,9 @@ export default function EditTemplatePage() {
         .update({
           name,
           description,
+          validity_value: validityValue,
+          validity_unit: validityUnit,
+          external_form_url: externalFormUrl || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', params.id);
@@ -175,6 +195,43 @@ export default function EditTemplatePage() {
                         value={description} 
                         onChange={e => setDescription(e.target.value)} 
                         className="bg-[#FAF9F6] border-[#E5E0D8] text-[#2C2825] min-h-[100px] rounded-xl"
+                      />
+                   </div>
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                         <Label className="text-[#5C5855] font-bold">Validade</Label>
+                         <Input 
+                           type="number"
+                           value={validityValue}
+                           onChange={e => setValidityValue(Number(e.target.value))}
+                           className="bg-[#FAF9F6] border-[#E5E0D8] text-[#2C2825] h-12 rounded-xl"
+                         />
+                      </div>
+                      <div className="space-y-2">
+                         <Label className="text-[#5C5855] font-bold">Unidade</Label>
+                         <Select 
+                           value={validityUnit} 
+                           onValueChange={(v: any) => setValidityUnit(v)} 
+                         >
+                             <SelectTrigger className="bg-[#FAF9F6] border-[#E5E0D8] text-[#2C2825] h-12 rounded-xl">
+                                <SelectValue placeholder="Unidade" />
+                             </SelectTrigger>
+                             <SelectContent>
+                                <SelectItem value="days">Dias</SelectItem>
+                                <SelectItem value="months">Meses</SelectItem>
+                                <SelectItem value="years">Anos</SelectItem>
+                             </SelectContent>
+                         </Select>
+                      </div>
+                   </div>
+                   <div className="space-y-2">
+                      <Label className="text-[#5C5855] font-bold text-sm">Formulário Externo (Google Forms) Opcional</Label>
+                      <p className="text-xs text-[#8A847C] mb-1">Se preenchido, os pacientes serão redirecionados para este link.</p>
+                      <Input 
+                        value={externalFormUrl} 
+                        onChange={e => setExternalFormUrl(e.target.value)} 
+                        placeholder="https://docs.google.com/forms/..."
+                        className="bg-[#FAF9F6] border-[#E5E0D8] text-[#2C2825] h-12 rounded-xl"
                       />
                    </div>
                 </div>

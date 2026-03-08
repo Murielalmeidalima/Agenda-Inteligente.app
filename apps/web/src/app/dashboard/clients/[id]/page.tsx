@@ -77,13 +77,39 @@ export default async function ClientDetailPage({
     .eq('client_id', params.id)
     .order('start_time', { ascending: false });
 
-  // Buscar registros médicos (Prontuário)
+  // Buscar registros médicos legados (Prontuário Geral)
   const { data: medicalRecords } = await supabase
     .from('medical_records')
-    .select(`
-      *,
-      professional:profiles(full_name)
-    `)
+    .select(`*, professional:profiles(full_name)`)
+    .eq('client_id', params.id)
+    .order('created_at', { ascending: false });
+
+  // Buscar novas notas de evolução
+  const { data: progressNotes } = await supabase
+    .from('patient_progress_notes')
+    .select(`*, professional:profiles(full_name)`)
+    .eq('client_id', params.id)
+    .order('created_at', { ascending: false });
+
+  // Buscar fichas de atendimento detalhadas
+  const { data: appointmentRecords } = await supabase
+    .from('appointment_medical_records')
+    .select(`*, professional:profiles(full_name), appointment:appointments(procedures(name))`)
+    .eq('client_id', params.id)
+    .order('created_at', { ascending: false });
+
+  // Buscar anamneses respondidas
+  const { data: anamneses } = await supabase
+    .from('anamnese_responses')
+    .select(`*, template:anamnese_templates(name)`)
+    .eq('client_id', params.id)
+    .eq('status', 'completed_client')
+    .order('completed_at', { ascending: false });
+
+  // Buscar anexos clínicos (fotos)
+  const { data: attachments } = await supabase
+    .from('medical_attachments')
+    .select(`*, professional:profiles(full_name)`)
     .eq('client_id', params.id)
     .order('created_at', { ascending: false });
 
@@ -124,6 +150,10 @@ export default async function ClientDetailPage({
       <ClientDetailTabs 
         client={client}
         initialRecords={medicalRecords || []}
+        progressNotes={progressNotes || []}
+        appointmentRecords={appointmentRecords || []}
+        anamneses={anamneses || []}
+        attachments={attachments || []}
         appointments={clientAppointments || []}
         currentProfessionalId={user.id}
       />

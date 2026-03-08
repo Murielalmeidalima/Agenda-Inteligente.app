@@ -4,14 +4,22 @@ import { useState, useEffect } from 'react';
 import { Button, Input, Card, CardContent, cn, TextArea, Label } from '@projeto/ui';
 import { CheckCircle2, AlertCircle, FileText } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
+import SignatureCanvas from 'react-signature-canvas';
+import { useRef } from 'react';
 
 export default function AnamneseForm({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
+  const [isExternal, setIsExternal] = useState(false);
+  const [externalUrl, setExternalUrl] = useState('');
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  
+  // Novos campos: LGPD e Assinatura
+  const [consentAccepted, setConsentAccepted] = useState(false);
+  const sigCanvas = useRef<any>(null);
 
   useEffect(() => {
     async function load() {
@@ -22,6 +30,10 @@ export default function AnamneseForm({ token }: { token: string }) {
            throw new Error(err.error || 'Erro ao carregar');
         }
         const json = await res.json();
+        if (json.template.externalFormUrl) {
+          setIsExternal(true);
+          setExternalUrl(json.template.externalFormUrl);
+        }
         setData(json);
       } catch (err: any) {
         setError(err.message);
@@ -41,13 +53,25 @@ export default function AnamneseForm({ token }: { token: string }) {
        toast.error(`Por favor, responda: ${missing[0].question_text}`);
        return;
     }
+    // Validação da assinatura e consentimento
+    if (!consentAccepted) {
+       toast.error('Você precisa aceitar o Termo de Consentimento.');
+       return;
+    }
+    
+    if (!sigCanvas.current || sigCanvas.current.isEmpty()) {
+       toast.error('Por favor, assine o documento antes de enviar.');
+       return;
+    }
+    
+    const signatureDataUrl = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
 
     setSubmitting(true);
     try {
       const res = await fetch('/api/anamnese/public', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, answers })
+        body: JSON.stringify({ token, answers, consentAccepted, signatureDataUrl })
       });
 
       if (!res.ok) throw new Error('Falha ao enviar');
@@ -96,6 +120,37 @@ export default function AnamneseForm({ token }: { token: string }) {
         </Card>
     </div>
   );
+
+  if (isExternal) {
+    return (
+      <div className="min-h-screen bg-[#FDFBF7] py-12 px-4 text-[#2C2825]">
+        <div className="max-w-2xl mx-auto text-center space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+           {data?.company?.logo && (
+             <img src={data.company.logo} alt={data.company.name} className="h-16 mx-auto mb-8" />
+           )}
+           <div className="bg-white p-10 rounded-[40px] shadow-xl border border-[#E5E0D8] space-y-6">
+              <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto">
+                 <FileText className="h-10 w-10 text-primary-600" />
+              </div>
+              <h1 className="text-3xl font-black uppercase tracking-tighter">Formulário Externo</h1>
+              <p className="text-[#5C5855] leading-relaxed">
+                Esta ficha de anamnese é respondida em uma plataforma externa ({externalUrl ? new URL(externalUrl).hostname : ''}). 
+                Clique no botão abaixo para preencher.
+              </p>
+              <Button 
+                onClick={() => window.location.href = externalUrl}
+                className="w-full h-16 bg-primary-600 hover:bg-primary-700 text-white font-black text-lg rounded-2xl shadow-lg shadow-primary-200 transition-all hover:scale-[1.02]"
+              >
+                ABRIR FORMULÁRIO
+              </Button>
+              <p className="text-[10px] text-[#8A847C] uppercase font-bold tracking-widest">
+                Você será redirecionado para o site parceiro da clínica.
+              </p>
+           </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#FDFBF7] pb-20 font-sans">
@@ -163,11 +218,54 @@ export default function AnamneseForm({ token }: { token: string }) {
                               {opt}
                            </button>
                         ))}
+
                      </div>
                   )}
                   {/* Outros tipos aqui (date, number, etc) podem ser adicionados conforme a necessidade */}
                </div>
             ))}
+
+             <div className="bg-[#FAF6E9] p-6 rounded-3xl border border-[#E5E0D8] space-y-6">
+                <div>
+                   <h3 className="text-base font-bold text-[#2C2825] mb-2">Termo de Consentimento</h3>
+                   <p className="text-sm text-[#5C5855] leading-relaxed mb-4">
+                      Declaro que as informações acima são verdadeiras. Autorizo a clínica a utilizar estes dados estritamente para fins de avaliação e acompanhamento clínico, em conformidade com a Lei Geral de Proteção de Dados (LGPD).
+                   </p>
+                   <label className="flex items-start gap-3 cursor-pointer group">
+                      <div className="pt-0.5">
+                         <input 
+                            type="checkbox" 
+                            className="w-5 h-5 rounded border-[#E5E0D8] text-[#D4AF37] focus:ring-[#D4AF37] cursor-pointer"
+                            checked={consentAccepted}
+                            onChange={(e) => setConsentAccepted(e.target.checked)}
+                         />
+                      </div>
+                      <span className="text-sm font-bold text-[#2C2825] group-hover:text-[#D4AF37] transition-colors">Li e concordo com o termo de consentimento</span>
+                   </label>
+                </div>
+
+                <div className="pt-4 border-t border-[#E5E0D8]/50">
+                   <h3 className="text-base font-bold text-[#2C2825] mb-2">Assinatura Digital</h3>
+                   <p className="text-xs text-[#8A847C] mb-4">Por favor, assine no quadro abaixo usando o mouse ou o dedo.</p>
+                   
+                   <div className="bg-white border-2 border-dashed border-[#E5E0D8] rounded-2xl overflow-hidden relative touch-none hover:border-[#D4AF37] transition-colors">
+                      <SignatureCanvas 
+                         ref={sigCanvas}
+                         penColor="#2C2825"
+                         canvasProps={{
+                            className: 'w-full h-40 cursor-crosshair'
+                         }}
+                      />
+                      <button 
+                         type="button" 
+                         onClick={() => sigCanvas.current?.clear()}
+                         className="absolute bottom-2 right-2 px-3 py-1 bg-neutral-100 text-neutral-500 text-xs font-bold rounded-lg hover:bg-neutral-200 transition-colors"
+                      >
+                         Limpar
+                      </button>
+                   </div>
+                </div>
+             </div>
 
             <div className="pt-6">
                 <Button 

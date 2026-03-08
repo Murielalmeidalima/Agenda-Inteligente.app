@@ -25,6 +25,8 @@ export const submitAnamneseSchema = z.object({
     (answers) => Object.keys(answers).length > 0,
     'Pelo menos uma resposta é obrigatória'
   ),
+  consentAccepted: z.boolean(),
+  signatureDataUrl: z.string().url('Formato de assinatura inválido').or(z.string().startsWith('data:image/')),
 });
 
 export const createAnamneseTemplateSchema = z.object({

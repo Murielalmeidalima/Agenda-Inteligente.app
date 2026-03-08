@@ -29,6 +29,10 @@ import { createBrowserClient } from '@/lib/supabase-browser';
 interface ClientTabsProps {
   client: any;
   initialRecords: any[];
+  progressNotes?: any[];
+  appointmentRecords?: any[];
+  anamneses?: any[];
+  attachments?: any[];
   appointments: any[];
   currentProfessionalId: string;
 }
@@ -36,11 +40,24 @@ interface ClientTabsProps {
 export default function ClientDetailTabs({ 
   client, 
   initialRecords, 
+  progressNotes = [],
+  appointmentRecords = [],
+  anamneses = [],
+  attachments = [],
   appointments,
   currentProfessionalId
 }: ClientTabsProps) {
   const [records, setRecords] = useState(initialRecords);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Unificar todos os eventos clínicos em uma única timeline
+  const timelineEvents = [
+     ...initialRecords.map(r => ({ ...r, type: 'legacy' })),
+     ...progressNotes.map(n => ({ ...n, type: 'progress' })),
+     ...appointmentRecords.map(ar => ({ ...ar, type: 'appointment_record' })),
+     ...anamneses.map(a => ({ ...a, type: 'anamnese', created_at: a.completed_at })),
+     ...attachments.map(at => ({ ...at, type: 'attachment' }))
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const handleAddRecord = async (content: string) => {
     setIsSubmitting(true);
@@ -181,7 +198,10 @@ export default function ClientDetailTabs({
       {/* Medical Record Tab */}
       <TabsContent value="medical">
         <MedicalTimeline 
-          records={records} 
+          records={timelineEvents} 
+          clientId={client.id}
+          companyId={client.company_id}
+          professionalId={currentProfessionalId}
           onAddRecord={handleAddRecord}
           isSubmitting={isSubmitting}
         />

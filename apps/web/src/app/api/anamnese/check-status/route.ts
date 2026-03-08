@@ -31,22 +31,42 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ allow: true });
     }
 
-    // 3. Se exige, verificar se há resposta válida
-    const { data: response, error: respError } = await supabase
+    // 3. Se exige, verificar se há resposta válida para este cliente no prazo
+    const { data: latestResponse, error: respError } = await supabase
       .from('anamnese_responses')
-      .select('status')
-      .eq('appointment_id', appointment_id)
+      .select('status, created_at, anamnese_templates(validity_months)')
+      .eq('client_id', appointment.client_id)
       .eq('template_id', appointment.procedures.anamnese_template_id)
+      .in('status', ['completed_client', 'completed_internal'])
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
-    if (!response || (response.status !== 'completed_client' && response.status !== 'completed_internal')) {
-        return NextResponse.json({ 
-            allow: false, 
-            message: 'Anamnese obrigatória pendente. O procedimento não pode ser finalizado.' 
-        }, { status: 403 });
+    if (latestResponse) {
+      const anamneseTemplates = latestResponse.anamnese_templates as any;
+      const validityValue = anamneseTemplates?.validity_value ?? 6;
+      const validityUnit = anamneseTemplates?.validity_unit ?? 'months';
+      
+      const createdAt = new Date(latestResponse.created_at);
+      const expiresAt = new Date(createdAt.getTime());
+
+      if (validityUnit === 'days') {
+        expiresAt.setDate(expiresAt.getDate() + validityValue);
+      } else if (validityUnit === 'years') {
+        expiresAt.setFullYear(expiresAt.getFullYear() + validityValue);
+      } else {
+        expiresAt.setMonth(expiresAt.getMonth() + validityValue);
+      }
+      
+      if (expiresAt > new Date()) {
+        return NextResponse.json({ allow: true });
+      }
     }
 
-    return NextResponse.json({ allow: true });
+    return NextResponse.json({ 
+        allow: false, 
+        message: 'Anamnese obrigatória pendente ou expirada. O paciente precisa preencher a ficha novamente antes de concluir o atendimento.' 
+    }, { status: 403 });
 
   } catch (error: any) {
     console.error('Anamnese Check Error:', error);

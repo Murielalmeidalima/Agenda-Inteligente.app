@@ -35,10 +35,37 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
   const [checkingAnamnese, setCheckingAnamnese] = useState(false);
   const [sendingLink, setSendingLink] = useState(false);
 
+  // Ficha de Atendimento
+  const [clinicalNotes, setClinicalNotes] = useState('');
+  const [materialsUsed, setMaterialsUsed] = useState('');
+  const [complications, setComplications] = useState('');
+  const [recordId, setRecordId] = useState<string | null>(null);
+
   useEffect(() => {
     if (appointment) {
       setStatus(appointment.status);
       setNotes(appointment.notes || '');
+
+      const fetchMedicalRecord = async () => {
+        const supabase = createBrowserClient();
+        const { data } = await supabase.from('appointment_medical_records')
+          .select('*')
+          .eq('appointment_id', appointment.id)
+          .maybeSingle();
+        
+        if (data) {
+           setRecordId(data.id);
+           setClinicalNotes(data.clinical_notes || '');
+           setMaterialsUsed(data.materials_used || '');
+           setComplications(data.complications || '');
+        } else {
+           setRecordId(null);
+           setClinicalNotes('');
+           setMaterialsUsed('');
+           setComplications('');
+        }
+      }
+      fetchMedicalRecord();
     }
   }, [appointment]);
 
@@ -111,6 +138,30 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
         .eq('id', appointment.id);
 
       if (error) throw error;
+
+      if (status === 'completed') {
+         if (recordId) {
+             await supabase.from('appointment_medical_records')
+               .update({ 
+                  clinical_notes: clinicalNotes, 
+                  materials_used: materialsUsed, 
+                  complications, 
+                  updated_at: new Date().toISOString() 
+               })
+               .eq('id', recordId);
+         } else {
+             await supabase.from('appointment_medical_records')
+               .insert({ 
+                  appointment_id: appointment.id,
+                  company_id: appointment.company_id,
+                  client_id: appointment.client_id,
+                  professional_id: appointment.professional_id,
+                  clinical_notes: clinicalNotes,
+                  materials_used: materialsUsed,
+                  complications
+               });
+         }
+      }
 
       toast.success('Agendamento atualizado!');
       onUpdate();
@@ -212,16 +263,55 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
               </div>
            </div>
 
-           {/* Notes */}
-           <div className="space-y-2">
-              <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Notas Internas</Label>
-              <TextArea 
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                className="bg-white border-[#E5E0D8] rounded-2xl text-[#2C2825] placeholder:text-neutral-700 min-h-[100px] focus:ring-primary-500/10"
-                placeholder="Anotações sobre o atendimento..."
-              />
-           </div>
+            {/* Notes */}
+            <div className="space-y-2">
+               <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Notas Internas</Label>
+               <TextArea 
+                 value={notes}
+                 onChange={e => setNotes(e.target.value)}
+                 className="bg-white border-[#E5E0D8] rounded-2xl text-[#2C2825] placeholder:text-neutral-700 min-h-[100px] focus:ring-primary-500/10"
+                 placeholder="Anotações sobre o atendimento..."
+               />
+            </div>
+
+            {/* Ficha de Atendimento (Prontuário) apenas quando concluído */}
+            {status === 'completed' && (
+               <div className="bg-[#FAF6E9] p-4 rounded-2xl border border-[#E5E0D8] space-y-4 animate-fade-in">
+                  <h3 className="text-sm font-black text-[#2C2825] uppercase tracking-widest flex items-center gap-2">
+                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                     Ficha de Atendimento
+                  </h3>
+                  <div className="space-y-3">
+                     <div className="space-y-1">
+                        <Label className="text-xs font-bold text-[#5C5855]">Evolução / Notas Clínicas</Label>
+                        <TextArea 
+                          value={clinicalNotes}
+                          onChange={e => setClinicalNotes(e.target.value)}
+                          className="bg-white border-[#E5E0D8] rounded-xl text-sm min-h-[80px]"
+                          placeholder="Ex: Paciente apresentou melhora. Procedimento realizado sem intercorrências..."
+                        />
+                     </div>
+                     <div className="space-y-1">
+                        <Label className="text-xs font-bold text-[#5C5855]">Materiais e Insumos Utilizados</Label>
+                        <TextArea 
+                          value={materialsUsed}
+                          onChange={e => setMaterialsUsed(e.target.value)}
+                          className="bg-white border-[#E5E0D8] rounded-xl text-sm min-h-[60px]"
+                          placeholder="Ex: Seringa 3ml, Toxina 50u, Anestésico tópico..."
+                        />
+                     </div>
+                     <div className="space-y-1">
+                        <Label className="text-xs font-bold text-[#5C5855]">Complicações ou Reações Adversas</Label>
+                        <TextArea 
+                          value={complications}
+                          onChange={e => setComplications(e.target.value)}
+                          className="bg-white border-[#E5E0D8] rounded-xl text-sm min-h-[60px]"
+                          placeholder="Houve alguma complicação? Se não, deixe em branco ou informe 'Nenhuma'."
+                        />
+                     </div>
+                  </div>
+               </div>
+            )}
 
            <Button 
              onClick={handleSave} 

@@ -12,7 +12,8 @@ import {
   ChevronRight,
   Package,
   Megaphone,
-  FileText
+  FileText,
+  Activity
 } from 'lucide-react';
 
 import { Logo, LogoImage } from '../ui/Logo';
@@ -29,6 +30,7 @@ const menuItems = [
   { label: 'Estoque', href: '/dashboard/inventory', icon: Package },
   { label: 'Marketing', href: '/dashboard/marketing', icon: Megaphone },
   { label: 'Anamnese', href: '/dashboard/anamnese/templates', icon: FileText },
+  { label: 'Procedimentos', href: '/dashboard/procedures', icon: Activity },
   { label: 'Configurações', href: '/dashboard/settings', icon: Settings },
 ];
 

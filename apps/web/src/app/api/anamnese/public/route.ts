@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAnamnesePublicSchema, submitAnamneseSchema } from '@/lib/validations/anamnese';
 import { logger } from '@/lib/logger';
@@ -84,6 +85,7 @@ export async function GET(request: NextRequest) {
         template: {
           title: templateData.name,
           description: templateData.description,
+          externalFormUrl: templateData.external_form_url,
           questions: templateData.anamnese_questions.sort((a: any, b: any) => a.order - b.order)
         },
         responseId: tokenData.response_id
@@ -128,7 +130,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const { token, answers } = validation.data;
+    const { token, answers, consentAccepted, signatureDataUrl } = validation.data;
     // 1. Re-validar Token
     const { data: tokenData, error: tokenError } = await supabaseAdmin
       .from('anamnese_tokens')
@@ -162,16 +164,54 @@ export async function POST(request: NextRequest) {
 
     if (insertError) throw insertError;
 
-    // 3. Atualizar Status e Token
+    // 3. Atualizar Status e Token e salvar LGPD/Assinatura
     const clientIp = request.headers.get('x-forwarded-for') || 
                     request.headers.get('x-real-ip') || 
                     'unknown';
+    const userAgent = request.headers.get('user-agent') || 'unknown';
+
+    let uploadedSignatureUrl = null;
+    let signatureHash = null;
+
+    if (signatureDataUrl) {
+      const base64Data = signatureDataUrl.replace(/^data:image\/\w+;base64,/, "");
+      const buffer = Buffer.from(base64Data, 'base64');
+      const fileName = `signature_${tokenData.response_id}_${Date.now()}.png`;
+
+      const { error: uploadError } = await supabaseAdmin
+        .storage
+        .from('anamnese_documents')
+        .upload(fileName, buffer, {
+          contentType: 'image/png',
+          upsert: true
+        });
+
+      if (!uploadError) {
+        const { data: publicUrlData } = supabaseAdmin
+          .storage
+          .from('anamnese_documents')
+          .getPublicUrl(fileName);
+        uploadedSignatureUrl = publicUrlData.publicUrl;
+        
+        signatureHash = crypto.createHash('sha256').update(signatureDataUrl + tokenData.response_id + Date.now().toString()).digest('hex');
+      } else {
+        logger.error('Failed to upload signature', uploadError);
+      }
+    }
 
     await supabaseAdmin.from('anamnese_responses')
       .update({ 
         status: 'completed_client', 
         completed_at: new Date().toISOString(),
-        ip_address: clientIp
+        ip_address: clientIp,
+        consent_accepted: consentAccepted,
+        consent_text: 'Declaro que as informações acima são verdadeiras. Autorizo a clínica a utilizar estes dados estritamente para fins de avaliação e acompanhamento clínico, em conformidade com a Lei Geral de Proteção de Dados (LGPD).',
+        consent_timestamp: new Date().toISOString(),
+        consent_ip: clientIp,
+        consent_user_agent: userAgent,
+        signature_image_url: uploadedSignatureUrl,
+        signature_hash: signatureHash,
+        signature_timestamp: uploadedSignatureUrl ? new Date().toISOString() : null
       })
       .eq('id', tokenData.response_id);
 

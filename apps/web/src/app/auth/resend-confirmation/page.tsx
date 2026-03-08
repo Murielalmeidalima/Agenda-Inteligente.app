@@ -9,14 +9,15 @@ import { AlertCircle, Mail, CheckCircle2, Loader2, ArrowLeft, MailCheck } from '
 import { LogoImage } from '@/components/ui/Logo';
 import { AnimatedBackground } from '@/components/auth/AnimatedBackground';
 
-export default function ResendConfirmationPage() {
+import { Suspense } from 'react';
+
+function ResendConfirmationContent() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  // Pré-preencher e-mail se vier como query param
   useEffect(() => {
     const emailParam = searchParams?.get('email');
     if (emailParam) setEmail(emailParam);
@@ -167,5 +168,13 @@ export default function ResendConfirmationPage() {
         </div>
       </div>
     </AnimatedBackground>
+  );
+}
+
+export default function ResendConfirmationPage() {
+  return (
+    <Suspense fallback={<div>Carregando...</div>}>
+      <ResendConfirmationContent />
+    </Suspense>
   );
 }
