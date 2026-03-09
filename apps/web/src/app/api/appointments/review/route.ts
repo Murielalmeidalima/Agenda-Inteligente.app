@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     // I missed `appointment_reviews` table in Step 1/2.
     // I'll assume I can add it now.
     
+    const now = new Date();
     const { error: reviewError } = await supabaseAdmin
         .from('appointment_reviews') 
         .insert({
@@ -46,7 +47,9 @@ export async function POST(request: NextRequest) {
             company_id: appointment.company_id,
             client_id: appointment.client_id,
             rating,
-            comment
+            comment,
+            review_month: now.getMonth() + 1,
+            review_year: now.getFullYear()
         });
 
     // If table doesn't exist, this fails. I should have added it.

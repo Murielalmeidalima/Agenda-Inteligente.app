@@ -38,27 +38,54 @@ function NewTransactionForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialType = searchParams.get('type') || 'income';
+  const appointmentId = searchParams.get('appointment_id');
   const { profile } = useProfile();
 
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [error, setError] = useState('');
+  const [linkedAppointment, setLinkedAppointment] = useState<any>(null);
   
   const [formData, setFormData] = useState({
-    description: '',
-    amount: '',
+    description: searchParams.get('description') || '',
+    amount: searchParams.get('amount') || '',
     type: initialType,
     category_id: '',
     account_id: '',
     date: new Date().toISOString().split('T')[0],
     payment_method: 'pix',
-    notes: ''
+    notes: '',
+    appointment_id: appointmentId || null
   });
 
   useEffect(() => {
     fetchInitialData();
-  }, []);
+    if (appointmentId) fetchAppointmentData();
+  }, [appointmentId, formData.type]);
+
+  async function fetchAppointmentData() {
+    try {
+      const supabase = createBrowserClient();
+      const { data } = await supabase
+        .from('appointments')
+        .select('*, clients(full_name), procedures(name, price)')
+        .eq('id', appointmentId)
+        .single();
+      
+      if (data) {
+        setLinkedAppointment(data);
+        if (!formData.description) {
+          setFormData(prev => ({
+            ...prev,
+            description: `Recebimento: ${data.clients?.full_name}`
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching linked appointment:', err);
+    }
+  }
 
   async function fetchInitialData() {
     try {
@@ -87,7 +114,7 @@ function NewTransactionForm() {
     setError('');
 
     if (!profile?.company_id) {
-       setError('Erro: Empresa não identificada. Recarregue a página.');
+       setError('Erro: Empresa não identificada.');
        setLoading(false);
        return;
     }
@@ -105,7 +132,6 @@ function NewTransactionForm() {
 
       if (insertError) throw insertError;
 
-      // 2. Atualizar saldo da conta (Simplificado para o MVP)
       const multiplier = formData.type === 'income' ? 1 : -1;
       const amountNum = parseFloat(formData.amount.replace(',', '.'));
       
@@ -118,46 +144,70 @@ function NewTransactionForm() {
       router.refresh();
     } catch (err: any) {
       console.error('Error creating transaction:', err);
-      setError(err.message || 'Erro ao salvar lançamento. Tente novamente.');
+      setError(err.message || 'Erro ao salvar lançamento.');
       setLoading(false);
     }
   };
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-20">
+      {/* Linked Appointment Info Banner */}
+      {linkedAppointment && (
+        <div className="bg-rose-50 border border-rose-100 p-6 rounded-[2rem] flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-4">
+             <div className="h-12 w-12 bg-rose-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-rose-200">
+                <Briefcase className="h-6 w-6" />
+             </div>
+             <div>
+                <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest mb-0.5">Atendimento Vinculado</p>
+                <p className="text-sm font-black text-slate-900">{linkedAppointment.clients?.full_name} <span className="text-slate-400 font-bold mx-2">/</span> {linkedAppointment.procedures?.name}</p>
+             </div>
+          </div>
+          <div className="text-right">
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Valor do Serviço</p>
+             <p className="text-xl font-black text-slate-900 italic">
+               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(linkedAppointment.procedures?.price)}
+             </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-5">
            <Link href="/dashboard/finance">
-              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-xl bg-[#0f172a]/50 text-neutral-400 hover:text-white hover:bg-neutral-800 transition-all">
-                <ArrowLeft className="h-5 w-5" />
+              <Button variant="ghost" size="icon" className="h-12 w-12 rounded-2xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm">
+                 <ArrowLeft className="h-5 w-5" />
               </Button>
            </Link>
            <div>
-              <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                  {formData.type === 'income' ? 
-                   <TrendingUp className="h-7 w-7 text-emerald-500" /> : 
-                   <TrendingDown className="h-7 w-7 text-red-500" />
+                   <TrendingUp className="h-8 w-8 text-emerald-500" /> : 
+                   <TrendingDown className="h-8 w-8 text-rose-500" />
                  }
                  Lançar {formData.type === 'income' ? 'Receita' : 'Despesa'}
               </h1>
-              <p className="text-neutral-500 text-[10px] uppercase font-black tracking-widest mt-1">Gestão de Fluxo de Caixa Profissional</p>
+              <p className="text-slate-400 text-[10px] uppercase font-black tracking-widest mt-1.5">Registro oficial no fluxo de caixa</p>
            </div>
         </div>
 
         <Button 
           onClick={handleSubmit}
           className={cn(
-             "h-12 px-8 font-black rounded-xl shadow-lg active:scale-[0.98] transition-all",
+             "h-14 px-10 font-black rounded-2xl shadow-2xl active:scale-[0.98] transition-all text-sm uppercase tracking-widest",
              formData.type === 'income' ? 
-             "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-emerald-500/10" : 
-             "bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 shadow-red-500/10"
+             "bg-slate-900 hover:bg-black text-white shadow-slate-200" : 
+             "bg-rose-600 hover:bg-rose-700 text-white shadow-rose-200"
           )}
           disabled={loading}
-          loading={loading}
         >
-          <Save className="h-5 w-5 mr-2" />
-          Confirmar Lançamento
+          {loading ? "Salvando..." : (
+            <>
+              <Save className={cn("h-5 w-5 mr-3", formData.type === 'income' ? "text-emerald-500" : "text-white")} />
+              Confirmar Lançamento
+            </>
+          )}
         </Button>
       </div>
 
@@ -165,19 +215,19 @@ function NewTransactionForm() {
          
          {/* Essential Info */}
          <div className="space-y-8">
-            <Card className="bg-[#0f172a]/30 border-neutral-800 rounded-3xl overflow-hidden backdrop-blur-sm">
-               <CardHeader className="bg-[#020617]/50 border-b border-neutral-800 py-4 px-8">
-                  <CardTitle className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-2">
-                     <Hash className="h-3 w-3" />
+            <Card className="bg-white border-slate-100 rounded-[2rem] overflow-hidden shadow-xl shadow-slate-200/40">
+               <CardHeader className="bg-slate-50 border-b border-slate-100 py-5 px-8">
+                  <CardTitle className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                     <Hash className="h-3.5 w-3.5" />
                      Dados Principais
                   </CardTitle>
                </CardHeader>
                <CardContent className="p-8 space-y-6">
                   <div className="space-y-2">
-                     <label className="text-[10px] font-black text-neutral-600 uppercase ml-1">Descrição</label>
+                     <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Descrição do Lançamento</label>
                      <Input 
-                        placeholder="Ex: Pagamento Consulta x Luiza" 
-                        className="bg-[#020617] border-neutral-800 h-12 rounded-xl text-white placeholder:text-neutral-700 font-bold"
+                        placeholder="Ex: Recebimento Procedimento X" 
+                        className="bg-slate-50 border-slate-200 h-12 rounded-xl text-slate-900 placeholder:text-slate-300 font-bold focus:ring-rose-500/10"
                         required
                         value={formData.description}
                         onChange={(e) => handleChange('description', e.target.value)}
@@ -186,20 +236,20 @@ function NewTransactionForm() {
                   
                   <div className="grid grid-cols-2 gap-6">
                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-neutral-600 uppercase ml-1">Valor (R$)</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Valor (R$)</label>
                         <Input 
                            placeholder="0,00" 
-                           className="bg-[#020617] border-neutral-800 h-12 rounded-xl text-white placeholder:text-neutral-700 font-mono text-lg font-black"
+                           className="bg-slate-50 border-slate-200 h-12 rounded-xl text-slate-900 placeholder:text-slate-300 font-black text-lg italic"
                            required
                            value={formData.amount}
                            onChange={(e) => handleChange('amount', e.target.value)}
                         />
                      </div>
                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-neutral-600 uppercase ml-1">Data</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Data</label>
                         <Input 
                            type="date"
-                           className="bg-[#020617] border-neutral-800 h-12 rounded-xl text-white appearance-none"
+                           className="bg-slate-50 border-slate-200 h-12 rounded-xl text-slate-900 font-bold"
                            value={formData.date}
                            onChange={(e) => handleChange('date', e.target.value)}
                         />
@@ -208,34 +258,34 @@ function NewTransactionForm() {
                </CardContent>
             </Card>
 
-            <Card className="bg-[#0f172a]/30 border-neutral-800 rounded-3xl overflow-hidden backdrop-blur-sm">
-               <CardHeader className="bg-[#020617]/50 border-b border-neutral-800 py-4 px-8">
-                  <CardTitle className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-2">
-                     <Tag className="h-3 w-3" />
+            <Card className="bg-white border-slate-100 rounded-[2rem] overflow-hidden shadow-xl shadow-slate-200/40">
+               <CardHeader className="bg-slate-50 border-b border-slate-100 py-5 px-8">
+                  <CardTitle className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                     <Tag className="h-3.5 w-3.5" />
                      Classificação
                   </CardTitle>
                </CardHeader>
                <CardContent className="p-8 space-y-6">
                   <div className="space-y-2">
-                     <label className="text-[10px] font-black text-neutral-600 uppercase ml-1">Categoria Financeira</label>
+                     <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Categoria Financeira</label>
                      <Select onValueChange={(v) => handleChange('category_id', v)} value={formData.category_id}>
-                        <SelectTrigger className="bg-[#020617] border-neutral-800 h-12 rounded-xl text-white">
-                           <SelectValue placeholder="Selecione" />
+                        <SelectTrigger className="bg-slate-50 border-slate-200 h-12 rounded-xl text-slate-900 font-bold">
+                           <SelectValue placeholder="Selecione uma categoria" />
                         </SelectTrigger>
-                        <SelectContent className="bg-[#0f172a] border-neutral-800 text-white">
-                           {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                        <SelectContent className="bg-white border-slate-200 text-slate-700 rounded-2xl shadow-2xl">
+                           {categories.map(c => <SelectItem key={c.id} value={c.id} className="font-bold py-3 uppercase text-[10px] tracking-widest text-slate-500">{c.name}</SelectItem>)}
                         </SelectContent>
                      </Select>
                   </div>
                   
                   <div className="space-y-2">
-                     <label className="text-[10px] font-black text-neutral-600 uppercase ml-1">Conta de Origem/Destino</label>
+                     <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Conta de Movimentação</label>
                      <Select onValueChange={(v) => handleChange('account_id', v)} value={formData.account_id}>
-                        <SelectTrigger className="bg-[#020617] border-neutral-800 h-12 rounded-xl text-white">
+                        <SelectTrigger className="bg-slate-50 border-slate-200 h-12 rounded-xl text-slate-900 font-bold">
                            <SelectValue placeholder="Selecione a conta" />
                         </SelectTrigger>
-                        <SelectContent className="bg-[#0f172a] border-neutral-800 text-white">
-                           {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                        <SelectContent className="bg-white border-slate-200 text-slate-700 rounded-2xl shadow-2xl">
+                           {accounts.map(a => <SelectItem key={a.id} value={a.id} className="font-bold py-3 uppercase text-[10px] tracking-widest text-slate-500">{a.name}</SelectItem>)}
                         </SelectContent>
                      </Select>
                   </div>
@@ -245,36 +295,36 @@ function NewTransactionForm() {
 
          {/* Additional Details */}
          <div className="space-y-8">
-            <Card className="bg-[#0f172a]/30 border-neutral-800 rounded-3xl overflow-hidden backdrop-blur-sm h-full">
-               <CardHeader className="bg-[#020617]/50 border-b border-neutral-800 py-4 px-8">
-                  <CardTitle className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-2">
-                     <Briefcase className="h-3 w-3" />
-                     Mais Detalhes
+            <Card className="bg-white border-slate-100 rounded-[2rem] overflow-hidden shadow-xl shadow-slate-200/40 h-full">
+               <CardHeader className="bg-slate-50 border-b border-slate-100 py-5 px-8">
+                  <CardTitle className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                     <Briefcase className="h-3.5 w-3.5" />
+                     Método & Notas
                   </CardTitle>
                </CardHeader>
-               <CardContent className="p-8 space-y-6">
-                  <div className="space-y-2">
-                     <label className="text-[10px] font-black text-neutral-600 uppercase ml-1">Método de Pagamento</label>
-                     <div className="grid grid-cols-2 gap-3">
+               <CardContent className="p-8 space-y-8">
+                  <div className="space-y-4">
+                     <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Método de Pagamento</label>
+                     <div className="grid grid-cols-2 gap-4">
                         <PaymentToggle active={formData.payment_method === 'pix'} onClick={() => handleChange('payment_method', 'pix')}>PIX</PaymentToggle>
                         <PaymentToggle active={formData.payment_method === 'credit_card'} onClick={() => handleChange('payment_method', 'credit_card')}>Cartão</PaymentToggle>
                         <PaymentToggle active={formData.payment_method === 'cash'} onClick={() => handleChange('payment_method', 'cash')}>Dinheiro</PaymentToggle>
-                        <PaymentToggle active={formData.payment_method === 'transfer'} onClick={() => handleChange('payment_method', 'transfer')}>TED/DOC</PaymentToggle>
+                        <PaymentToggle active={formData.payment_method === 'transfer'} onClick={() => handleChange('payment_method', 'transfer')}>Transferência</PaymentToggle>
                      </div>
                   </div>
 
-                  <div className="space-y-2 pt-4">
-                     <label className="text-[10px] font-black text-neutral-600 uppercase ml-1">Notas Adicionais</label>
+                  <div className="space-y-4 pt-4 border-t border-slate-50">
+                     <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Observações Internas</label>
                      <TextArea 
-                        placeholder="Observações internas sobre este lançamento..."
-                        className="bg-[#020617] border-neutral-800 rounded-2xl text-white placeholder:text-neutral-700 min-h-[160px]"
+                        placeholder="Adicione detalhes complementares..."
+                        className="bg-slate-50 border-slate-200 rounded-2xl text-slate-900 placeholder:text-slate-300 min-h-[180px] font-medium"
                         value={formData.notes}
                         onChange={(e) => handleChange('notes', e.target.value)}
                      />
                   </div>
 
                   {error && (
-                     <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-sm text-red-400">
+                     <div className="flex items-center gap-3 p-5 bg-rose-50 border border-rose-100 rounded-2xl text-sm text-rose-600 font-bold">
                         <AlertCircle className="h-5 w-5 shrink-0" />
                         <p>{error}</p>
                      </div>
@@ -290,7 +340,7 @@ function NewTransactionForm() {
 
 export default function NewTransactionPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-neutral-500">Carregando formulário...</div>}>
+    <Suspense fallback={<div className="p-20 text-center text-slate-400 font-black uppercase text-[10px] tracking-widest animate-pulse">Carregando Formulário...</div>}>
       <NewTransactionForm />
     </Suspense>
   );
@@ -302,8 +352,8 @@ function PaymentToggle({ children, active, onClick }: any) {
          type="button" 
          onClick={onClick}
          className={cn(
-            "h-11 px-4 rounded-xl text-xs font-black uppercase transition-all border",
-            active ? "bg-primary-500 border-primary-500 text-white shadow-lg shadow-primary-500/10" : "bg-neutral-950/40 border-neutral-800 text-neutral-500 hover:text-white"
+            "h-12 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2",
+            active ? "bg-slate-900 border-slate-900 text-white shadow-lg shadow-slate-200 scale-[1.05]" : "bg-white border-slate-100 text-slate-400 hover:border-slate-300 hover:text-slate-600"
          )}
       >
          {children}

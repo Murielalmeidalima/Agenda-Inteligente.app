@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { 
@@ -23,13 +23,15 @@ import {
   Instagram, 
   AlertCircle,
   Hash,
-  Contact2
+  Contact2,
+  Loader2
 } from 'lucide-react';
 import Link from 'next/link';
 
-export default function NewClientPage() {
+export default function EditClientPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     full_name: '',
@@ -50,31 +52,61 @@ export default function NewClientPage() {
     observations: ''
   });
 
+  useEffect(() => {
+    fetchClient();
+  }, [params.id]);
+
+  async function fetchClient() {
+    try {
+      const supabase = createBrowserClient();
+      const { data: client, error: fetchError } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('id', params.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+      if (client) {
+        setFormData({
+          full_name: client.full_name || '',
+          phone: client.phone || '',
+          email: client.email || '',
+          cpf: client.cpf || '',
+          gender: client.gender || '',
+          birth_date: client.birth_date || '',
+          instagram: client.instagram || '',
+          address_street: client.address_street || '',
+          address_number: client.address_number || '',
+          address_neighborhood: client.address_neighborhood || '',
+          address_city: client.address_city || '',
+          address_state: client.address_state || '',
+          address_zip_code: client.address_zip_code || '',
+          emergency_contact_name: client.emergency_contact_name || '',
+          emergency_contact_phone: client.emergency_contact_phone || '',
+          observations: client.observations || ''
+        });
+      }
+    } catch (err: any) {
+      console.error('Error fetching client:', err);
+      setError('Erro ao carregar dados do cliente.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSaving(true);
     setError('');
 
     try {
       const supabase = createBrowserClient();
       
-      // 1. Pegar profile para company_id
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('id', user.id)
-        .single();
-
-      if (!profile) throw new Error('Profile not found');
-
-      // 2. Preparar dados (tratar strings vazias como null para evitar erros de UNIQUE ou obrigatoriedade)
+      // Preparar dados (tratar strings vazias como null para evitar erros de UNIQUE ou obrigatoriedade)
       const sanitizedData = Object.fromEntries(
         Object.entries(formData).map(([key, value]) => [
           key, 
@@ -82,50 +114,56 @@ export default function NewClientPage() {
         ])
       );
 
-      // 3. Inserir cliente
-      const { error: insertError } = await supabase
+      const { error: updateError } = await supabase
         .from('clients')
-        .insert({
-          ...sanitizedData,
-          company_id: profile.company_id,
-        });
+        .update(sanitizedData)
+        .eq('id', params.id);
 
-      if (insertError) throw insertError;
+      if (updateError) throw updateError;
 
-      router.push('/dashboard/clients');
+      router.push(`/dashboard/clients/${params.id}`);
       router.refresh();
+      router.push('/dashboard/clients'); // Redirect to list after edit
     } catch (err: any) {
-      if (err.message?.includes('AbortError') || err.name === 'AbortError') return;
-      console.error('Error creating client:', err);
-      setError(err.message || 'Erro ao salvar cliente. Tente novamente.');
-      setLoading(false);
+      console.error('Error updating client:', err);
+      setError(err.message || 'Erro ao salvar alterações. Tente novamente.');
+      setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
+        <Loader2 className="h-10 w-10 text-emerald-500 animate-spin" />
+        <p className="text-neutral-500 font-bold uppercase text-[10px] tracking-widest">Carregando Perfil...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-fade-in pb-20">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-           <Link href="/dashboard/clients">
+           <Link href={`/dashboard/clients/${params.id}`}>
               <Button variant="ghost" size="icon" className="h-11 w-11 rounded-xl bg-[#0f172a]/50 text-neutral-400 hover:text-white hover:bg-neutral-800 transition-all">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
            </Link>
            <div>
-              <h1 className="text-3xl font-extrabold text-white tracking-tight">Novo Cadastro</h1>
-              <p className="text-neutral-500 text-sm font-bold uppercase tracking-widest mt-1">Configurar perfil completo do paciente</p>
+              <h1 className="text-3xl font-extrabold text-white tracking-tight">Editar Cadastro</h1>
+              <p className="text-neutral-500 text-sm font-bold uppercase tracking-widest mt-1">Atualizar informações do paciente</p>
            </div>
         </div>
 
         <Button 
           onClick={handleSubmit}
           className="h-12 px-8 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/10 active:scale-[0.98] transition-all"
-          disabled={loading}
-          loading={loading}
+          disabled={saving}
+          loading={saving}
         >
           <Save className="h-5 w-5 mr-2" />
-          Salvar Paciente
+          Salvar Alterações
         </Button>
       </div>
 

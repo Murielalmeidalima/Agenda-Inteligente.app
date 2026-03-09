@@ -29,6 +29,7 @@ export default function InventoryPage() {
   const { profile, loading: profileLoading } = useProfile();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'critical' | 'ok'>('all');
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [newProduct, setNewProduct] = useState({
     name: '',
@@ -65,10 +66,26 @@ export default function InventoryPage() {
   }
 
   const lowStockCount = products?.filter((p: any) => p.current_stock <= p.min_stock).length || 0;
-  const totalInvestment = products?.reduce((acc: number, p: any) => acc + (p.price || 0) * (p.current_stock || 0), 0) || 0;
+  // Corrigido para sale_price conforme migração
+  const totalInvestment = products?.reduce((acc: number, p: any) => acc + (p.sale_price || p.price || 0) * (p.current_stock || 0), 0) || 0;
 
   async function handleTransaction(productId: string, type: 'in' | 'out', quantity: number, reason: string) {
-    if (!profile?.company_id) return;
+    if (!profile?.company_id) {
+       alert('Erro: Perfil da empresa não encontrado. Tente recarregar a página.');
+       return;
+    }
+
+    // Atualização otimista local
+    setProducts(current => current.map(p => {
+      if (p.id === productId) {
+        return {
+          ...p,
+          current_stock: type === 'in' ? Number(p.current_stock) + quantity : Number(p.current_stock) - quantity
+        };
+      }
+      return p;
+    }));
+
     try {
       const supabase = createBrowserClient();
       const { error } = await supabase
@@ -83,10 +100,13 @@ export default function InventoryPage() {
         });
 
       if (error) throw error;
-      fetchProducts();
+      
+      // Re-fetch para garantir sincronia total com o servidor
+      await fetchProducts();
     } catch (err) {
       console.error('Error recording transaction:', JSON.stringify(err, null, 2));
-      alert('Falha ao registrar movimentação');
+      alert('Falha ao registrar movimentação no servidor. Revertendo alteração local...');
+      fetchProducts(); // Reverte para o estado do servidor
     }
   }
 
@@ -101,7 +121,7 @@ export default function InventoryPage() {
           current_stock: newProduct.current_stock,
           min_stock: newProduct.min_stock,
           unit: newProduct.unit,
-          price: newProduct.sale_price,
+          sale_price: newProduct.sale_price,
           description: `Categoria: ${newProduct.category}`,
           company_id: profile.company_id
         }]);
@@ -140,7 +160,7 @@ export default function InventoryPage() {
         p.current_stock,
         p.min_stock,
         `"${p.unit}"`,
-        p.price
+        p.sale_price || p.price || 0
       ].join(','))
     ].join('\n');
 
@@ -189,15 +209,31 @@ export default function InventoryPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <KPIItem title="Total de Itens" value={products?.length || 0} icon={Package} color="primary" />
+        <KPIItem 
+          title="Total de Itens" 
+          value={products?.length || 0} 
+          icon={Package} 
+          color="primary" 
+          isActive={filterStatus === 'all'}
+          onClick={() => setFilterStatus('all')}
+        />
         <KPIItem 
            title="Alertas Críticos" 
            value={lowStockCount} 
            icon={AlertTriangle} 
            color="amber" 
            accent={lowStockCount > 0} 
+           isActive={filterStatus === 'critical'}
+           onClick={() => setFilterStatus('critical')}
         />
-        <KPIItem title="Valor em Estoque" value={`R$ ${totalInvestment.toFixed(2)}`} icon={ArrowUpRight} color="emerald" />
+        <KPIItem 
+          title="Estoque Saudável" 
+          value={products?.length - lowStockCount} 
+          icon={ArrowUpRight} 
+          color="emerald" 
+          isActive={filterStatus === 'ok'}
+          onClick={() => setFilterStatus('ok')}
+        />
       </div>
 
       {/* Main Table */}
@@ -209,7 +245,9 @@ export default function InventoryPage() {
               category: p.description?.includes('Categoria: ') ? p.description.split('Categoria: ')[1] : 'Sem Categoria'
             })) || []} 
             onTransaction={handleTransaction}
-            onAddProduct={() => setIsAddingProduct(true)} 
+            onAddProduct={() => setIsAddingProduct(true)}
+            filterStatus={filterStatus}
+            setFilterStatus={setFilterStatus}
          />
       </Card>
 
@@ -315,11 +353,14 @@ export default function InventoryPage() {
   );
 }
 
-function KPIItem({ title, value, icon: Icon, color, accent }: any) {
+function KPIItem({ title, value, icon: Icon, color, accent, onClick, isActive }: any) {
    return (
-    <Card className={cn(
-        "bg-blue-950 border-blue-900 rounded-3xl overflow-hidden shadow-xl transition-all",
-        accent && `border-amber-500/30 bg-amber-500/10 shadow-lg shadow-amber-500/20`
+    <Card 
+      onClick={onClick}
+      className={cn(
+        "bg-blue-950 border-blue-900 rounded-3xl overflow-hidden shadow-xl transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]",
+        accent && `border-amber-500/30 bg-amber-500/10 shadow-lg shadow-amber-500/20`,
+        isActive && `ring-2 ring-amber-500 ring-offset-4 ring-offset-slate-50 border-transparent bg-blue-900`
     )}>
       <CardContent className="pt-8">
         <div className="flex items-center justify-between">

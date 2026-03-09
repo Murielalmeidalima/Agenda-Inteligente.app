@@ -14,7 +14,8 @@ import {
   Tabs,
   TabsContent,
   TabsList,
-  TabsTrigger
+  TabsTrigger,
+  cn
 } from '@projeto/ui';
 import { 
   MessageSquare, 
@@ -26,7 +27,8 @@ import {
   CheckCircle2, 
   AlertCircle,
   Loader2,
-  Trash2
+  Trash2,
+  Star
 } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { useProfile } from '@/providers/profile-provider';
@@ -38,6 +40,7 @@ type Rule = {
   trigger_type: 'birthday' | 'pre_appointment' | 'post_appointment';
   time_offset_minutes: number;
   message_template: string;
+  benefit_text?: string | null;
   is_active: boolean;
   company_id: string;
 };
@@ -51,6 +54,128 @@ type AutomationLog = {
   error_message?: string;
   automation_rules?: { name: string };
 };
+
+function ReviewSettingsForm() {
+  const { profile } = useProfile();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [settings, setSettings] = useState<any>({
+    google_review_url: '',
+    enable_google_review: false,
+    feedback_type: 'internal',
+    external_forms_url: '',
+    min_rating_for_google: 4
+  });
+
+  const supabase = createBrowserClient();
+
+  useEffect(() => {
+    if (profile?.company_id) {
+       fetchSettings();
+    }
+  }, [profile?.company_id]);
+
+  async function fetchSettings() {
+    const { data, error } = await supabase
+      .from('review_settings')
+      .select('*')
+      .eq('company_id', profile?.company_id)
+      .single();
+
+    if (data) setSettings(data);
+    setLoading(false);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    const { error } = await supabase
+      .from('review_settings')
+      .upsert({
+        company_id: profile?.company_id,
+        ...settings,
+        updated_at: new Date().toISOString()
+      });
+
+    if (error) alert('Erro ao salvar configurações');
+    else alert('Configurações salvas!');
+    setSaving(false);
+  }
+
+  if (loading) return <div className="h-20 flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
+
+  return (
+    <div className="space-y-8 max-w-2xl">
+       <div className="space-y-4">
+          <div className="flex items-center justify-between">
+             <div className="space-y-0.5">
+                <Label className="text-base font-bold">Redirecionar para Google Review</Label>
+                <p className="text-sm text-muted-foreground">Clientes que derem nota alta serão convidados a avaliar no Google.</p>
+             </div>
+             <Switch 
+                checked={settings.enable_google_review} 
+                onCheckedChange={(val) => setSettings({...settings, enable_google_review: val})} 
+             />
+          </div>
+
+          {settings.enable_google_review && (
+             <div className="space-y-2 animate-in slide-in-from-top-2">
+                <Label>Link do seu Perfil no Google</Label>
+                <Input 
+                   placeholder="https://g.page/r/YOUR_ID/review" 
+                   value={settings.google_review_url || ''} 
+                   onChange={(e) => setSettings({...settings, google_review_url: e.target.value})}
+                />
+             </div>
+          )}
+       </div>
+
+       <div className="space-y-4 pt-4 border-t">
+          <div className="space-y-0.5">
+             <Label className="text-base font-bold">Fluxo de Críticas (1-3 Estrelas)</Label>
+             <p className="text-sm text-muted-foreground">Como deseja receber o feedback de clientes insatisfeitos?</p>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+             <button 
+                onClick={() => setSettings({...settings, feedback_type: 'internal'})}
+                className={cn(
+                  "p-4 rounded-xl border-2 text-left transition-all",
+                  settings.feedback_type === 'internal' ? "border-primary bg-primary/5" : "border-neutral-100 hover:border-neutral-200"
+                )}
+             >
+                <p className="font-bold text-sm">Feedback Interno</p>
+                <p className="text-[10px] text-muted-foreground">Registra apenas dentro do aplicativo.</p>
+             </button>
+             <button 
+                onClick={() => setSettings({...settings, feedback_type: 'external_forms'})}
+                className={cn(
+                  "p-4 rounded-xl border-2 text-left transition-all",
+                  settings.feedback_type === 'external_forms' ? "border-primary bg-primary/5" : "border-neutral-100 hover:border-neutral-200"
+                )}
+             >
+                <p className="font-bold text-sm">Google Forms</p>
+                <p className="text-[10px] text-muted-foreground">Redireciona para um formulário externo.</p>
+             </button>
+          </div>
+
+          {settings.feedback_type === 'external_forms' && (
+             <div className="space-y-2 animate-in slide-in-from-top-2">
+                <Label>Link do Google Forms</Label>
+                <Input 
+                   placeholder="https://docs.google.com/forms/..." 
+                   value={settings.external_forms_url || ''} 
+                   onChange={(e) => setSettings({...settings, external_forms_url: e.target.value})}
+                />
+             </div>
+          )}
+       </div>
+
+       <Button onClick={handleSave} disabled={saving} className="w-full md:w-auto min-w-[200px] h-12 bg-primary text-white font-bold">
+          {saving ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : 'Salvar Configurações'}
+       </Button>
+    </div>
+  );
+}
 
 export default function AutomationClient() {
   const { profile } = useProfile();
@@ -157,6 +282,7 @@ export default function AutomationClient() {
           trigger_type: newRule.trigger_type,
           time_offset_minutes: newRule.time_offset_minutes,
           message_template: newRule.message_template,
+          benefit_text: newRule.benefit_text,
           is_active: true
         })
         .select()
@@ -171,6 +297,7 @@ export default function AutomationClient() {
         trigger_type: 'pre_appointment',
         time_offset_minutes: -1440,
         message_template: '',
+        benefit_text: '',
         is_active: true
       });
       alert('Regra criada com sucesso!');
@@ -202,10 +329,23 @@ export default function AutomationClient() {
       </div>
 
       <Tabs defaultValue="rules" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 lg:w-[600px]">
-          <TabsTrigger value="rules">Regras de Automação</TabsTrigger>
-          <TabsTrigger value="history">Histórico de Envios</TabsTrigger>
-          <TabsTrigger value="reviews">Avaliações (NPS)</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 lg:w-[800px] h-auto p-1 bg-muted/30 rounded-2xl border border-[#E5E0D8]">
+          <TabsTrigger value="rules" className="gap-2 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl transition-all">
+            <MessageSquare className="w-4 h-4" />
+            <span className="hidden sm:inline">Regras</span>
+          </TabsTrigger>
+          <TabsTrigger value="history" className="gap-2 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl transition-all">
+            <Clock className="w-4 h-4" />
+            <span className="hidden sm:inline">Histórico</span>
+          </TabsTrigger>
+          <TabsTrigger value="birthday_campaign" className="gap-2 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl transition-all">
+            <Gift className="w-4 h-4" />
+            <span className="hidden sm:inline">Aniversariantes</span>
+          </TabsTrigger>
+          <TabsTrigger value="reviews" className="gap-2 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl transition-all">
+            <Star className="w-4 h-4" />
+            <span className="hidden sm:inline">Avaliações (NPS)</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="rules" className="space-y-6 mt-6">
@@ -240,19 +380,46 @@ export default function AutomationClient() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Tempo (Minutos de antecedência/atraso)</Label>
-                  <div className="flex gap-2 items-center">
-                    <Input 
-                      type="number" 
-                      value={newRule.time_offset_minutes} 
-                      onChange={(e) => setNewRule({...newRule, time_offset_minutes: parseInt(e.target.value)})}
-                      className="w-32"
-                    />
-                    <span className="text-sm text-muted-foreground">
-                      {newRule.trigger_type === 'pre_appointment' && 'minutos ANTES da consulta (-1440 = 24h antes)'}
-                      {newRule.trigger_type === 'post_appointment' && 'minutos DEPOIS da consulta (60 = 1h depois)'}
-                      {newRule.trigger_type === 'birthday' && 'minutos a partir da meia-noite (540 = 09:00)'}
-                    </span>
+                  <Label>Tempo de Disparo</Label>
+                  <div className="flex gap-4 items-end">
+                    <div className="space-y-1">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground">Horas</span>
+                      <Input 
+                        type="number" 
+                        value={Math.trunc((newRule.time_offset_minutes || 0) / 60)} 
+                        onChange={(e) => {
+                          const h = parseInt(e.target.value) || 0;
+                          const currentM = Math.abs((newRule.time_offset_minutes || 0) % 60);
+                          const isNegative = h < 0 || (h === 0 && e.target.value.startsWith('-'));
+                          setNewRule({...newRule, time_offset_minutes: h * 60 + (isNegative ? -currentM : currentM)});
+                        }}
+                        className="w-24 h-12 text-center font-bold"
+                      />
+                    </div>
+                    <div className="text-2xl font-serif text-muted-foreground pb-2">:</div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground">Minutos</span>
+                      <Input 
+                        type="number" 
+                        min="0"
+                        max="59"
+                        value={Math.abs((newRule.time_offset_minutes || 0) % 60)} 
+                        onChange={(e) => {
+                          const m = Math.min(59, Math.abs(parseInt(e.target.value) || 0));
+                          const currentH = Math.trunc((newRule.time_offset_minutes ?? 0) / 60);
+                          const isNegative = currentH < 0 || (Object.is(currentH, -0) || ((newRule.time_offset_minutes ?? 0) < 0));
+                          setNewRule({...newRule, time_offset_minutes: currentH * 60 + (isNegative ? -m : m)});
+                        }}
+                        className="w-24 h-12 text-center font-bold"
+                      />
+                    </div>
+                    <div className="pb-1">
+                      <p className="text-xs text-muted-foreground italic">
+                        {newRule.trigger_type === 'pre_appointment' && 'Antes da consulta (use horas negativas)'}
+                        {newRule.trigger_type === 'post_appointment' && 'Depois da consulta (use horas positivas)'}
+                        {newRule.trigger_type === 'birthday' && 'Horário do dia (Ex: 09:00)'}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -266,6 +433,18 @@ export default function AutomationClient() {
                   />
                   <p className="text-xs text-muted-foreground">Variáveis disponíveis: {'{cliente}, {profissional}, {data}, {hora}, {servico}'}</p>
                 </div>
+
+                {newRule.trigger_type === 'birthday' && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-left-2">
+                    <Label className="text-primary font-bold">Benefício de Aniversário (Opcional)</Label>
+                    <Input 
+                      placeholder="Ex: 20% de desconto em qualquer procedimento" 
+                      value={newRule.benefit_text || ''} 
+                      onChange={(e) => setNewRule({...newRule, benefit_text: e.target.value})}
+                    />
+                    <p className="text-xs text-muted-foreground">Este benefício será destacado para a equipe quando o cliente agendar no mês.</p>
+                  </div>
+                )}
 
                 <div className="flex justify-end gap-2 pt-2">
                   <Button variant="outline" onClick={() => setIsCreating(false)} disabled={saving}>Cancelar</Button>
@@ -366,8 +545,43 @@ export default function AutomationClient() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="reviews" className="mt-6">
+        <TabsContent value="birthday_campaign" className="mt-6 space-y-6">
+          <Card className="bg-gradient-to-br from-primary/10 to-transparent border-primary/20">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <Gift className="w-8 h-8 text-primary" />
+                <div>
+                  <CardTitle>Campanha de Aniversariantes do Mês</CardTitle>
+                  <CardDescription>Clientes que fazem aniversário em {new Date().toLocaleDateString('pt-BR', { month: 'long' })} e não possuem agendamento.</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+             {/* Esta lógica precisaria de uma busca por clientes aniversariantes via props ou nova consulta */}
+             {/* Por enquanto, como o componente é Client-Side, vamos sugerir a consulta ou o uso de filtros */}
+             <div className="col-span-full text-center py-12 border-2 border-dashed rounded-3xl bg-muted/20">
+                <p className="text-muted-foreground font-medium">Filtre seus clientes para iniciar o disparo de mensagens personalizadas.</p>
+                <Button variant="outline" className="mt-4 gap-2" onClick={() => window.location.href='/dashboard/clients'}>
+                  Ir para Lista de Clientes
+                </Button>
+             </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="reviews" className="mt-6 space-y-6">
           <ReviewsWidget />
+          
+          <Card className="border-[#E5E0D8]">
+            <CardHeader>
+               <CardTitle className="font-serif">Configuração da Avaliação Híbrida</CardTitle>
+               <CardDescription>Personalize como seus clientes avaliam sua clínica após o atendimento.</CardDescription>
+            </CardHeader>
+            <CardContent>
+               <ReviewSettingsForm />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

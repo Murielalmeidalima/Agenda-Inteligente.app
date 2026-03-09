@@ -13,6 +13,7 @@ export type Client = {
 export type Company = {
   id: string;
   name: string;
+  logo_url?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -26,6 +27,7 @@ export type Profile = {
   full_name: string | null;
   phone: string | null;
   email: string | null;
+  approved: boolean;
   created_at: string;
   companies: Company | null;
 };

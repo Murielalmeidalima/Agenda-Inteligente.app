@@ -52,20 +52,21 @@ export function Logo({ className, size = 40, showText = false }: LogoProps) {
   );
 }
 
-export function LogoImage({ className, size = 40 }: LogoProps) {
+export function LogoImage({ className, size = 40, src }: LogoProps & { src?: string | null }) {
+  const finalSrc = src || "/images/logo.jpg";
+
   return (
     <div 
-      className={`relative flex items-center justify-center overflow-hidden border border-dashed border-amber-200 rounded-xl ${className || ''}`} 
+      className={`relative flex items-center justify-center overflow-hidden rounded-xl border border-dashed border-amber-200 ${className || ''}`} 
       style={{ width: size * 3, height: size * 1.2 }}
     >
       <img
-        src="/images/logo.jpg"
-        alt="Agenda Inteligente"
+        src={finalSrc}
+        alt="Logo"
         className="w-full h-full object-contain"
         onError={(e) => {
-          // Se a imagem falhar, mostre o texto
           e.currentTarget.style.display = 'none';
-          e.currentTarget.parentElement!.innerHTML += '<span class="text-xs font-bold text-amber-600">Logo não carregada</span>';
+          e.currentTarget.parentElement!.innerHTML += '<span class="text-[10px] font-bold text-amber-600">Logo</span>';
         }}
       />
     </div>

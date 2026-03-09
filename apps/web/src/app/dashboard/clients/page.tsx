@@ -17,6 +17,12 @@ import {
   TableCell,
   Avatar,
   AvatarFallback,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
   cn,
   toast
 } from '@projeto/ui';
@@ -38,10 +44,38 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [clientToDelete, setClientToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchClients();
   }, []);
+
+  async function handleDelete() {
+    if (!clientToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      const supabase = createBrowserClient();
+      const { error } = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', clientToDelete.id);
+
+      if (error) throw error;
+
+      setClients(clients.filter(c => c.id !== clientToDelete.id));
+      setDeleteDialogOpen(false);
+      setClientToDelete(null);
+      toast.success('Cliente excluído com sucesso');
+    } catch (err: any) {
+      console.error('Error deleting client:', err);
+      toast.error('Erro ao excluir cliente');
+    } finally {
+      setIsDeleting(false);
+    }
+  }
 
   async function fetchClients() {
     try {
@@ -89,18 +123,20 @@ export default function ClientsPage() {
     <div className="space-y-8 animate-fade-in-up">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <h1 className="text-4xl font-bold text-[#2C2825] tracking-tight flex items-center gap-3 font-serif">
-             <div className="p-3 bg-[#D4AF37]/10 rounded-2xl border border-[#D4AF37]/20">
-                <Users className="h-8 w-8 text-[#D4AF37]" />
-             </div>
-             Gestão de Clientes
-          </h1>
-          <p className="text-[#8A847C] mt-2 text-lg">Gerencie sua base de pacientes e visualize históricos completos.</p>
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-amber-950 rounded-2xl shadow-lg border border-amber-900/50">
+            <Users className="h-8 w-8 text-amber-500" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-black text-[#2C2825] tracking-tight font-serif">
+              Gestão de Clientes
+            </h1>
+            <p className="text-[#8A847C] mt-1 text-sm font-medium">Gerencie sua base de pacientes e visualize históricos completos.</p>
+          </div>
         </div>
         
         <Link href="/dashboard/clients/new">
-          <Button className="h-12 px-8 rounded-2xl shadow-xl shadow-[#D4AF37]/10 active:scale-[0.98] transition-all text-base">
+          <Button className="h-12 px-8 rounded-2xl shadow-xl shadow-amber-500/10 active:scale-[0.98] transition-all text-base bg-slate-900 border-none hover:bg-black text-white">
             <UserPlus className="h-5 w-5 mr-2" />
             Cadastrar Novo Cliente
           </Button>
@@ -199,12 +235,34 @@ export default function ClientsPage() {
                     </TableCell>
                     <TableCell className="pr-4 text-right">
                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button size="icon" variant="ghost" className="h-10 w-10 text-[#8A847C] hover:text-[#D4AF37] hover:bg-white rounded-xl border border-transparent hover:border-[#E5E0D8] shadow-none hover:shadow-sm">
-                             <MoreVertical className="h-4 w-4" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-10 w-10 text-[#8A847C] hover:text-[#D4AF37] hover:bg-white rounded-xl border border-transparent hover:border-[#E5E0D8] shadow-none hover:shadow-sm">
-                             <ChevronRight className="h-4 w-4" />
-                          </Button>
+                          <div className="relative group/menu">
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              className="h-10 w-10 text-[#8A847C] hover:text-[#D4AF37] hover:bg-white rounded-xl border border-transparent hover:border-[#E5E0D8] shadow-none hover:shadow-sm"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                            
+                            {/* Custom Action Menu */}
+                            <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-[#E5E0D8] rounded-2xl shadow-xl shadow-black/5 py-2 z-50 invisible group-focus-within/menu:visible opacity-0 group-focus-within/menu:opacity-100 transition-all transform origin-top-right">
+                               <Link href={`/dashboard/clients/${client.id}`} className="flex items-center gap-3 px-4 py-2 text-sm text-[#5C5855] hover:bg-[#FAF9F6] hover:text-[#D4AF37] transition-colors">
+                                  <ChevronRight className="h-4 w-4" /> Visualizar Perfil
+                               </Link>
+                               <Link href={`/dashboard/clients/${client.id}/edit`} className="flex items-center gap-3 px-4 py-2 text-sm text-[#5C5855] hover:bg-[#FAF9F6] hover:text-[#D4AF37] transition-colors">
+                                  <Filter className="h-4 w-4" /> Editar Cadastro
+                               </Link>
+                               <button 
+                                  onClick={() => {
+                                    setClientToDelete(client);
+                                    setDeleteDialogOpen(true);
+                                  }}
+                                  className="flex items-center gap-3 px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors w-full text-left"
+                               >
+                                  <AlertCircle className="h-4 w-4" /> Excluir Cliente
+                               </button>
+                            </div>
+                          </div>
                        </div>
                     </TableCell>
                   </TableRow>
@@ -214,6 +272,40 @@ export default function ClientsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="rounded-3xl border-[#E5E0D8] bg-white max-w-md p-8">
+          <DialogHeader className="space-y-4">
+            <div className="h-14 w-14 bg-red-50 rounded-2xl flex items-center justify-center border border-red-100">
+               <AlertCircle className="h-7 w-7 text-red-500" />
+            </div>
+            <DialogTitle className="text-2xl font-bold text-[#2C2825] font-serif">Confirmar Exclusão</DialogTitle>
+            <DialogDescription className="text-[#8A847C] text-base leading-relaxed">
+              Tem certeza que deseja excluir o cliente{' '}
+              <strong className="text-[#2C2825]">{clientToDelete?.full_name}</strong>? Esta ação removerá todos os dados do paciente permanentemente.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-8 flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+              className="h-12 flex-1 rounded-xl border-[#E5E0D8] text-[#5C5855] hover:bg-[#FAF9F6] font-bold"
+              disabled={isDeleting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleDelete}
+              className="h-12 flex-1 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold shadow-lg shadow-red-500/20 active:scale-[0.98] transition-all"
+              loading={isDeleting}
+              disabled={isDeleting}
+            >
+              Excluir Registro
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Summary Section */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

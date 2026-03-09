@@ -17,7 +17,8 @@ import {
   DialogTitle,
   DialogFooter,
   Label,
-  TextArea
+  TextArea,
+  cn
 } from '@projeto/ui';
 import { 
   Plus, 
@@ -46,9 +47,18 @@ interface StockTableProps {
   onTransaction: (productId: string, type: 'in' | 'out', quantity: number, reason: string) => Promise<void>;
   onAddProduct: () => void;
   isLoading?: boolean;
+  filterStatus: 'all' | 'critical' | 'ok';
+  setFilterStatus: (val: 'all' | 'critical' | 'ok') => void;
 }
 
-export default function StockTable({ products, onTransaction, onAddProduct, isLoading = false }: StockTableProps) {
+export default function StockTable({ 
+  products, 
+  onTransaction, 
+  onAddProduct, 
+  isLoading = false,
+  filterStatus,
+  setFilterStatus
+}: StockTableProps) {
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [transactionType, setTransactionType] = useState<'in' | 'out'>('in');
@@ -56,14 +66,19 @@ export default function StockTable({ products, onTransaction, onAddProduct, isLo
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ... (existing filter logic)
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.category.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
+                         p.category.toLowerCase().includes(search.toLowerCase());
+    
+    const isCritical = p.current_stock <= p.min_stock;
+    const matchesStatus = filterStatus === 'all' || 
+                         (filterStatus === 'critical' && isCritical) || 
+                         (filterStatus === 'ok' && !isCritical);
+
+    return matchesSearch && matchesStatus;
+  });
 
   const handleTransaction = async () => {
-     // ... (existing handler)
      if (!selectedProduct) return;
      setIsSubmitting(true);
      await onTransaction(selectedProduct.id, transactionType, quantity, reason);
@@ -75,25 +90,43 @@ export default function StockTable({ products, onTransaction, onAddProduct, isLo
 
   return (
     <div className="space-y-4">
-      {/* ... Search Bar ... */}
-      <div className="flex items-center justify-between gap-4">
+      {/* Search Bar */}
+      <div className="flex items-center justify-between gap-4 p-4 border-b border-neutral-100 bg-slate-50/30">
+        <div className="flex items-center gap-3">
+           <div className="p-2 bg-white border rounded-xl shadow-sm">
+              <Filter className="h-4 w-4 text-slate-400" />
+           </div>
+           <div className="space-y-0.5">
+              <p className="text-xs font-bold text-slate-700">Filtro Ativo</p>
+              <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-primary">
+                {filterStatus === 'all' ? 'Ver Todos' : filterStatus === 'critical' ? 'Estoque Crítico' : 'Estoque Saudável'}
+              </p>
+           </div>
+        </div>
+
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="Buscar produto ou categoria..." 
-            className="pl-10 h-10 bg-white border-neutral-200 text-slate-900 placeholder:text-slate-400 rounded-xl focus:ring-blue-500"
+            className="pl-10 h-11 bg-white border-neutral-200 text-slate-900 placeholder:text-slate-400 rounded-xl focus:ring-blue-500 shadow-sm"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" className="h-10 w-10 border-neutral-200 bg-white text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl">
-            <Filter className="h-4 w-4" />
-          </Button>
-        </div>
+
+        {filterStatus !== 'all' && (
+           <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setFilterStatus('all')}
+            className="text-primary font-bold hover:bg-primary/10 rounded-xl px-4"
+           >
+             Limpar Filtro
+           </Button>
+        )}
       </div>
 
-      <div className="border border-neutral-100 rounded-3xl bg-white overflow-hidden shadow-sm">
+      <div className="bg-white">
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50/50 border-b border-neutral-100 hover:bg-transparent">
@@ -151,14 +184,15 @@ export default function StockTable({ products, onTransaction, onAddProduct, isLo
                     </TableCell>
                     <TableCell>
                       {isLowStock ? (
-                        <div className="flex items-center gap-1.5 text-amber-600 font-medium text-sm">
-                          <AlertTriangle className="h-4 w-4" />
-                          Estoque Baixo
+                        <div className="flex items-center gap-1.5 text-red-600 font-bold text-xs bg-red-50 px-3 py-1.5 rounded-full w-fit border border-red-100 animate-pulse">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          ESTOQUE CRÍTICO
                         </div>
                       ) : (
-                        <Badge variant="success" className="bg-teal-50 text-teal-700 border-none">
-                          Normal
-                        </Badge>
+                        <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-xs bg-emerald-50 px-3 py-1.5 rounded-full w-fit border border-emerald-100">
+                           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                           ESTOQUE OK
+                        </div>
                       )}
                     </TableCell>
                     <TableCell className="text-right">

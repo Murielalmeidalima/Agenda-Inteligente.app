@@ -13,7 +13,9 @@ import {
   Package,
   Megaphone,
   FileText,
-  Activity
+  Activity,
+  TrendingUp,
+  Target
 } from 'lucide-react';
 
 import { Logo, LogoImage } from '../ui/Logo';
@@ -23,15 +25,17 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 const menuItems = [
-  { label: 'Início', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Agenda', href: '/dashboard/schedule', icon: Calendar },
-  { label: 'Clientes', href: '/dashboard/clients', icon: Users },
-  { label: 'Financeiro', href: '/dashboard/finance', icon: Wallet },
-  { label: 'Estoque', href: '/dashboard/inventory', icon: Package },
-  { label: 'Marketing', href: '/dashboard/marketing', icon: Megaphone },
-  { label: 'Anamnese', href: '/dashboard/anamnese/templates', icon: FileText },
-  { label: 'Procedimentos', href: '/dashboard/procedures', icon: Activity },
-  { label: 'Configurações', href: '/dashboard/settings', icon: Settings },
+  { label: 'Início', href: '/dashboard', icon: LayoutDashboard, color: 'text-slate-500', bg: 'bg-slate-500' },
+  { label: 'Agenda', href: '/dashboard/schedule', icon: Calendar, color: 'text-amber-500', bg: 'bg-amber-500' },
+  { label: 'Clientes', href: '/dashboard/clients', icon: Users, color: 'text-blue-500', bg: 'bg-blue-500' },
+  { label: 'Financeiro', href: '/dashboard/finance', icon: Wallet, color: 'text-emerald-500', bg: 'bg-emerald-500' },
+  { label: 'Estoque', href: '/dashboard/inventory', icon: Package, color: 'text-orange-500', bg: 'bg-orange-500' },
+  { label: 'Marketing', href: '/dashboard/marketing', icon: Megaphone, color: 'text-rose-500', bg: 'bg-rose-500' },
+  { label: 'Anamnese', href: '/dashboard/anamnese/templates', icon: FileText, color: 'text-violet-500', bg: 'bg-violet-500' },
+  { label: 'Procedimentos', href: '/dashboard/procedures', icon: Activity, color: 'text-red-500', bg: 'bg-red-500' },
+  { label: 'Análises', href: '/dashboard/analytics', icon: TrendingUp, color: 'text-cyan-500', bg: 'bg-cyan-500' },
+  { label: 'Planejamento', href: '/dashboard/planning', icon: Target, color: 'text-amber-500', bg: 'bg-amber-500' },
+  { label: 'Configurações', href: '/dashboard/settings', icon: Settings, color: 'text-slate-400', bg: 'bg-slate-400' },
 ];
 
 export function Sidebar() {
@@ -49,7 +53,6 @@ export function Sidebar() {
     router.push('/auth/login');
   };
 
-  // Função para gerar iniciais do nome
   const getInitials = (name: string | null | undefined): string => {
     if (!name) return '?';
     const parts = name.trim().split(' ');
@@ -57,30 +60,29 @@ export function Sidebar() {
     return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
   };
 
-  // Função para obter cor de fundo do avatar baseada no nome
   const getAvatarColor = (name: string | null | undefined): string => {
     if (!name) return 'bg-[#D4AF37]';
     const colors = [
-      'bg-[#D4AF37]', // Gold
-      'bg-[#B5952F]', // Dark Gold
-      'bg-[#C5A028]', // Medium Gold
+      'bg-slate-900',
+      'bg-blue-600',
+      'bg-emerald-600',
       'bg-amber-600',
-      'bg-yellow-600',
+      'bg-rose-600',
     ];
     const index = name.length % colors.length;
     return colors[index];
   };
 
   return (
-    <aside className="w-64 bg-white min-h-screen p-6 flex flex-col border-r border-[#E5E0D8] relative overflow-hidden transition-colors duration-300 shadow-sm z-30">
-      {/* Glow Effect */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-[#D4AF37]/5 rounded-full blur-[100px] pointer-events-none" />
+    <aside className="w-64 bg-white min-h-screen p-6 flex flex-col border-r border-slate-100 relative overflow-hidden transition-colors duration-300 shadow-sm z-30">
+      {/* Subtle Background Glow */}
+      <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-full blur-[100px] pointer-events-none opacity-50" />
       
       <div className="mb-10 flex items-center justify-center relative z-10 px-4">
         <LogoImage size={80} />
       </div>
       
-      <nav className="flex-1 space-y-1.5 relative z-10">
+      <nav className="flex-1 space-y-2 relative z-10">
         {menuItems.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -88,22 +90,27 @@ export function Sidebar() {
               key={item.href}
               href={item.href} 
               className={cn(
-                "group flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all duration-300 relative overflow-hidden",
+                "group flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 relative overflow-hidden",
                 isActive 
-                  ? "bg-[#D4AF37]/10 text-[#2C2825] font-bold shadow-sm ring-1 ring-[#D4AF37]/20" 
-                  : "text-[#8A847C] hover:text-[#5C5855] hover:bg-[#FAF9F6] hover:shadow-sm"
+                  ? "bg-slate-50 text-slate-900 font-bold shadow-sm ring-1 ring-slate-100" 
+                  : "text-slate-400 hover:text-slate-900 hover:bg-slate-50"
               )}
             >
               <div className="flex items-center gap-3.5">
-                <item.icon className={cn(
-                  "h-5 w-5 transition-all duration-300 group-hover:scale-110", 
-                   isActive ? "text-[#B5952F] fill-[#D4AF37]/20" : "text-[#A8A49D] group-hover:text-[#B5952F]"
-                )} />
+                <div className={cn(
+                  "p-2 rounded-xl transition-all duration-300",
+                   isActive ? item.bg + " shadow-lg shadow-slate-200" : "bg-transparent group-hover:bg-white border border-transparent group-hover:border-slate-100"
+                )}>
+                  <item.icon className={cn(
+                    "h-4 w-4 transition-all duration-300", 
+                     isActive ? "text-white" : cn("text-slate-300 group-hover:", item.color)
+                  )} />
+                </div>
                 <span className="text-sm tracking-wide">{item.label}</span>
               </div>
               {isActive && (
                 <div className="flex items-center">
-                  <div className="w-1.5 h-1.5 bg-[#D4AF37] rounded-full shadow-[0_0_8px_rgba(212,175,55,0.6)] mr-2" />
+                  <div className={cn("w-1.5 h-1.5 rounded-full shadow-lg", item.bg.replace('bg-', 'bg-'))} />
                 </div>
               )}
             </Link>
@@ -112,32 +119,32 @@ export function Sidebar() {
       </nav>
 
       {/* Footer / Profile Snippet */}
-      <div className="mt-auto border-t border-[#E5E0D8] pt-6 space-y-3">
+      <div className="mt-auto border-t border-slate-100 pt-6 space-y-3">
         {/* User Profile Card */}
-        <div className="bg-[#FAF9F6] rounded-2xl p-4 border border-[#E5E0D8] flex items-center gap-3 cursor-pointer hover:border-[#D4AF37]/30 transition-colors group">
+        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex items-center gap-3 cursor-pointer hover:border-slate-200 transition-colors group">
           {loading ? (
             <>
-              <div className="h-10 w-10 rounded-full bg-[#E5E0D8] animate-pulse" />
+              <div className="h-10 w-10 rounded-full bg-slate-100 animate-pulse" />
               <div className="flex-1 space-y-2">
-                <div className="h-3 bg-[#E5E0D8] rounded animate-pulse" />
-                <div className="h-2 bg-[#E5E0D8] rounded w-2/3 animate-pulse" />
+                <div className="h-3 bg-slate-100 rounded animate-pulse" />
+                <div className="h-2 bg-slate-100 rounded w-2/3 animate-pulse" />
               </div>
             </>
           ) : (
             <>
               <div 
                 className={cn(
-                  "h-10 w-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md group-hover:scale-105 transition-transform",
+                  "h-10 w-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg group-hover:scale-105 transition-transform",
                   getAvatarColor(profile?.full_name)
                 )}
               >
                 {getInitials(profile?.full_name)}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-[#2C2825] truncate">
+                <p className="text-sm font-black text-slate-900 truncate tracking-tight">
                   {profile?.full_name || 'Usuário'}
                 </p>
-                <p className="text-[10px] text-[#8A847C] font-semibold uppercase tracking-wider truncate">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">
                   {profile?.companies?.name || 'Clínica'}
                 </p>
               </div>
@@ -149,10 +156,10 @@ export function Sidebar() {
         <button
           onClick={handleLogout}
           disabled={isLoggingOut}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-[#8A847C] hover:text-red-600 hover:bg-red-50 transition-all duration-300 group disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all duration-300 group disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <LogOut className="h-5 w-5 group-hover:scale-110 transition-transform" />
-          <span className="text-sm font-semibold">
+          <LogOut className="h-4 w-4 group-hover:scale-110 transition-transform" />
+          <span className="text-sm font-bold uppercase tracking-[0.2em] text-[10px]">
             {isLoggingOut ? 'Saindo...' : 'Sair'}
           </span>
         </button>

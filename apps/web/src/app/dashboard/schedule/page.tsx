@@ -42,7 +42,17 @@ export default async function SchedulePage() {
   // Buscar Agendamentos, Clientes e Procedimentos (Join)
   const { data: appointments, error } = await supabase
     .from('appointments')
-    .select('*')
+    .select(`
+      *,
+      clients (
+        full_name,
+        birth_date
+      ),
+      procedures (
+        name,
+        duration_minutes
+      )
+    `)
     .eq('company_id', profile.company_id);
 
   if (error) {
@@ -58,7 +68,7 @@ export default async function SchedulePage() {
   // Buscar Clientes e Procedimentos para os formulários de criação
   const { data: clients, error: clientsError } = await supabase
     .from('clients')
-    .select('id, full_name')
+    .select('id, full_name, birth_date')
     .eq('company_id', profile.company_id)
     .order('full_name');
 

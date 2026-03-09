@@ -7,7 +7,8 @@ import {
   CalendarCheck2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@projeto/ui';
-import { Logo } from '@/components/ui/Logo';
+import { Logo, LogoImage } from '@/components/ui/Logo';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,12 +114,12 @@ export default async function DashboardPage() {
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32 transition-colors group-hover:bg-primary/10" />
         
         <div className="flex items-center gap-6 relative z-10">
-          <div className="w-20 h-20 bg-muted rounded-2xl flex items-center justify-center border border-border overflow-hidden shadow-inner">
-            {companyData?.logo_url ? (
-              <img src={companyData.logo_url} alt={companyData.name} className="w-full h-full object-cover" />
-            ) : (
-              <Logo size={60} />
-            )}
+          <div className="relative z-10 flex items-center justify-center">
+            <LogoImage 
+              size={60} 
+              src={companyData?.logo_url} 
+              className="bg-muted rounded-2xl border border-border overflow-hidden shadow-inner w-20 h-20 md:w-24 md:h-24"
+            />
           </div>
           <div>
             <h2 className="text-3xl font-bold text-foreground tracking-tight">
@@ -133,58 +134,64 @@ export default async function DashboardPage() {
 
       {/* Grid de Métricas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-card border-border hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 group">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              Funcionários
-            </CardTitle>
-            <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
-              <Users className="h-5 w-5 text-primary" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold text-foreground font-serif">{professionalsCount || 0}</div>
-            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-              <span className="text-primary font-bold">Ativos</span> no sistema
-            </p>
-          </CardContent>
-        </Card>
+        <Link href="/dashboard/settings" className="block group">
+          <Card className="bg-card border-border hover:border-blue-200 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/5 group-hover:scale-[1.02] active:scale-95 cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                Funcionários
+              </CardTitle>
+              <div className="p-2.5 bg-blue-50 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 border border-blue-100/50 group-hover:border-blue-500 shadow-sm">
+                <Users className="h-5 w-5 text-blue-600 group-hover:text-white transition-colors" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-black text-foreground font-serif tracking-tighter">{professionalsCount || 0}</div>
+              <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1 uppercase font-black tracking-widest">
+                <span className="text-blue-600">Ativos</span> no sistema
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card className="bg-card border-border hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 group">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              Agendamentos Hoje
-            </CardTitle>
-            <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
-              <CalendarCheck2 className="h-5 w-5 text-primary" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold text-foreground font-serif">{todayAppointments || 0}</div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Para o dia {new Date().toLocaleDateString('pt-BR')}
-            </p>
-          </CardContent>
-        </Card>
+        <Link href="/dashboard/schedule" className="block group">
+          <Card className="bg-card border-border hover:border-amber-200 transition-all duration-300 hover:shadow-xl hover:shadow-amber-500/5 group-hover:scale-[1.02] active:scale-95 cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                Agendamentos Hoje
+              </CardTitle>
+              <div className="p-2.5 bg-amber-50 rounded-xl group-hover:bg-amber-500 group-hover:text-white transition-all duration-300 border border-amber-100/50 group-hover:border-amber-400 shadow-sm">
+                <CalendarCheck2 className="h-5 w-5 text-amber-600 group-hover:text-white transition-colors" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-black text-foreground font-serif tracking-tighter">{todayAppointments || 0}</div>
+              <p className="text-[10px] text-muted-foreground mt-2 uppercase font-black tracking-widest">
+                Para o dia {new Intl.DateTimeFormat('pt-BR').format(new Date())}
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card className="bg-card border-border hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 group">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              Faturamento Previsto
-            </CardTitle>
-            <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
-              <TrendingUp className="h-5 w-5 text-primary" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold text-foreground font-serif">
-              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(todayRevenue)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Baseado nos agendamentos de hoje
-            </p>
-          </CardContent>
-        </Card>
+        <Link href="/dashboard/finance" className="block group">
+          <Card className="bg-card border-border hover:border-emerald-200 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-500/5 group-hover:scale-[1.02] active:scale-95 cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                Faturamento Previsto
+              </CardTitle>
+              <div className="p-2.5 bg-emerald-50 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 border border-emerald-100/50 group-hover:border-emerald-500 shadow-sm">
+                <TrendingUp className="h-5 w-5 text-emerald-600 group-hover:text-white transition-colors" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-black text-foreground font-serif tracking-tighter">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(todayRevenue)}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-2 uppercase font-black tracking-widest">
+                Baseado nos serviços de hoje
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* Espaço para Foto da Empresa (Grande/Fixa) */}
