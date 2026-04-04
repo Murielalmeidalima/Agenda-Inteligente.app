@@ -309,21 +309,21 @@ export default function ClientsPage() {
 
       {/* Summary Section */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-         <SummaryItem label="Total de Clientes" value={clients.length} icon={<Users className="text-[#D4AF37]" />} />
-         <SummaryItem label="Ativos este mês" value="0" icon={<Calendar className="text-[#D4AF37]" />} />
-         <SummaryItem label="Novos hoje" value="0" icon={<UserPlus className="text-emerald-500" />} />
-         <SummaryItem label="Com Instagram" value={clients.filter(c => c.instagram).length} icon={<Instagram className="text-purple-500" />} />
+         <SummaryItem label="Total de Clientes" value={clients.length} loading={loading} icon={<Users className="text-[#D4AF37]" />} />
+         <SummaryItem label="Ativos este mês" value="0" loading={loading} icon={<Calendar className="text-[#D4AF37]" />} />
+         <SummaryItem label="Novos hoje" value="0" loading={loading} icon={<UserPlus className="text-emerald-500" />} />
+         <SummaryItem label="Com Instagram" value={clients.filter(c => c.instagram).length} loading={loading} icon={<Instagram className="text-purple-500" />} />
       </div>
     </div>
   );
 }
 
-function SummaryItem({ label, value, icon }: any) {
+function SummaryItem({ label, value, icon, loading }: any) {
    return (
       <Card className="bg-white border-[#E5E0D8] p-5 flex items-center justify-between group hover:border-[#D4AF37]/50 hover:shadow-md transition-all duration-300 rounded-[20px]">
          <div>
             <p className="text-[10px] font-bold text-[#A8A49D] uppercase tracking-widest mb-1.5">{label}</p>
-            <h4 className="text-3xl font-black text-[#2C2825] font-serif">{value}</h4>
+            {loading ? <div className="h-9 w-16 bg-[#F0EBE0] animate-pulse rounded-lg" /> : <h4 className="text-3xl font-black text-[#2C2825] font-serif">{value}</h4>}
          </div>
          <div className="h-12 w-12 rounded-2xl bg-[#FAF9F6] border border-[#E5E0D8] flex items-center justify-center group-hover:scale-110 group-hover:border-[#D4AF37]/20 transition-all shadow-sm">
             {icon}

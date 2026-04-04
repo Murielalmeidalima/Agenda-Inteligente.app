@@ -208,7 +208,7 @@ export default function PlanningPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-amber-950 rounded-2xl shadow-xl shadow-amber-900/10 border border-amber-900/50">
+          <div className="p-3 bg-amber-50 rounded-2xl shadow-md border border-amber-100">
             <Trophy className="h-8 w-8 text-amber-500" />
           </div>
           <div>

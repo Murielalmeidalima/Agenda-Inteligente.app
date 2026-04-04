@@ -263,6 +263,7 @@ export default function FinancePage() {
         <FinanceCard 
           label="Saldo Total" 
           value={data.stats.balance} 
+          loading={loading}
           icon={Wallet} 
           color="blue" 
           subtitle="Em todas as contas"
@@ -270,6 +271,7 @@ export default function FinancePage() {
         <FinanceCard 
           label={`Entradas (${period})`} 
           value={data.stats.income} 
+          loading={loading}
           icon={TrendingUp} 
           color="emerald" 
           subtitle="Confirmadas"
@@ -277,6 +279,7 @@ export default function FinancePage() {
         <FinanceCard 
           label={`Saídas (${period})`} 
           value={data.stats.expense} 
+          loading={loading}
           icon={TrendingDown} 
           color="red" 
           subtitle="Pagas"
@@ -284,6 +287,7 @@ export default function FinancePage() {
         <FinanceCard 
           label="Previsão (Mês)" 
           value={data.stats.forecastMonth} 
+          loading={loading}
           icon={Calendar} 
           color="amber" 
           subtitle="Agenda futura"
@@ -291,6 +295,7 @@ export default function FinancePage() {
         <FinanceCard 
           label="Contas a Receber" 
           value={data.stats.receivablesTotal} 
+          loading={loading}
           icon={ClockIcon} 
           color="rose" 
           subtitle={`${data.stats.pendingCount} atendimentos pendentes`}
@@ -481,13 +486,13 @@ export default function FinancePage() {
   );
 }
 
-function FinanceCard({ label, value, icon: Icon, color, subtitle, onClick }: any) {
+function FinanceCard({ label, value, loading, icon: Icon, color, subtitle, onClick }: any) {
   const styles = {
-    blue: 'bg-white border-blue-50 text-blue-600',
-    emerald: 'bg-white border-emerald-50 text-emerald-600',
-    red: 'bg-white border-red-50 text-red-600',
-    amber: 'bg-white border-amber-50 text-amber-600',
-    rose: 'bg-rose-50 border-rose-100 text-rose-600'
+    blue: 'bg-white/80 backdrop-blur-md border-blue-50 text-blue-600',
+    emerald: 'bg-white/80 backdrop-blur-md border-emerald-50 text-emerald-600',
+    red: 'bg-white/80 backdrop-blur-md border-red-50 text-red-600',
+    amber: 'bg-white/80 backdrop-blur-md border-amber-50 text-amber-600',
+    rose: 'bg-rose-50/80 backdrop-blur-md border-rose-100 text-rose-600'
   };
 
   const iconStyles = {
@@ -509,9 +514,9 @@ function FinanceCard({ label, value, icon: Icon, color, subtitle, onClick }: any
   return (
     <Card 
       className={cn(
-        "border rounded-[2rem] p-8 relative overflow-hidden group shadow-xl shadow-slate-200/40 transition-all border-slate-100", 
+        "border rounded-[2rem] p-8 relative overflow-hidden group shadow-xl shadow-slate-200/40 transition-all duration-300 border-slate-100 hover:-translate-y-1 hover:shadow-2xl", 
         styles[color as keyof typeof styles],
-        onClick && "cursor-pointer hover:scale-[1.02] hover:shadow-2xl active:scale-95"
+        onClick && "cursor-pointer active:scale-95"
       )}
       onClick={onClick}
     >
@@ -520,13 +525,17 @@ function FinanceCard({ label, value, icon: Icon, color, subtitle, onClick }: any
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
           <span className="text-[9px] font-bold text-slate-300 uppercase mt-1">{subtitle}</span>
         </div>
-        <div className={cn("p-3 rounded-2xl border border-transparent transition-colors group-hover:border-current/10", iconStyles[color as keyof typeof iconStyles])}>
+        <div className={cn("p-3 rounded-2xl border border-transparent transition-colors duration-500 group-hover:border-current/10", iconStyles[color as keyof typeof iconStyles])}>
           <Icon className="h-6 w-6" />
         </div>
       </div>
-      <h2 className={cn("text-3xl font-black italic tracking-tighter truncate", textStyles[color as keyof typeof textStyles])}>
-        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
-      </h2>
+      <div className={cn("text-3xl font-black italic tracking-tighter truncate", textStyles[color as keyof typeof textStyles])}>
+        {loading ? (
+           <div className="h-9 w-32 bg-slate-100/80 animate-pulse rounded-xl mt-1" />
+        ) : (
+           new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+        )}
+      </div>
       
       {/* Decorative Glow */}
       <div className={cn(

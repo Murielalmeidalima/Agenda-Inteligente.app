@@ -15,7 +15,7 @@ import {
   FileText,
   Activity,
   TrendingUp,
-  Target
+  Trophy
 } from 'lucide-react';
 
 import { Logo, LogoImage } from '../ui/Logo';
@@ -34,7 +34,7 @@ const menuItems = [
   { label: 'Anamnese', href: '/dashboard/anamnese/templates', icon: FileText, color: 'text-violet-500', bg: 'bg-violet-500' },
   { label: 'Procedimentos', href: '/dashboard/procedures', icon: Activity, color: 'text-red-500', bg: 'bg-red-500' },
   { label: 'Análises', href: '/dashboard/analytics', icon: TrendingUp, color: 'text-cyan-500', bg: 'bg-cyan-500' },
-  { label: 'Planejamento', href: '/dashboard/planning', icon: Target, color: 'text-amber-500', bg: 'bg-amber-500' },
+  { label: 'Planejamento', href: '/dashboard/planning', icon: Trophy, color: 'text-amber-500', bg: 'bg-amber-500' },
   { label: 'Configurações', href: '/dashboard/settings', icon: Settings, color: 'text-slate-400', bg: 'bg-slate-400' },
 ];
 
