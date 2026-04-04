@@ -15,13 +15,6 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
 
-  useEffect(() => {
-    if (profile?.company_id) {
-       fetchNotifications();
-       // Optional: Realtime subscription here
-    }
-  }, [profile]);
-
   async function fetchNotifications() {
      const supabase = createBrowserClient();
      if (!profile?.company_id) return;
@@ -39,6 +32,13 @@ export function NotificationBell() {
         setUnreadCount(data.filter(n => !n.is_read).length);
      }
   }
+
+  useEffect(() => {
+    if (profile?.company_id) {
+       fetchNotifications();
+       // Optional: Realtime subscription here
+    }
+  }, [profile]);
 
   async function markAsRead(id: string) {
      const supabase = createBrowserClient();

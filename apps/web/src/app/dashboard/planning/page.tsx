@@ -91,8 +91,13 @@ export default function PlanningPage() {
         .lte('target_date', format(monthEnd, 'yyyy-MM-dd'));
 
       if (goalsError) {
-        console.error('Error fetching goals:', goalsError);
-        // If table doesn't exist, we might get an error. Don't throw, just log.
+        // @ts-ignore
+        if (goalsError.code === '42P01' || (goalsError.message && goalsError.message.includes('Could not find the table'))) {
+           console.warn('Tabela strategic_goals não existe ainda. Rode as migrações.');
+           toast.error('Tabela de metas ausente. Rode npx supabase db push.');
+        } else {
+           console.error('Error fetching goals:', goalsError.message || goalsError);
+        }
       }
 
       setGoals(goalsData || []);
@@ -133,7 +138,9 @@ export default function PlanningPage() {
       setActuals({ revenue, appointments, procedures, products });
     } catch (err: any) {
       console.error('Error fetching planning data:', err);
-      toast.error('Erro ao carregar dados de planejamento');
+      if (err?.code !== '42P01' && !(err?.message?.includes('Could not find the table'))) {
+         toast.error('Erro ao carregar dados de planejamento');
+      }
     } finally {
       setLoading(false);
     }
@@ -249,40 +256,44 @@ export default function PlanningPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <PlanningCard 
           title="Faturamento" 
+          loading={loading}
           actual={actuals.revenue} 
           target={isEditing ? Number(editingGoals.find(g => g.category === 'revenue')?.target_value || 0) : getGoalValue('revenue')}
           icon={TrendingUp}
           color="emerald"
           isCurrency
           isEditing={isEditing}
-          onEdit={(val) => setEditingGoals(prev => prev.map(g => g.category === 'revenue' ? { ...g, target_value: val } : g))}
+          onEdit={(val: number) => setEditingGoals(prev => prev.map(g => g.category === 'revenue' ? { ...g, target_value: val } : g))}
         />
         <PlanningCard 
           title="Atendimentos" 
+          loading={loading}
           actual={actuals.appointments} 
           target={isEditing ? Number(editingGoals.find(g => g.category === 'appointments')?.target_value || 0) : getGoalValue('appointments')}
           icon={Calendar}
           color="blue"
           isEditing={isEditing}
-          onEdit={(val) => setEditingGoals(prev => prev.map(g => g.category === 'appointments' ? { ...g, target_value: val } : g))}
+          onEdit={(val: number) => setEditingGoals(prev => prev.map(g => g.category === 'appointments' ? { ...g, target_value: val } : g))}
         />
         <PlanningCard 
           title="Procedimentos" 
+          loading={loading}
           actual={actuals.procedures} 
           target={isEditing ? Number(editingGoals.find(g => g.category === 'procedures')?.target_value || 0) : getGoalValue('procedures')}
           icon={Activity}
           color="rose"
           isEditing={isEditing}
-          onEdit={(val) => setEditingGoals(prev => prev.map(g => g.category === 'procedures' ? { ...g, target_value: val } : g))}
+          onEdit={(val: number) => setEditingGoals(prev => prev.map(g => g.category === 'procedures' ? { ...g, target_value: val } : g))}
         />
         <PlanningCard 
           title="Venda de Produtos" 
+          loading={loading}
           actual={actuals.products} 
           target={isEditing ? Number(editingGoals.find(g => g.category === 'products')?.target_value || 0) : getGoalValue('products')}
           icon={Package}
           color="amber"
           isEditing={isEditing}
-          onEdit={(val) => setEditingGoals(prev => prev.map(g => g.category === 'products' ? { ...g, target_value: val } : g))}
+          onEdit={(val: number) => setEditingGoals(prev => prev.map(g => g.category === 'products' ? { ...g, target_value: val } : g))}
         />
       </div>
 
@@ -298,6 +309,7 @@ export default function PlanningPage() {
             <CardContent className="p-8 space-y-10">
                <GoalProgress 
                   label="Meta de Faturamento" 
+                  loading={loading}
                   actual={actuals.revenue} 
                   target={getGoalValue('revenue')} 
                   color="bg-emerald-500" 
@@ -305,18 +317,21 @@ export default function PlanningPage() {
                />
                <GoalProgress 
                   label="Meta de Atendimentos" 
+                  loading={loading}
                   actual={actuals.appointments} 
                   target={getGoalValue('appointments')} 
                   color="bg-blue-500" 
                />
                <GoalProgress 
                   label="Meta de Procedimentos" 
+                  loading={loading}
                   actual={actuals.procedures} 
                   target={getGoalValue('procedures')} 
                   color="bg-rose-500" 
                />
                <GoalProgress 
                   label="Meta de Produtos" 
+                  loading={loading}
                   actual={actuals.products} 
                   target={getGoalValue('products')} 
                   color="bg-amber-500" 
@@ -351,7 +366,7 @@ export default function PlanningPage() {
   );
 }
 
-function PlanningCard({ title, actual, target, icon: Icon, color, isCurrency, isEditing, onEdit }: any) {
+function PlanningCard({ title, loading, actual, target, icon: Icon, color, isCurrency, isEditing, onEdit }: any) {
   const progress = target > 0 ? Math.min(Math.round((actual / target) * 100), 100) : 0;
   
   const colors = {
@@ -376,21 +391,21 @@ function PlanningCard({ title, actual, target, icon: Icon, color, isCurrency, is
   };
 
   return (
-    <Card className="bg-white border-slate-100 rounded-3xl shadow-xl shadow-slate-200/50 p-6 group hover:border-[#D4AF37]/20 transition-all overflow-hidden relative">
+    <Card className="bg-white/80 backdrop-blur-md border-slate-100 rounded-3xl shadow-xl shadow-slate-200/50 p-6 group hover:shadow-2xl hover:-translate-y-1 hover:border-[#D4AF37]/20 transition-all duration-300 overflow-hidden relative">
       <div className="flex items-center justify-between mb-6">
-        <div className={cn("p-2.5 rounded-2xl border", colors[color as keyof typeof colors].split(' ').slice(0, 3).join(' '))}>
+        <div className={cn("p-2.5 rounded-2xl border transition-colors duration-500 group-hover:bg-white", colors[color as keyof typeof colors].split(' ').slice(0, 3).join(' '))}>
           <Icon className="h-5 w-5" />
         </div>
         <div className="text-right">
            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{title}</p>
-           <p className="text-lg font-black text-slate-900 italic">{progress}%</p>
+           {loading ? <div className="h-5 w-10 bg-slate-100 animate-pulse rounded ml-auto" /> : <p className="text-lg font-black text-slate-900 italic">{progress}%</p>}
         </div>
       </div>
 
       <div className="space-y-4">
          <div>
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Realizado</p>
-            <h4 className="text-xl font-black text-slate-950">{formatValue(actual)}</h4>
+            {loading ? <div className="h-7 w-24 bg-slate-100 animate-pulse rounded" /> : <h4 className="text-xl font-black text-slate-950">{formatValue(actual)}</h4>}
          </div>
 
          <div className="h-px bg-slate-50 w-full" />
@@ -411,7 +426,7 @@ function PlanningCard({ title, actual, target, icon: Icon, color, isCurrency, is
                  />
               </div>
             ) : (
-              <h4 className="text-xl font-black text-slate-300 italic">{formatValue(target)}</h4>
+              loading ? <div className="h-7 w-20 bg-slate-100 animate-pulse rounded" /> : <h4 className="text-xl font-black text-slate-300 italic">{formatValue(target)}</h4>
             )}
          </div>
       </div>
@@ -426,7 +441,7 @@ function PlanningCard({ title, actual, target, icon: Icon, color, isCurrency, is
   );
 }
 
-function GoalProgress({ label, actual, target, color, isCurrency }: any) {
+function GoalProgress({ label, loading, actual, target, color, isCurrency }: any) {
   const progress = target > 0 ? Math.min(Math.round((actual / target) * 100), 100) : 0;
   
   const formatValue = (val: number) => {
@@ -441,12 +456,18 @@ function GoalProgress({ label, actual, target, color, isCurrency }: any) {
        <div className="flex items-center justify-between">
           <div className="flex flex-col">
              <p className="text-xs font-black text-slate-900 uppercase tracking-wider">{label}</p>
-             <p className="text-[10px] text-slate-400 font-medium">Restam {formatValue(Math.max(0, target - actual))} para a meta</p>
+             {loading ? <div className="h-3 w-32 bg-slate-100 animate-pulse rounded mt-1" /> : <p className="text-[10px] text-slate-400 font-medium">Restam {formatValue(Math.max(0, target - actual))} para a meta</p>}
           </div>
           <div className="text-right">
-             <span className="text-sm font-black text-slate-950">{formatValue(actual)}</span>
-             <span className="text-xs text-slate-300 font-bold mx-2">/</span>
-             <span className="text-xs text-slate-400 font-bold">{formatValue(target)}</span>
+             {loading ? (
+                <div className="h-5 w-24 bg-slate-100 animate-pulse rounded" />
+             ) : (
+                <>
+                   <span className="text-sm font-black text-slate-950">{formatValue(actual)}</span>
+                   <span className="text-xs text-slate-300 font-bold mx-2">/</span>
+                   <span className="text-xs text-slate-400 font-bold">{formatValue(target)}</span>
+                </>
+             )}
           </div>
        </div>
        <div className="h-3 w-full bg-slate-50 rounded-full border border-slate-100 overflow-hidden relative shadow-inner">

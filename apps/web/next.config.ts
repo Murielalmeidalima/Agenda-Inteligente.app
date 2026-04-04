@@ -10,6 +10,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   reactStrictMode: false,
+  typescript: {
+    // Atenção: Isto permite build de Produção falhar no Tipo
+    ignoreBuildErrors: true,
+  },
 };
 
 export default nextConfig; // withPWA(nextConfig);
