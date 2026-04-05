@@ -33,7 +33,7 @@ export default function InventoryPage() {
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [newProduct, setNewProduct] = useState({
     name: '',
-    category: 'Insumos',
+    category: 'Materiais',
     current_stock: 0,
     min_stock: 5,
     unit: 'un',
@@ -75,12 +75,17 @@ export default function InventoryPage() {
        return;
     }
 
+    const targetProduct = products.find(p => p.id === productId);
+    const calculatedNewStock = type === 'in' 
+        ? Number(targetProduct?.current_stock || 0) + quantity 
+        : Number(targetProduct?.current_stock || 0) - quantity;
+
     // Atualização otimista local
     setProducts(current => current.map(p => {
       if (p.id === productId) {
         return {
           ...p,
-          current_stock: type === 'in' ? Number(p.current_stock) + quantity : Number(p.current_stock) - quantity
+          current_stock: calculatedNewStock
         };
       }
       return p;
@@ -88,7 +93,9 @@ export default function InventoryPage() {
 
     try {
       const supabase = createBrowserClient();
-      const { error } = await supabase
+      
+      // 1. Gravar histórico da transação
+      const { error: txError } = await supabase
         .from('inventory_transactions')
         .insert({
           company_id: profile.company_id,
@@ -99,8 +106,16 @@ export default function InventoryPage() {
           reason
         });
 
-      if (error) throw error;
+      if (txError) throw txError;
       
+      // 2. Forçar a baixa via API (Fallback de segurança caso o Trigger esteja ausente ou bloqueado)
+      const { error: stockError } = await supabase
+        .from('products')
+        .update({ current_stock: calculatedNewStock })
+        .eq('id', productId);
+        
+      if (stockError) throw stockError;
+
       // Re-fetch para garantir sincronia total com o servidor
       await fetchProducts();
     } catch (err) {
@@ -131,7 +146,7 @@ export default function InventoryPage() {
       setIsAddingProduct(false);
       setNewProduct({
         name: '',
-        category: 'Insumos',
+        category: 'Materiais',
         current_stock: 0,
         min_stock: 5,
         unit: 'un',
@@ -278,11 +293,11 @@ export default function InventoryPage() {
                 value={newProduct.category} 
                 onValueChange={(val) => setNewProduct({...newProduct, category: val})}
               >
-                <SelectTrigger className="bg-[#020617] border-neutral-800 h-12 rounded-xl text-white font-bold">
+                <SelectTrigger className="bg-white border-neutral-200 h-12 rounded-xl text-slate-900 font-medium">
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0f172a] border-neutral-800 text-white">
-                  <SelectItem value="Insumos">Insumos</SelectItem>
+                <SelectContent className="bg-white border-neutral-200 text-slate-900">
+                  <SelectItem value="Materiais">Materiais</SelectItem>
                   <SelectItem value="Revenda">Revenda</SelectItem>
                   <SelectItem value="Equipamentos">Equipamentos</SelectItem>
                 </SelectContent>
@@ -295,7 +310,7 @@ export default function InventoryPage() {
                 placeholder="Ex: un, ml, cx" 
                 value={newProduct.unit}
                 onChange={(e) => setNewProduct({...newProduct, unit: e.target.value})}
-                className="bg-[#020617] border-neutral-800 h-12 rounded-xl text-white font-bold" 
+                className="bg-white border-neutral-200 h-12 rounded-xl text-slate-900 font-medium" 
               />
             </div>
 
@@ -305,7 +320,7 @@ export default function InventoryPage() {
                 type="number"
                 value={newProduct.current_stock}
                 onChange={(e) => setNewProduct({...newProduct, current_stock: parseInt(e.target.value) || 0})}
-                className="bg-[#020617] border-neutral-800 h-12 rounded-xl text-white font-bold" 
+                className="bg-white border-neutral-200 h-12 rounded-xl text-slate-900 font-medium" 
               />
             </div>
 
@@ -315,7 +330,7 @@ export default function InventoryPage() {
                 type="number"
                 value={newProduct.min_stock}
                 onChange={(e) => setNewProduct({...newProduct, min_stock: parseInt(e.target.value) || 0})}
-                className="bg-[#020617] border-neutral-800 h-12 rounded-xl text-white font-bold" 
+                className="bg-white border-neutral-200 h-12 rounded-xl text-slate-900 font-medium" 
               />
             </div>
 
@@ -327,7 +342,7 @@ export default function InventoryPage() {
                 placeholder="0.00"
                 value={newProduct.sale_price}
                 onChange={(e) => setNewProduct({...newProduct, sale_price: parseFloat(e.target.value) || 0})}
-                className="bg-[#020617] border-neutral-800 h-12 rounded-xl text-white font-bold" 
+                className="bg-white border-neutral-200 h-12 rounded-xl text-slate-900 font-medium" 
               />
             </div>
           </div>
@@ -336,7 +351,7 @@ export default function InventoryPage() {
             <Button 
               variant="outline" 
               onClick={() => setIsAddingProduct(false)}
-              className="border-neutral-800 text-neutral-500 hover:text-white font-bold rounded-xl"
+              className="border-neutral-200 bg-white text-slate-500 hover:bg-neutral-50 hover:text-slate-900 font-bold rounded-xl"
             >
               Cancelar
             </Button>

@@ -19,6 +19,7 @@ interface FlowData {
   date: string;
   entradas: number;
   saidas: number;
+  lucro: number;
 }
 
 interface CategoryData {
@@ -77,6 +78,15 @@ export function CashFlowChart({ data }: { data: FlowData[] }) {
             fill="url(#colorExpense)" 
             name="Saídas"
           />
+          <Area 
+            type="monotone" 
+            dataKey="lucro" 
+            stroke="#3b82f6" 
+            strokeWidth={2}
+            strokeDasharray="5 5"
+            fill="transparent" 
+            name="Lucro"
+          />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -106,6 +116,58 @@ export function ExpensesByCategoryChart({ data }: { data: CategoryData[] }) {
             formatter={(value: any) => [`R$ ${value}`, '']}
           />
         </PieChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+export function ProfitGrowthChart({ data }: { data: FlowData[] }) {
+  const growthData = data.reduce((acc: any[], curr, i) => {
+    const prevLucro = i > 0 ? acc[i-1].acumulado : 0;
+    acc.push({
+      ...curr,
+      acumulado: prevLucro + curr.lucro
+    });
+    return acc;
+  }, []);
+
+  return (
+    <div className="h-[300px] w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={growthData}>
+          <defs>
+            <linearGradient id="colorGrowth" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+          <XAxis 
+            dataKey="date" 
+            tick={{ fontSize: 10, fill: '#94a3b8' }} 
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis 
+            tick={{ fontSize: 10, fill: '#94a3b8' }} 
+            axisLine={false}
+            tickLine={false}
+            tickFormatter={(value) => `R$ ${value}`}
+          />
+          <Tooltip 
+            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+            formatter={(value: any) => [`R$ ${value}`, '']}
+          />
+          <Area 
+            type="monotone" 
+            dataKey="acumulado" 
+            stroke="#3b82f6" 
+            strokeWidth={4}
+            fillOpacity={1} 
+            fill="url(#colorGrowth)" 
+            name="Crescimento Acumulado"
+          />
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );

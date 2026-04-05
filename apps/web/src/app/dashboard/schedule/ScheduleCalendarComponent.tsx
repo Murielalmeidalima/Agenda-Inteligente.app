@@ -17,7 +17,8 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Plus, 
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Settings2
 } from 'lucide-react';
 import { 
   Button, 
@@ -44,6 +45,8 @@ interface ScheduleCalendarProps {
   })[];
   onNewAppointment: (date: Date) => void;
   onViewAppointment: (id: string) => void;
+  slotInterval: number;
+  onSlotIntervalChange: (interval: number) => void;
 }
 
 // ----------------------------------------------------------------------
@@ -52,6 +55,8 @@ export default function ScheduleCalendarComponent({
   appointments,
   onNewAppointment,
   onViewAppointment,
+  slotInterval,
+  onSlotIntervalChange
 }: ScheduleCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<CalendarViewType>('week');
@@ -106,6 +111,7 @@ export default function ScheduleCalendarComponent({
         appointments={appointments}
         onNewAppointment={onNewAppointment}
         onViewAppointment={onViewAppointment} 
+        slotInterval={slotInterval}
       />
     );
   };
@@ -127,57 +133,51 @@ export default function ScheduleCalendarComponent({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          
+
+
           {/* View Switcher */}
-          <div className="flex bg-[#FDFBF7] rounded-xl p-1 border border-[#E5E0D8]">
-            {['day', 'week', 'month'].map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v as CalendarViewType)}
-                className={cn(
-                  "px-4 py-1.5 rounded-lg text-sm font-bold transition-all capitalize",
-                  view === v ? "bg-[#D4AF37] text-white shadow-sm" : "text-[#5C5855] hover:text-[#2C2825] hover:bg-[#FAF6E9]"
-                )}
-              >
-                {v === 'day' ? 'Dia' : v === 'week' ? 'Semana' : 'Mês'}
-              </button>
-            ))}
+          <div className="flex items-center bg-white rounded-xl border border-[#E5E0D8] px-2 h-10 w-[140px]">
+            <Select 
+              value={view} 
+              onValueChange={(val) => setView(val as CalendarViewType)}
+            >
+              <SelectTrigger className="border-none h-8 p-0 px-2 bg-transparent focus:ring-0 text-xs font-bold text-[#5C5855] w-full uppercase tracking-widest">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="day">Diário</SelectItem>
+                <SelectItem value="week">Semanal</SelectItem>
+                <SelectItem value="month">Calendário</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex items-center gap-3">
-            <Button variant="outline" className="h-10 border-[#E5E0D8] text-[#5C5855] hover:text-[#2C2825] hover:bg-[#FAF9F6] rounded-xl px-4 font-bold active:scale-[0.98] transition-all" onClick={() => setCurrentDate(new Date())}>
-               Hoje
-            </Button>
-            
             <div className="flex items-center gap-1 bg-white rounded-xl border border-[#E5E0D8] p-1">
                <Button size="icon" variant="ghost" className="h-8 w-8 text-[#8A847C] hover:text-[#D4AF37] hover:bg-[#FAF6E9] rounded-lg" onClick={() => navigate('prev')}>
                   <ChevronLeft className="h-4 w-4" />
                </Button>
                
-               <div className="w-[140px]">
-                 <Select
-                   value={currentDate.getMonth().toString()}
-                   onValueChange={(val) => {
-                      const newDate = new Date(currentDate);
-                      newDate.setMonth(parseInt(val));
-                      setCurrentDate(newDate);
+               <div className="relative flex items-center justify-center w-[140px] group">
+                 <div className="h-8 flex items-center justify-center bg-transparent group-hover:bg-[#FAF9F6] text-[#2C2825] px-2 text-[11px] font-black uppercase w-full gap-1 rounded-md cursor-pointer transition-colors text-center leading-tight">
+                   {view === 'month' 
+                     ? format(currentDate, "MMMM 'de' yyyy", { locale: ptBR }) 
+                     : format(currentDate, "dd 'de' MMMM", { locale: ptBR })}
+                 </div>
+                 <input 
+                   type="date"
+                   value={format(currentDate, 'yyyy-MM-dd')}
+                   onChange={(e) => {
+                     if (e.target.value) {
+                       const parts = e.target.value.split('-');
+                       if (parts.length === 3) {
+                         setCurrentDate(new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0));
+                       }
+                     }
                    }}
-                 >
-                   <SelectTrigger className="h-8 border-none bg-transparent hover:bg-[#FAF9F6] text-[#2C2825] px-2 text-xs font-black uppercase focus:ring-0 w-full justify-center gap-1">
-                     <SelectValue>
-                        {format(currentDate, 'MMMM', { locale: ptBR })}
-                     </SelectValue>
-                   </SelectTrigger>
-                   <SelectContent className="bg-white border-[#E5E0D8] max-h-[300px]">
-                      {Array.from({ length: 12 }, (_, i) => {
-                         const date = new Date(currentDate.getFullYear(), i, 1);
-                         return (
-                            <SelectItem key={i} value={i.toString()} className="text-xs font-bold text-[#5C5855] focus:text-[#D4AF37] focus:bg-[#FAF9F6] uppercase">
-                               {format(date, 'MMMM', { locale: ptBR })}
-                            </SelectItem>
-                         );
-                      })}
-                   </SelectContent>
-                 </Select>
+                   className="absolute inset-0 opacity-0 cursor-pointer w-full h-full [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer z-10"
+                 />
                </div>
 
                <Button size="icon" variant="ghost" className="h-8 w-8 text-[#8A847C] hover:text-[#D4AF37] hover:bg-[#FAF6E9] rounded-lg" onClick={() => navigate('next')}>

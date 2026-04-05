@@ -14,9 +14,10 @@ import {
   SelectItem,
   Badge,
   Label,
-  TextArea
+  TextArea,
+  Input
 } from '@projeto/ui';
-import { Edit2, CheckCircle2, XCircle, AlertCircle, Trash2 } from 'lucide-react';
+import { Edit2, CheckCircle2, XCircle, AlertCircle, Banknote } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -41,10 +42,19 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
   const [complications, setComplications] = useState('');
   const [recordId, setRecordId] = useState<string | null>(null);
 
+  // Finance integration
+  const isOriginallyCompleted = appointment?.status === 'completed';
+  const [paymentStatus, setPaymentStatus] = useState<'paid'|'partial'|'unpaid'>('paid');
+  const [paymentMethod, setPaymentMethod] = useState('pix');
+  const [paymentAmount, setPaymentAmount] = useState<string>('');
+
   useEffect(() => {
     if (appointment) {
       setStatus(appointment.status);
       setNotes(appointment.notes || '');
+      
+      const procedurePrice = appointment.price_override || appointment.procedures?.price || 0;
+      setPaymentAmount(procedurePrice.toString());
 
       const fetchMedicalRecord = async () => {
         const supabase = createBrowserClient();
@@ -105,7 +115,7 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
         });
         const data = await res.json();
 
-        if (data.allow === false) { // Explicit check
+        if (data.allow === false) { 
           toast.error('Bloqueado: Anamnese Obrigatória Pendente', {
             description: data.message || 'O paciente precisa responder a ficha de anamnese antes de concluir o atendimento.',
             action: {
@@ -132,6 +142,7 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
     const supabase = createBrowserClient();
 
     try {
+      // Atualiza compromisso
       const { error } = await supabase
         .from('appointments')
         .update({ status, notes })
@@ -140,6 +151,7 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
       if (error) throw error;
 
       if (status === 'completed') {
+         // Registra ficha médica
          if (recordId) {
              await supabase.from('appointment_medical_records')
                .update({ 
@@ -161,6 +173,50 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
                   complications
                });
          }
+
+          // Lógica Financeira (Apenas na PRIMEIRA vez que é concluído)
+          if (!isOriginallyCompleted && paymentStatus !== 'unpaid') {
+            const procedurePrice = Number(appointment.price_override || appointment.procedures?.price || 0);
+            const paidAmount = paymentStatus === 'paid' ? procedurePrice : Number(paymentAmount.replace(',', '.'));
+            
+            if (paidAmount > 0) {
+              // Buscar categoria 'Serviços' e primeira conta disponível
+              const { data: catData } = await supabase.from('financial_categories')
+                .select('id')
+                .eq('company_id', appointment.company_id)
+                .eq('name', 'Serviços')
+                .maybeSingle();
+                
+              const { data: accData } = await supabase.from('financial_accounts')
+                .select('id')
+                .eq('company_id', appointment.company_id)
+                .order('created_at', { ascending: true })
+                .limit(1)
+                .maybeSingle();
+
+              const transactionValues = {
+                company_id: appointment.company_id,
+                appointment_id: appointment.id,
+                category_id: catData?.id,
+                account_id: accData?.id,
+                amount: paidAmount,
+                type: 'income',
+                payment_method: paymentMethod,
+                description: `Atendimento: ${appointment.clients?.full_name}`,
+                date: new Date().toISOString()
+              };
+              
+              await supabase.from('transactions').insert(transactionValues);
+
+              // Atualizar saldo da conta
+              if (accData?.id) {
+                await supabase.rpc('update_account_balance', { 
+                  target_account_id: accData.id, 
+                  amount_diff: paidAmount 
+                });
+              }
+            }
+          }
       }
 
       toast.success('Agendamento atualizado!');
@@ -203,8 +259,8 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] bg-white border-[#E5E0D8] p-0 overflow-hidden rounded-3xl shadow-2xl text-[#2C2825]">
-        <DialogHeader className="p-6 pb-0 bg-[#FDFBF7]/50">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto bg-white border-[#E5E0D8] p-0 rounded-3xl shadow-2xl text-[#2C2825] custom-scrollbar">
+        <DialogHeader className="p-6 pb-0 bg-[#FDFBF7]/50 sticky top-0 z-10 border-b border-[#E5E0D8]/40 backdrop-blur-md">
            <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-[#FDFBF7] rounded-xl text-[#8A847C] border border-[#E5E0D8]">
                  <Edit2 className="h-5 w-5" />
@@ -223,11 +279,14 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
            <div className="grid grid-cols-2 gap-4">
               <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800">
                  <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest block mb-1">Cliente</Label>
-                 <p className="font-bold text-sm truncate">{appointment.clients?.full_name}</p>
+                 <p className="font-bold text-sm truncate text-white">{appointment.clients?.full_name}</p>
               </div>
               <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800">
                  <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest block mb-1">Procedimento</Label>
-                 <p className="font-bold text-sm truncate">{appointment.procedures?.name}</p>
+                 <p className="font-bold text-sm truncate text-white">{appointment.procedures?.name}</p>
+                 <p className="text-emerald-400 text-xs font-black mt-1">
+                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(appointment.price_override || appointment.procedures?.price || 0)}
+                 </p>
               </div>
            </div>
 
@@ -263,13 +322,80 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
               </div>
            </div>
 
+           {/* Painel Financeiro INJECT (exibido apenas quando marcou Concluído agora - não reexibe se ja era concluido antes para evitar double billing) */}
+           {status === 'completed' && !isOriginallyCompleted && (
+              <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 space-y-4 animate-fade-in relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-5">
+                   <Banknote className="h-24 w-24" />
+                </div>
+                <h3 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2 relative z-10">
+                   <Banknote className="w-4 h-4 text-emerald-600" />
+                   Baixa Financeira
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-emerald-800">Situação do Pagamento</Label>
+                    <Select value={paymentStatus} onValueChange={(val: any) => setPaymentStatus(val)}>
+                      <SelectTrigger className="bg-white border-emerald-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="paid" className="text-emerald-700 font-bold">Pago Totalmente</SelectItem>
+                        <SelectItem value="partial" className="text-amber-600 font-bold">Pago Parcial</SelectItem>
+                        <SelectItem value="unpaid" className="text-rose-600 font-bold">Não Pago (Pendente)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {paymentStatus !== 'unpaid' && (
+                    <div className="space-y-1">
+                      <Label className="text-xs font-bold text-emerald-800">Método Utilizado</Label>
+                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                        <SelectTrigger className="bg-white border-emerald-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pix">PIX</SelectItem>
+                          <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
+                          <SelectItem value="debit_card">Cartão de Débito</SelectItem>
+                          <SelectItem value="cash">Dinheiro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+
+                {paymentStatus === 'partial' && (
+                  <div className="space-y-1 relative z-10">
+                    <Label className="text-xs font-bold text-emerald-800">Valor Recebido Agora (R$)</Label>
+                    <Input 
+                      type="number"
+                      step="0.01"
+                      className="bg-white border-emerald-200 focus:ring-emerald-500/20"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                    />
+                    <p className="text-[10px] text-emerald-700 mt-1 font-medium italic">
+                      O valor restante irá automaticamente para "Contas a Receber".
+                    </p>
+                  </div>
+                )}
+                {paymentStatus === 'unpaid' && (
+                  <p className="text-[10px] text-emerald-700 font-medium italic relative z-10">
+                    Nenhuma entrada será gerada agora. O sistema vai classificar este atendimento automaticamente em "Contas a Receber".
+                  </p>
+                )}
+              </div>
+           )}
+
             {/* Notes */}
             <div className="space-y-2">
                <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Notas Internas</Label>
                <TextArea 
                  value={notes}
                  onChange={e => setNotes(e.target.value)}
-                 className="bg-white border-[#E5E0D8] rounded-2xl text-[#2C2825] placeholder:text-neutral-700 min-h-[100px] focus:ring-primary-500/10"
+                 className="bg-white border-[#E5E0D8] rounded-2xl text-[#2C2825] placeholder:text-neutral-700 min-h-[80px] focus:ring-primary-500/10"
                  placeholder="Anotações sobre o atendimento..."
                />
             </div>
@@ -321,7 +447,7 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
              {loading ? 'Salvando...' : 'Salvar Alterações'}
            </Button>
 
-           <div className="pt-4 border-t border-[#E5E0D8]">
+           <div className="pt-4 border-t border-[#E5E0D8] pb-4">
               <Button
                 type="button"
                 variant="outline"
@@ -330,17 +456,6 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
                 className="w-full h-10 border-[#E5E0D8] text-[#5C5855] hover:text-[#2C2825] hover:bg-[#FAF9F6] rounded-xl text-xs uppercase font-bold tracking-widest"
               >
                 {sendingLink ? 'Gerando...' : 'Gerar Link Anamnese'}
-              </Button>
-              
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                   toast.info('Funcionalidade de envio manual em breve.');
-                }}
-                className="w-full h-10 border-[#E5E0D8] text-[#5C5855] hover:text-[#2C2825] hover:bg-[#FAF9F6] rounded-xl text-xs uppercase font-bold tracking-widest mt-2"
-              >
-                Reenviar Email de Confirmação
               </Button>
            </div>
         </div>

@@ -50,20 +50,55 @@ export default async function SchedulePage() {
       ),
       procedures (
         name,
-        duration_minutes
+        duration_minutes,
+        price
       )
     `)
     .eq('company_id', profile.company_id);
 
   if (error) {
-    console.error('Error fetching appointments:', {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      hint: error.hint
-    });
+    console.error('Error fetching appointments:', error);
     return <div className="p-8 text-red-600">Erro ao carregar agendamentos</div>;
   }
+
+  const appIds = appointments?.map(a => a.id) || [];
+  let transactions: any[] = [];
+  
+  if (appIds.length > 0) {
+    const { data: trans } = await supabase
+      .from('transactions')
+      .select('appointment_id, amount, status, type, payment_method')
+      .in('appointment_id', appIds)
+      .eq('type', 'income');
+      
+    transactions = trans || [];
+  }
+
+  // Pre-process appointments to include payment status
+  const hydratedAppointments = appointments?.map(app => {
+    const linkedTrans = transactions.filter(t => t.appointment_id === app.id);
+    const paidConfirmed = linkedTrans
+      .filter(t => t.status === 'completed')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+      
+    const procedure = Array.isArray(app.procedures) ? app.procedures[0] : app.procedures;
+    const totalPrice = Number(app.price_override || procedure?.price || 0);
+    
+    let paymentStatus = 'unpaid';
+    if (paidConfirmed >= totalPrice && totalPrice > 0) paymentStatus = 'paid';
+    else if (paidConfirmed > 0) paymentStatus = 'partial';
+    
+    // Pegar o method da transação mais recente ou primeira
+    const paymentMethod = linkedTrans[0]?.payment_method || null;
+    
+    return {
+      ...app,
+      paymentStatus,
+      paymentMethod,
+      paidConfirmed,
+      totalPrice
+    };
+  }) || [];
 
   // Buscar Clientes e Procedimentos para os formulários de criação
   const { data: clients, error: clientsError } = await supabase
@@ -94,7 +129,7 @@ export default async function SchedulePage() {
 
   return (
     <ScheduleCalendarClient 
-      initialAppointments={appointments as any || []}
+      initialAppointments={hydratedAppointments as any || []}
       clients={clients || []}
       procedures={procedures || []}
       professionals={professionals || []}

@@ -21,7 +21,7 @@ import {
 import { 
   Wallet, 
   TrendingUp, 
-  TrendingDown, 
+  TrendingDown,
   Plus, 
   Search, 
   Filter, 
@@ -31,10 +31,10 @@ import {
   CreditCard,
   Banknote,
   ChevronRight,
-  TrendingDown as TrendingDownIcon,
   AlertCircle,
   Clock as ClockIcon,
-  HelpCircle
+  HelpCircle,
+  Trash2
 } from 'lucide-react';
 import { 
   format, 
@@ -53,7 +53,7 @@ import {
   subDays
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CashFlowChart, ExpensesByCategoryChart } from '@/components/finance/finance-charts';
+import { CashFlowChart, ExpensesByCategoryChart, ProfitGrowthChart } from '@/components/finance/finance-charts';
 import { ConfirmationQueue } from '@/components/finance/confirmation-queue';
 import { AccountsReceivableList } from '@/components/finance/accounts-receivable-list';
 import { useProfile } from '@/providers/profile-provider';
@@ -65,7 +65,9 @@ export default function FinancePage() {
   const [loading, setLoading] = useState(true);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>('month');
-  const [activeTab, setActiveTab] = useState<'overview' | 'receivables'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'receivables' | 'settings'>('overview');
+  const [categories, setCategories] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<any[]>([]);
   const [data, setData] = useState({
     transactions: [] as any[],
     pendingTransactions: [] as any[],
@@ -73,10 +75,17 @@ export default function FinancePage() {
       income: 0, 
       expense: 0, 
       balance: 0,
+      profit: 0,
       forecastWeek: 0,
       forecastMonth: 0,
       receivablesTotal: 0,
-      pendingCount: 0
+      payablesPending: 0,
+      pendingCount: 0,
+      avgIncome: 0,
+      avgExpense: 0,
+      avgProfit: 0,
+      paidTotal: 0,
+      pendingTotal: 0
     },
     flowData: [] as any[],
     categoryData: [] as any[]
@@ -102,18 +111,21 @@ export default function FinancePage() {
       else { start = startOfYear(now); end = endOfYear(now); }
 
       // Fetch Everything
-      const [transRes, appRes, catsRes] = await Promise.all([
+      const [transRes, appRes, accRes, catsRes] = await Promise.all([
         supabase.from('transactions').select('*, financial_categories(name, color)').eq('company_id', profile?.company_id).order('date', { ascending: false }),
         supabase.from('appointments').select('*, procedures(price)').eq('company_id', profile?.company_id).eq('status', 'scheduled'),
+        supabase.from('financial_accounts').select('*').eq('company_id', profile?.company_id),
         supabase.from('financial_categories').select('*').eq('company_id', profile?.company_id)
       ]);
 
-      const allTransactions = transRes.data || [];
+      const allTransactions = (transRes.data || []).map((t: any) => ({ ...t, status: t.status || 'completed' }));
       const appointments = appRes.data || [];
+      setAccounts(accRes.data || []);
+      setCategories(catsRes.data || []);
       
       // 1. Confirmed Transactions in Period
       const periodTransactions = allTransactions.filter(t => 
-        t.status === 'completed' && isWithinInterval(new Date(t.date), { start, end })
+        (t.status === 'completed') && isWithinInterval(new Date(t.date), { start, end })
       );
 
       // 2. Pending Transactions (Fila de Confirmação)
@@ -122,9 +134,25 @@ export default function FinancePage() {
       // 3. Stats Calculation
       const income = periodTransactions.reduce((acc, t) => t.type === 'income' ? acc + Number(t.amount) : acc, 0);
       const expense = periodTransactions.reduce((acc, t) => t.type === 'expense' ? acc + Number(t.amount) : acc, 0);
+      const profit = income - expense;
       const totalBalance = allTransactions.filter(t => t.status === 'completed').reduce((acc, t) => t.type === 'income' ? acc + Number(t.amount) : acc - Number(t.amount), 0);
 
-      // 4. Forecasts (Appointments in Next Week / Month)
+      // 4. Averages Calculation
+      let days = 1;
+      if (period === 'week') days = 7;
+      else if (period === 'month') days = 30;
+      else if (period === 'year') days = 365;
+
+      const avgIncome = income / days;
+      const avgExpense = expense / days;
+      const avgProfit = profit / days;
+
+      // 5. Payables (Pending Expenses)
+      const payablesPending = allTransactions
+        .filter(t => t.type === 'expense' && t.status === 'pending')
+        .reduce((acc, t) => acc + Number(t.amount), 0);
+
+      // 6. Forecasts (Appointments in Next Week / Month)
       const nextWeekEnd = addDays(now, 7);
       const nextMonthEnd = addMonths(now, 1);
       
@@ -134,16 +162,16 @@ export default function FinancePage() {
       const forecastMonth = appointments.filter(a => isWithinInterval(new Date(a.start_time), { start: now, end: nextMonthEnd }))
         .reduce((acc, a) => acc + (a.price_override || a.procedures?.price || 0), 0);
 
-      // 5. Chart Data (Flow)
+      // 7. Chart Data (Flow)
       const flowData = eachDayOfInterval({ start: subDays(now, 6), end: now }).map(day => {
         const dayStart = startOfDay(day);
         const dayEnd = endOfDay(day);
-        const dayIn = allTransactions.filter(t => t.type === 'income' && t.status === 'completed' && isWithinInterval(new Date(t.date), { start: dayStart, end: dayEnd })).reduce((acc, t) => acc + Number(t.amount), 0);
-        const dayOut = allTransactions.filter(t => t.type === 'expense' && t.status === 'completed' && isWithinInterval(new Date(t.date), { start: dayStart, end: dayEnd })).reduce((acc, t) => acc + Number(t.amount), 0);
-        return { date: format(day, 'dd/MM'), entradas: dayIn, saidas: dayOut };
+        const dayIn = allTransactions.filter(t => t.type === 'income' && (t.status === 'completed') && isWithinInterval(new Date(t.date), { start: dayStart, end: dayEnd })).reduce((acc, t) => acc + Number(t.amount), 0);
+        const dayOut = allTransactions.filter(t => t.type === 'expense' && (t.status === 'completed') && isWithinInterval(new Date(t.date), { start: dayStart, end: dayEnd })).reduce((acc, t) => acc + Number(t.amount), 0);
+        return { date: format(day, 'dd/MM'), entradas: dayIn, saidas: dayOut, lucro: dayIn - dayOut };
       });
 
-      // 6. Category Stat
+      // 8. Category Stat
       const catMap: Record<string, { val: number, color: string }> = {};
       periodTransactions.filter(t => t.type === 'expense').forEach(t => {
         const name = t.financial_categories?.name || 'Geral';
@@ -154,17 +182,16 @@ export default function FinancePage() {
       });
       const categoryData = Object.entries(catMap).map(([name, data]) => ({ name, value: data.val, color: data.color }));
 
-      // 7. Receivables Logic (Simplified for Dashboard KPI)
-      // Fetch completed appointments and their income transactions
+      // 9. Receivables Logic
       const { data: compApps } = await supabase.from('appointments').select('id, procedures(price)').eq('company_id', profile?.company_id).eq('status', 'completed');
       const appIds = compApps?.map(a => a.id) || [];
-      const { data: incomeTx } = await supabase.from('transactions').select('amount, appointment_id, status').in('appointment_id', appIds).eq('type', 'income');
+      const { data: incomeTx } = await supabase.from('transactions').select('amount, appointment_id').in('appointment_id', appIds).eq('type', 'income');
 
       let receivablesTotal = 0;
       let pendingCount = 0;
       
       compApps?.forEach(app => {
-        const appIncome = incomeTx?.filter(t => t.appointment_id === app.id && t.status === 'completed').reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+        const appIncome = incomeTx?.filter(t => (t as any).appointment_id === app.id).reduce((sum, t) => sum + Number(t.amount), 0) || 0;
         const procedure = Array.isArray(app.procedures) ? app.procedures[0] : app.procedures;
         const total = Number((procedure as any)?.price || 0);
         if (appIncome < total) {
@@ -176,7 +203,22 @@ export default function FinancePage() {
       setData({
         transactions: periodTransactions.slice(0, 5),
         pendingTransactions: pendingTransactions.slice(0, 5),
-        stats: { income, expense, balance: totalBalance, forecastWeek, forecastMonth, receivablesTotal, pendingCount },
+        stats: { 
+          income, 
+          expense, 
+          balance: totalBalance, 
+          profit,
+          forecastWeek, 
+          forecastMonth, 
+          receivablesTotal, 
+          payablesPending,
+          pendingCount,
+          avgIncome,
+          avgExpense,
+          avgProfit,
+          paidTotal: income,
+          pendingTotal: receivablesTotal + payablesPending
+        },
         flowData,
         categoryData
       });
@@ -195,7 +237,6 @@ export default function FinancePage() {
       
       if (!tx) return;
 
-      // Update status
       const { error: updateError } = await supabase
         .from('transactions')
         .update({ status: 'completed' })
@@ -203,14 +244,13 @@ export default function FinancePage() {
 
       if (updateError) throw updateError;
 
-      // Update balance
       const multiplier = tx.type === 'income' ? 1 : -1;
       await supabase.rpc('update_account_balance', { 
         target_account_id: tx.account_id, 
         amount_diff: multiplier * Number(tx.amount) 
       });
 
-      fetchData(); // Refresh page
+      fetchData();
     } catch (err) {
       console.error('Error confirming transaction:', err);
     } finally {
@@ -218,9 +258,15 @@ export default function FinancePage() {
     }
   }
 
+  async function handleDelete(table: string, id: string) {
+    if (!confirm('Tem certeza que deseja excluir este item?')) return;
+    const supabase = createBrowserClient();
+    await supabase.from(table).delete().eq('id', id);
+    fetchData();
+  }
+
   return (
     <div className="space-y-8 animate-fade-in pb-20">
-      {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-amber-950 rounded-2xl shadow-lg border border-amber-900/50">
@@ -258,78 +304,59 @@ export default function FinancePage() {
         </div>
       </div>
 
-      {/* Main KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <FinanceCard 
-          label="Saldo Total" 
-          value={data.stats.balance} 
-          loading={loading}
-          icon={Wallet} 
-          color="blue" 
-          subtitle="Em todas as contas"
-        />
-        <FinanceCard 
-          label={`Entradas (${period})`} 
-          value={data.stats.income} 
-          loading={loading}
-          icon={TrendingUp} 
-          color="emerald" 
-          subtitle="Confirmadas"
-        />
-        <FinanceCard 
-          label={`Saídas (${period})`} 
-          value={data.stats.expense} 
-          loading={loading}
-          icon={TrendingDown} 
-          color="red" 
-          subtitle="Pagas"
-        />
-        <FinanceCard 
-          label="Previsão (Mês)" 
-          value={data.stats.forecastMonth} 
-          loading={loading}
-          icon={Calendar} 
-          color="amber" 
-          subtitle="Agenda futura"
-        />
-        <FinanceCard 
-          label="Contas a Receber" 
-          value={data.stats.receivablesTotal} 
-          loading={loading}
-          icon={ClockIcon} 
-          color="rose" 
-          subtitle={`${data.stats.pendingCount} atendimentos pendentes`}
-          onClick={() => setActiveTab('receivables')}
-        />
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+        <FinanceCard label={`Entradas`} value={data.stats.income} loading={loading} icon={TrendingUp} color="emerald" subtitle="Total recebido" />
+        <FinanceCard label={`Saídas`} value={data.stats.expense} loading={loading} icon={TrendingDown} color="red" subtitle="Total pago" />
+        <FinanceCard label="Lucro Líquido" value={data.stats.profit} loading={loading} icon={ArrowUpRight} color="blue" subtitle="Entradas - Saídas" />
+        <FinanceCard label="Pendente Receber" value={data.stats.receivablesTotal} loading={loading} icon={ClockIcon} color="amber" subtitle={`${data.stats.pendingCount} pendências`} onClick={() => setActiveTab('receivables')} />
+        <FinanceCard label="Pendente Pagar" value={data.stats.payablesPending} loading={loading} icon={AlertCircle} color="rose" subtitle="Contas a pagar" />
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-8 border-b border-slate-100 pb-px">
-        <button 
-          onClick={() => setActiveTab('overview')}
-          className={cn(
-            "pb-5 text-xs font-black uppercase tracking-widest transition-all relative px-2",
-            activeTab === 'overview' ? "text-slate-900" : "text-slate-400 hover:text-slate-600"
-          )}
-        >
-          Visão Geral
-          {activeTab === 'overview' && <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-slate-900 rounded-t-full shadow-[0_-2px_10px_rgba(0,0,0,0.1)]" />}
-        </button>
-        <button 
-          onClick={() => setActiveTab('receivables')}
-          className={cn(
-            "pb-5 text-xs font-black uppercase tracking-widest transition-all relative px-2",
-            activeTab === 'receivables' ? "text-slate-900" : "text-slate-400 hover:text-slate-600"
-          )}
-        >
-          Contas a Receber
-          {data.stats.pendingCount > 0 && (
-            <span className="absolute top-0 -right-2 bg-rose-500 text-white text-[9px] font-black w-5 h-5 flex items-center justify-center rounded-full shadow-lg shadow-rose-200 border-2 border-white">
-              {data.stats.pendingCount}
-            </span>
-          )}
-          {activeTab === 'receivables' && <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-rose-500 rounded-t-full shadow-[0_-2px_10px_rgba(244,63,94,0.2)]" />}
-        </button>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-100">
+        <div className="flex items-center gap-8">
+          <button 
+            onClick={() => setActiveTab('overview')} 
+            className={cn(
+              "pb-5 text-xs font-black uppercase tracking-widest transition-all relative px-2", 
+              activeTab === 'overview' ? "text-slate-900" : "text-slate-400 hover:text-slate-600"
+            )}
+          >
+            Visão Geral
+            {activeTab === 'overview' && <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-slate-900 rounded-t-full shadow-[0_-2px_10px_rgba(0,0,0,0.1)]" />}
+          </button>
+          <button 
+            onClick={() => setActiveTab('receivables')} 
+            className={cn(
+              "pb-5 text-xs font-black uppercase tracking-widest transition-all relative px-2", 
+              activeTab === 'receivables' ? "text-slate-900" : "text-slate-400 hover:text-slate-600"
+            )}
+          >
+            Contas a Receber
+            {activeTab === 'receivables' && <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-rose-500 rounded-t-full shadow-[0_-2px_10px_rgba(244,63,94,0.2)]" />}
+          </button>
+          <button 
+            onClick={() => setActiveTab('settings')} 
+            className={cn(
+              "pb-5 text-xs font-black uppercase tracking-widest transition-all relative px-2", 
+              activeTab === 'settings' ? "text-slate-900" : "text-slate-400 hover:text-slate-600"
+            )}
+          >
+            Gestão de Pastas
+            {activeTab === 'settings' && <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#D4AF37] rounded-t-full shadow-[0_-2px_10px_rgba(212,175,55,0.2)]" />}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-6 pb-4">
+           <div className="flex flex-col items-end">
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Média Diária</span>
+              <span className="text-sm font-black text-emerald-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.stats.avgIncome)}</span>
+           </div>
+           <div className="w-px h-8 bg-slate-100" />
+           <div className="flex flex-col items-end">
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Lucro Médio/Dia</span>
+              <span className="text-sm font-black text-blue-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.stats.avgProfit)}</span>
+           </div>
+        </div>
       </div>
 
       {activeTab === 'overview' ? (
@@ -338,17 +365,21 @@ export default function FinancePage() {
         <Card className="lg:col-span-2 bg-white border-slate-100 rounded-3xl shadow-xl shadow-slate-200/50 overflow-hidden">
           <CardHeader className="border-b border-slate-50 px-8 py-6 flex flex-row items-center justify-between">
             <div>
-              <CardTitle className="text-lg font-black text-slate-900 tracking-tight">Fluxo de Caixa</CardTitle>
-              <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Comparativo de entradas vs saídas (7 dias)</p>
+              <CardTitle className="text-lg font-black text-slate-900 tracking-tight">Fluxo de Caixa e Lucratividade</CardTitle>
+              <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Comparativo de entradas vs saídas e margem de lucro</p>
             </div>
             <div className="flex items-center gap-4">
                <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  <span className="text-[10px] font-black text-slate-500">ENTRADAS</span>
+                  <span className="text-[10px] font-black text-slate-500 uppercase">Entradas</span>
                </div>
                <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                  <span className="text-[10px] font-black text-slate-500">SAÍDAS</span>
+                  <span className="text-[10px] font-black text-slate-500 uppercase">Saídas</span>
+               </div>
+               <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                  <span className="text-[10px] font-black text-slate-500 uppercase">Lucro</span>
                </div>
             </div>
           </CardHeader>
@@ -359,6 +390,31 @@ export default function FinancePage() {
 
         {/* Categories / Side Panel */}
         <div className="space-y-8">
+           {/* Financial Health Gauge */}
+           <Card className="bg-white border-slate-100 rounded-3xl shadow-xl shadow-slate-200/50 overflow-hidden">
+             <CardHeader className="px-6 py-4 border-b border-slate-50">
+               <CardTitle className="text-xs font-black text-slate-900 uppercase tracking-widest">Saúde Financeira</CardTitle>
+             </CardHeader>
+             <CardContent className="p-6">
+                <div className="space-y-4">
+                   <div className="flex justify-between items-end">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Recebidos vs Pendentes</span>
+                      <span className="text-sm font-black text-emerald-600">
+                         {Math.round((data.stats.income / (data.stats.income + data.stats.receivablesTotal || 1)) * 100)}%
+                      </span>
+                   </div>
+                   <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div 
+                         className="h-full bg-emerald-500 transition-all duration-1000" 
+                         style={{ width: `${(data.stats.income / (data.stats.income + data.stats.receivablesTotal || 1)) * 100}%` }}
+                      />
+                   </div>
+                   <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                      Meta: Receber {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.stats.receivablesTotal)} adicionais para 100% de aproveitamento.
+                   </p>
+                </div>
+             </CardContent>
+           </Card>
            {/* Confirmation Queue */}
            <Card className="bg-white border-slate-100 rounded-3xl shadow-xl shadow-slate-200/50 overflow-hidden">
              <CardHeader className="bg-amber-50/50 border-b border-amber-100/50 px-6 py-4">
@@ -379,19 +435,42 @@ export default function FinancePage() {
              </CardContent>
            </Card>
 
-           {/* Expenses by Category */}
-           <Card className="bg-white border-slate-100 rounded-3xl shadow-xl shadow-slate-200/50 overflow-hidden">
-             <CardHeader className="px-6 py-4 border-b border-slate-50">
-               <CardTitle className="text-xs font-black text-slate-900 uppercase tracking-widest">Despesas por Categoria</CardTitle>
-             </CardHeader>
-             <CardContent className="p-4 flex flex-col items-center">
-               <ExpensesByCategoryChart data={data.categoryData} />
-               {data.categoryData.length === 0 && (
-                 <p className="text-[10px] font-bold text-slate-300 py-10 uppercase tracking-widest">Sem dados no período</p>
-               )}
-             </CardContent>
-           </Card>
         </div>
+
+        {/* Profit Growth Section */}
+        <Card className="lg:col-span-2 bg-white border-slate-100 rounded-3xl shadow-xl shadow-slate-200/50 overflow-hidden">
+          <CardHeader className="border-b border-slate-50 px-8 py-6">
+            <CardTitle className="text-lg font-black text-slate-900 tracking-tight">Crescimento Financeiro</CardTitle>
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Trajetória do lucro acumulado no período</p>
+          </CardHeader>
+          <CardContent className="p-8">
+            <ProfitGrowthChart data={data.flowData} />
+          </CardContent>
+        </Card>
+
+        {/* Expenses by Category Improved */}
+        <Card className="bg-white border-slate-100 rounded-3xl shadow-xl shadow-slate-200/50 overflow-hidden">
+          <CardHeader className="px-6 py-4 border-b border-slate-50">
+            <CardTitle className="text-xs font-black text-slate-900 uppercase tracking-widest">Distribuição de Gastos</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 flex flex-col items-center">
+            <ExpensesByCategoryChart data={data.categoryData} />
+            <div className="w-full space-y-2 mt-4">
+               {data.categoryData.slice(0, 3).map((cat: any) => (
+                  <div key={cat.name} className="flex justify-between items-center px-2">
+                     <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
+                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-tighter">{cat.name}</span>
+                     </div>
+                     <span className="text-[10px] font-black text-slate-900 tracking-tighter">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cat.value)}</span>
+                  </div>
+               ))}
+               {data.categoryData.length === 0 && (
+                  <p className="text-[10px] font-bold text-slate-300 py-10 text-center uppercase tracking-widest">Sem dados no período</p>
+               )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Recent Activity Table (Full Width) */}
         <Card className="lg:col-span-3 bg-white border-slate-100 rounded-3xl shadow-xl shadow-slate-200/50 overflow-hidden">
@@ -417,7 +496,7 @@ export default function FinancePage() {
                     <TableRow>
                       <TableCell colSpan={5} className="py-20 text-center">
                         <div className="flex flex-col items-center gap-3">
-                          <TrendingDownIcon className="h-10 w-10 text-slate-200" />
+                          <Trash2 className="h-10 w-10 text-slate-200" />
                           <p className="text-slate-400 font-bold text-sm">Nenhuma movimentação confirmada neste período.</p>
                         </div>
                       </TableCell>
@@ -465,7 +544,7 @@ export default function FinancePage() {
             </Table>
         </Card>
       </div>
-      ) : (
+      ) : activeTab === 'receivables' ? (
         <div className="space-y-6">
           <div className="bg-white border-slate-100 rounded-3xl shadow-xl shadow-slate-200/50 p-8">
              <div className="flex items-center gap-4 mb-8">
@@ -480,6 +559,59 @@ export default function FinancePage() {
              
              <AccountsReceivableList companyId={profile?.company_id || ''} />
           </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+           <Card className="bg-white border-slate-100 rounded-3xl shadow-sm">
+             <CardHeader className="border-b border-slate-50">
+                <CardTitle className="text-sm font-black text-slate-900 uppercase tracking-widest">Categorias de Lançamento</CardTitle>
+             </CardHeader>
+             <CardContent className="p-6">
+                <div className="space-y-3">
+                   {categories.map(c => (
+                     <div key={c.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                        <div className="flex items-center gap-3">
+                           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.color }} />
+                           <span className="text-xs font-bold text-slate-700">{c.name}</span>
+                           <Badge variant="outline" className="text-[8px] uppercase">{c.type === 'income' ? 'Entrada' : 'Saída'}</Badge>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleDelete('financial_categories', c.id)}
+                          className="h-8 w-8 text-slate-300 hover:text-rose-500"
+                        >
+                           <Trash2 className="h-4 w-4" />
+                        </Button>
+                     </div>
+                   ))}
+                </div>
+             </CardContent>
+           </Card>
+
+           <Card className="bg-white border-slate-100 rounded-3xl shadow-sm">
+             <CardHeader className="border-b border-slate-50">
+                <CardTitle className="text-sm font-black text-slate-900 uppercase tracking-widest">Contas Bancárias / Caixas</CardTitle>
+             </CardHeader>
+             <CardContent className="p-6">
+                <div className="space-y-3">
+                   {accounts.map(a => (
+                     <div key={a.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                        <div className="flex items-center gap-3">
+                           <Wallet className="w-4 h-4 text-[#D4AF37]" />
+                           <span className="text-xs font-bold text-slate-700">{a.name}</span>
+                        </div>
+                        <div className="text-right">
+                           <p className="text-[10px] font-black text-slate-400 uppercase">Saldo Atual</p>
+                           <p className="text-xs font-black text-slate-900 italic">
+                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(a.balance || 0)}
+                           </p>
+                        </div>
+                     </div>
+                   ))}
+                </div>
+             </CardContent>
+           </Card>
         </div>
       )}
     </div>

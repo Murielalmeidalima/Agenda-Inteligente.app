@@ -108,12 +108,12 @@ export default function NewClientPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
            <Link href="/dashboard/clients">
-              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-xl bg-[#0f172a]/50 text-neutral-400 hover:text-white hover:bg-neutral-800 transition-all">
+              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-xl bg-neutral-100 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-200 transition-all">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
            </Link>
            <div>
-              <h1 className="text-3xl font-extrabold text-white tracking-tight">Novo Cadastro</h1>
+              <h1 className="text-3xl font-extrabold text-neutral-900 tracking-tight">Novo Cadastro</h1>
               <p className="text-neutral-500 text-sm font-bold uppercase tracking-widest mt-1">Configurar perfil completo do paciente</p>
            </div>
         </div>
@@ -133,10 +133,10 @@ export default function NewClientPage() {
          
          {/* Main Info */}
          <div className="lg:col-span-2 space-y-8">
-            <Card className="bg-[#0f172a]/30 border-neutral-800 rounded-3xl overflow-hidden backdrop-blur-sm">
-               <CardHeader className="bg-[#020617]/50 border-b border-neutral-800 py-4 px-8">
-                  <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                     <User className="h-4 w-4 text-primary-500" />
+            <Card className="bg-white border-neutral-200 shadow-sm rounded-3xl overflow-hidden">
+               <CardHeader className="bg-neutral-50 border-b border-neutral-200 py-4 px-8">
+                  <CardTitle className="text-base font-bold text-neutral-900 flex items-center gap-2">
+                     <User className="h-4 w-4 text-primary-600" />
                      Dados Pessoais
                   </CardTitle>
                </CardHeader>
@@ -145,10 +145,10 @@ export default function NewClientPage() {
                      <div className="space-y-2">
                         <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Nome Completo</label>
                         <div className="relative group">
-                           <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-600 group-focus-within:text-primary-500 transition-colors" />
+                           <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 group-focus-within:text-primary-600 transition-colors" />
                            <Input 
                               placeholder="Digite o nome..." 
-                              className="bg-[#020617] border-neutral-800 h-11 pl-10 rounded-xl text-white placeholder:text-neutral-700"
+                              className="bg-white border-neutral-200 h-11 pl-10 rounded-xl text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                               required
                               value={formData.full_name}
                               onChange={(e) => handleChange('full_name', e.target.value)}
@@ -158,10 +158,10 @@ export default function NewClientPage() {
                      <div className="space-y-2">
                         <label className="text-xs font-bold text-neutral-500 uppercase ml-1">CPF</label>
                         <div className="relative group">
-                           <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-600 group-focus-within:text-primary-500 transition-colors" />
+                           <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 group-focus-within:text-primary-600 transition-colors" />
                            <Input 
                               placeholder="000.000.000-00" 
-                              className="bg-[#020617] border-neutral-800 h-11 pl-10 rounded-xl text-white placeholder:text-neutral-700"
+                              className="bg-white border-neutral-200 h-11 pl-10 rounded-xl text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                               value={formData.cpf}
                               onChange={(e) => handleChange('cpf', e.target.value)}
                            />
@@ -170,11 +170,11 @@ export default function NewClientPage() {
                      <div className="space-y-2">
                         <label className="text-xs font-bold text-neutral-500 uppercase ml-1">E-mail</label>
                         <div className="relative group">
-                           <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-600 group-focus-within:text-primary-500 transition-colors" />
+                           <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 group-focus-within:text-primary-600 transition-colors" />
                            <Input 
                               type="email"
                               placeholder="exemplo@email.com" 
-                              className="bg-[#020617] border-neutral-800 h-11 pl-10 rounded-xl text-white placeholder:text-neutral-700"
+                              className="bg-white border-neutral-200 h-11 pl-10 rounded-xl text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                               value={formData.email}
                               onChange={(e) => handleChange('email', e.target.value)}
                            />
@@ -183,10 +183,10 @@ export default function NewClientPage() {
                      <div className="space-y-2">
                         <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Telefone / WhatsApp</label>
                         <div className="relative group">
-                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-600 group-focus-within:text-primary-500 transition-colors" />
+                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 group-focus-within:text-primary-600 transition-colors" />
                            <Input 
                               placeholder="(00) 00000-0000" 
-                              className="bg-[#020617] border-neutral-800 h-11 pl-10 rounded-xl text-white placeholder:text-neutral-700"
+                              className="bg-white border-neutral-200 h-11 pl-10 rounded-xl text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                               required
                               value={formData.phone}
                               onChange={(e) => handleChange('phone', e.target.value)}
@@ -199,10 +199,10 @@ export default function NewClientPage() {
                      <div className="space-y-2">
                         <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Instagram</label>
                         <div className="relative group">
-                           <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-600 group-focus-within:text-purple-500 transition-colors" />
+                           <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 group-focus-within:text-purple-500 transition-colors" />
                            <Input 
                               placeholder="@usuario" 
-                              className="bg-[#020617] border-neutral-800 h-11 pl-10 rounded-xl text-white placeholder:text-neutral-700"
+                              className="bg-white border-neutral-200 h-11 pl-10 rounded-xl text-neutral-900 placeholder:text-neutral-400 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
                               value={formData.instagram}
                               onChange={(e) => handleChange('instagram', e.target.value)}
                            />
@@ -212,7 +212,7 @@ export default function NewClientPage() {
                         <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Data de Nascimento</label>
                         <Input 
                            type="date"
-                           className="bg-[#020617] border-neutral-800 h-11 rounded-xl text-white appearance-none"
+                           className="bg-white border-neutral-200 h-11 rounded-xl text-neutral-900 appearance-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 p-2"
                            value={formData.birth_date}
                            onChange={(e) => handleChange('birth_date', e.target.value)}
                         />
@@ -221,10 +221,10 @@ export default function NewClientPage() {
                </CardContent>
             </Card>
 
-            <Card className="bg-[#0f172a]/30 border-neutral-800 rounded-3xl overflow-hidden backdrop-blur-sm">
-               <CardHeader className="bg-[#020617]/50 border-b border-neutral-800 py-4 px-8">
-                  <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                     <MapPin className="h-4 w-4 text-primary-500" />
+            <Card className="bg-white border-neutral-200 shadow-sm rounded-3xl overflow-hidden">
+               <CardHeader className="bg-neutral-50 border-b border-neutral-200 py-4 px-8">
+                  <CardTitle className="text-base font-bold text-neutral-900 flex items-center gap-2">
+                     <MapPin className="h-4 w-4 text-primary-600" />
                      Endereço
                   </CardTitle>
                </CardHeader>
@@ -234,7 +234,7 @@ export default function NewClientPage() {
                         <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Rua / Logradouro</label>
                         <Input 
                            placeholder="Ex: Av. Brasil" 
-                           className="bg-[#020617] border-neutral-800 h-11 rounded-xl text-white placeholder:text-neutral-700"
+                           className="bg-white border-neutral-200 h-11 rounded-xl text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                            value={formData.address_street}
                            onChange={(e) => handleChange('address_street', e.target.value)}
                         />
@@ -243,7 +243,7 @@ export default function NewClientPage() {
                         <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Nº</label>
                         <Input 
                            placeholder="123" 
-                           className="bg-[#020617] border-neutral-800 h-11 rounded-xl text-white placeholder:text-neutral-700"
+                           className="bg-white border-neutral-200 h-11 rounded-xl text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                            value={formData.address_number}
                            onChange={(e) => handleChange('address_number', e.target.value)}
                         />
@@ -254,7 +254,7 @@ export default function NewClientPage() {
                         <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Bairro</label>
                         <Input 
                            placeholder="Digite o bairro..." 
-                           className="bg-[#020617] border-neutral-800 h-11 rounded-xl text-white placeholder:text-neutral-700"
+                           className="bg-white border-neutral-200 h-11 rounded-xl text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                            value={formData.address_neighborhood}
                            onChange={(e) => handleChange('address_neighborhood', e.target.value)}
                         />
@@ -263,7 +263,7 @@ export default function NewClientPage() {
                         <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Cidade</label>
                         <Input 
                            placeholder="Ex: São Paulo" 
-                           className="bg-[#020617] border-neutral-800 h-11 rounded-xl text-white placeholder:text-neutral-700"
+                           className="bg-white border-neutral-200 h-11 rounded-xl text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                            value={formData.address_city}
                            onChange={(e) => handleChange('address_city', e.target.value)}
                         />
@@ -275,9 +275,9 @@ export default function NewClientPage() {
 
          {/* Side Info */}
          <div className="space-y-8">
-            <Card className="bg-[#0f172a]/30 border-neutral-800 rounded-3xl overflow-hidden backdrop-blur-sm">
-               <CardHeader className="bg-[#020617]/50 border-b border-neutral-800 py-4 px-8">
-                  <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+            <Card className="bg-white border-neutral-200 shadow-sm rounded-3xl overflow-hidden">
+               <CardHeader className="bg-neutral-50 border-b border-neutral-200 py-4 px-8">
+                  <CardTitle className="text-base font-bold text-neutral-900 flex items-center gap-2">
                      <AlertCircle className="h-4 w-4 text-amber-500" />
                      Contato Emergência
                   </CardTitle>
@@ -287,7 +287,7 @@ export default function NewClientPage() {
                      <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Nome do Contato</label>
                      <Input 
                         placeholder="Nome..." 
-                        className="bg-[#020617] border-neutral-800 h-11 rounded-xl text-white placeholder:text-neutral-700"
+                        className="bg-white border-neutral-200 h-11 rounded-xl text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                         value={formData.emergency_contact_name}
                         onChange={(e) => handleChange('emergency_contact_name', e.target.value)}
                      />
@@ -296,7 +296,7 @@ export default function NewClientPage() {
                      <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Telefone</label>
                      <Input 
                         placeholder="(00) 00000-0000" 
-                        className="bg-[#020617] border-neutral-800 h-11 rounded-xl text-white placeholder:text-neutral-700"
+                        className="bg-white border-neutral-200 h-11 rounded-xl text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                         value={formData.emergency_contact_phone}
                         onChange={(e) => handleChange('emergency_contact_phone', e.target.value)}
                      />
@@ -304,17 +304,17 @@ export default function NewClientPage() {
                </CardContent>
             </Card>
 
-            <Card className="bg-[#0f172a]/30 border-neutral-800 rounded-3xl overflow-hidden backdrop-blur-sm">
-               <CardHeader className="bg-[#020617]/50 border-b border-neutral-800 py-4 px-8">
-                  <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                     <Contact2 className="h-4 w-4 text-primary-500" />
+            <Card className="bg-white border-neutral-200 shadow-sm rounded-3xl overflow-hidden">
+               <CardHeader className="bg-neutral-50 border-b border-neutral-200 py-4 px-8">
+                  <CardTitle className="text-base font-bold text-neutral-900 flex items-center gap-2">
+                     <Contact2 className="h-4 w-4 text-primary-600" />
                      Observações
                   </CardTitle>
                </CardHeader>
                <CardContent className="p-8">
                   <TextArea 
                      placeholder="Histórico médico, restrições ou notas importantes sobre o paciente..."
-                     className="bg-[#020617] border-neutral-800 rounded-2xl text-white placeholder:text-neutral-700 h-40"
+                     className="bg-white border-neutral-200 rounded-2xl text-neutral-900 placeholder:text-neutral-400 h-40 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 p-3"
                      value={formData.observations}
                      onChange={(e) => handleChange('observations', e.target.value)}
                   />

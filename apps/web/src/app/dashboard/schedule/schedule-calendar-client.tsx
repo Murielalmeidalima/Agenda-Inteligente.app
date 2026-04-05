@@ -43,6 +43,7 @@ export default function ScheduleCalendarClient({
   const [appointments, setAppointments] = useState(initialAppointments);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [slotInterval, setSlotInterval] = useState<number>(30);
   
   const [formData, setFormData] = useState({
     clientId: '',
@@ -81,6 +82,21 @@ export default function ScheduleCalendarClient({
       
       const start = new Date(formData.startTime);
       const end = addMinutes(start, procedure.duration_minutes);
+
+      const hasConflict = appointments.some((apt) => {
+        if (apt.status === 'cancelled') return false;
+        if (apt.professional_id !== formData.professionalId) return false;
+        
+        const existingStart = new Date(apt.start_time);
+        const existingEnd = apt.end_time ? new Date(apt.end_time) : addMinutes(existingStart, apt.procedures?.duration_minutes || 60);
+        
+        return start < existingEnd && end > existingStart;
+      });
+
+      if (hasConflict) {
+        showToast.error('Atenção', 'Este profissional já possui agendamento neste horário.');
+        throw new Error('Conflito de Horário');
+      }
 
       const { data, error } = await supabase
         .from('appointments')
@@ -127,8 +143,10 @@ export default function ScheduleCalendarClient({
 
     } catch (err: any) {
       if (err.message?.includes('AbortError') || err.name === 'AbortError') return;
-      console.error('Error saving appointment:', err);
-      alert('Erro ao salvar agendamento');
+      if (err.message !== 'Conflito de Horário') {
+        console.error('Error saving appointment:', err);
+        alert('Erro ao salvar agendamento');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -145,7 +163,9 @@ export default function ScheduleCalendarClient({
             setSelectedAppointment(apt);
             setIsEditModalOpen(true);
           }
-        }} 
+        }}
+        slotInterval={slotInterval}
+        onSlotIntervalChange={setSlotInterval}
       />
 
       <EditAppointmentModal 
@@ -153,8 +173,7 @@ export default function ScheduleCalendarClient({
         onClose={() => setIsEditModalOpen(false)}
         appointment={selectedAppointment}
         onUpdate={() => {
-           // Refresh appointments logic - ideally passed from page or refetched
-           window.location.reload(); // Simple refresh for now or implement refine fetch
+           window.location.reload();
         }}
       />
 

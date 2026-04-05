@@ -8,6 +8,7 @@ import {
   CardTitle, 
   CardDescription,
   Button,
+  Badge,
   Input,
   Label,
   Switch,
@@ -23,6 +24,7 @@ import {
   Calendar, 
   Clock, 
   Gift, 
+  UserMinus,
   MessageCircle, 
   CheckCircle2, 
   AlertCircle,
@@ -37,7 +39,7 @@ import { ReviewsWidget } from '@/components/marketing/ReviewsWidget';
 type Rule = {
   id: string;
   name: string;
-  trigger_type: 'birthday' | 'pre_appointment' | 'post_appointment';
+  trigger_type: 'birthday' | 'pre_appointment' | 'post_appointment' | 'inactive_client';
   time_offset_minutes: number;
   message_template: string;
   benefit_text?: string | null;
@@ -64,7 +66,10 @@ function ReviewSettingsForm() {
     enable_google_review: false,
     feedback_type: 'internal',
     external_forms_url: '',
-    min_rating_for_google: 4
+    min_rating_for_google: 4,
+    min_interval_days: 30,
+    auto_send_enabled: true,
+    preferred_channel: 'whatsapp'
   });
 
   const supabase = createBrowserClient();
@@ -82,22 +87,74 @@ function ReviewSettingsForm() {
       .eq('company_id', profile?.company_id)
       .single();
 
-    if (data) setSettings(data);
+    if (data) {
+      // Tentar carregar metadados da regra de automação vinculada
+      const { data: rule } = await supabase
+        .from('automation_rules')
+        .select('*')
+        .eq('company_id', profile?.company_id)
+        .eq('name', 'Sistema: Controle de Avaliação')
+        .single();
+
+      if (rule && rule.benefit_text) {
+        try {
+          const meta = JSON.parse(rule.benefit_text);
+          setSettings({
+            ...data,
+            min_interval_days: meta.min_interval_days || 30,
+            auto_send_enabled: rule.is_active,
+            preferred_channel: meta.preferred_channel || 'whatsapp'
+          });
+        } catch (e) {
+          setSettings({...data, ...settings});
+        }
+      } else {
+        setSettings({...data, ...settings});
+      }
+    }
     setLoading(false);
   }
 
   async function handleSave() {
     setSaving(true);
+    // 1. Salvar configurações básicas
     const { error } = await supabase
       .from('review_settings')
       .upsert({
         company_id: profile?.company_id,
-        ...settings,
+        google_review_url: settings.google_review_url,
+        enable_google_review: settings.enable_google_review,
+        feedback_type: settings.feedback_type,
+        external_forms_url: settings.external_forms_url,
+        min_rating_for_google: settings.min_rating_for_google,
         updated_at: new Date().toISOString()
       });
 
-    if (error) alert('Erro ao salvar configurações');
-    else alert('Configurações salvas!');
+    if (error) {
+       alert('Erro ao salvar configurações principais');
+       setSaving(false);
+       return;
+    }
+
+    // 2. Salvar Controle Inteligente como uma Regra de Automação "Fantasma"
+    const { error: ruleError } = await supabase
+      .from('automation_rules')
+      .upsert({
+        company_id: profile?.company_id,
+        name: 'Sistema: Controle de Avaliação',
+        trigger_type: 'post_appointment',
+        time_offset_minutes: 60, // 1 hora após
+        is_active: settings.auto_send_enabled,
+        message_template: 'Olá {cliente}! Como foi sua experiência na {clinica}? Sua avaliação nos ajuda muito! {link_agenda}',
+        benefit_text: JSON.stringify({
+           min_interval_days: settings.min_interval_days,
+           preferred_channel: settings.preferred_channel
+        })
+      }, { onConflict: 'company_id,name' });
+
+    if (ruleError) alert('Erro ao salvar automação inteligente: ' + ruleError.message);
+    else alert('Configurações de avaliação salvas com sucesso!');
+    
     setSaving(false);
   }
 
@@ -170,6 +227,55 @@ function ReviewSettingsForm() {
           )}
        </div>
 
+       <div className="space-y-6 pt-6 border-t">
+          <div className="flex items-center justify-between">
+             <div className="space-y-0.5">
+                <Label className="text-base font-bold flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-500" />
+                  Controle Inteligente de Solicitação
+                </Label>
+                <p className="text-sm text-muted-foreground italic">Evite incomodar clientes frequentes enviando avaliações repetidas.</p>
+             </div>
+             <Switch 
+                checked={settings.auto_send_enabled} 
+                onCheckedChange={(val) => setSettings({...settings, auto_send_enabled: val})} 
+             />
+          </div>
+
+          {settings.auto_send_enabled && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-left-4">
+               <div className="space-y-2">
+                  <Label className="text-xs font-black uppercase text-slate-500 tracking-widest">Prazo Mínimo entre Solicitações</Label>
+                  <select 
+                     className="flex h-12 w-full rounded-xl border border-neutral-100 bg-white px-3 py-2 text-sm font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                     value={settings.min_interval_days}
+                     onChange={(e) => setSettings({...settings, min_interval_days: parseInt(e.target.value)})}
+                  >
+                    <option value="7">7 dias (1 semana)</option>
+                    <option value="15">15 dias (Quinzena)</option>
+                    <option value="30">30 dias (Mensal)</option>
+                    <option value="60">60 dias (Bimestral)</option>
+                    <option value="90">90 dias (Trimestral)</option>
+                  </select>
+               </div>
+
+               <div className="space-y-2">
+                  <Label className="text-xs font-black uppercase text-slate-500 tracking-widest">Canal de Envio Preferido</Label>
+                  <select 
+                     className="flex h-12 w-full rounded-xl border border-neutral-100 bg-white px-3 py-2 text-sm font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                     value={settings.preferred_channel}
+                     onChange={(e) => setSettings({...settings, preferred_channel: e.target.value})}
+                  >
+                    <option value="whatsapp">WhatsApp Business</option>
+                    <option value="email">E-mail</option>
+                    <option value="sms">SMS Marketing</option>
+                    <option value="push">Notificação Push (App)</option>
+                  </select>
+               </div>
+            </div>
+          )}
+       </div>
+
        <Button onClick={handleSave} disabled={saving} className="w-full md:w-auto min-w-[200px] h-12 bg-primary text-white font-bold">
           {saving ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : 'Salvar Configurações'}
        </Button>
@@ -183,13 +289,16 @@ export default function AutomationClient() {
   const [logs, setLogs] = useState<AutomationLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [isConfiguringReviews, setIsConfiguringReviews] = useState(false);
+  const [activeTab, setActiveTab] = useState('rules');
   const [saving, setSaving] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Form State
   const [newRule, setNewRule] = useState<Partial<Rule>>({
     name: '',
     trigger_type: 'pre_appointment',
-    time_offset_minutes: -1440,
+    time_offset_minutes: 0,
     message_template: '',
     is_active: true
   });
@@ -234,6 +343,171 @@ export default function AutomationClient() {
       console.error('Error fetching logs:', err);
     }
   }
+
+  async function processInactiveClients() {
+    if (!profile?.company_id || isProcessing) return;
+    
+    const inactiveRules = rules.filter(r => r.trigger_type === 'inactive_client' && r.is_active);
+    if (inactiveRules.length === 0) return;
+
+    setIsProcessing(true);
+    try {
+      const { data: clients, error: clientsError } = await supabase
+        .from('profiles')
+        .select('id, full_name, phone')
+        .eq('company_id', profile.company_id)
+        .eq('role', 'client');
+
+      if (clientsError) throw clientsError;
+
+      const { data: appointments, error: apptError } = await supabase
+        .from('appointments')
+        .select('client_id, start_time, status')
+        .eq('company_id', profile.company_id);
+
+      if (apptError) throw apptError;
+
+      const { data: existingLogs, error: logsError } = await supabase
+        .from('automation_logs')
+        .select('recipient_phone, rule_id')
+        .eq('status', 'sent');
+
+      if (logsError) throw logsError;
+
+      for (const rule of inactiveRules) {
+        const thresholdDays = Math.trunc(rule.time_offset_minutes / 1440);
+        const thresholdDate = new Date();
+        thresholdDate.setDate(thresholdDate.getDate() - thresholdDays);
+
+        for (const client of (clients || [])) {
+          if (!client.phone) continue;
+
+          const clientAppts = (appointments || []).filter(a => a.client_id === client.id);
+          
+          // Get last visit
+          const lastVisit = clientAppts
+            .filter(a => new Date(a.start_time) < new Date())
+            .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())[0];
+
+          // Check if there are future appointments
+          const hasFuture = clientAppts.some(a => new Date(a.start_time) > new Date() && a.status !== 'cancelled');
+
+          if (hasFuture) continue;
+
+          const isInactive = !lastVisit || new Date(lastVisit.start_time) < thresholdDate;
+
+          if (isInactive) {
+            // Check if already sent for this rule
+            const alreadySent = (existingLogs || []).some(l => l.recipient_phone === client.phone && l.rule_id === rule.id);
+
+            if (!alreadySent) {
+              // Simulate Sending & Register Log
+              await supabase.from('automation_logs').insert({
+                company_id: profile.company_id,
+                rule_id: rule.id,
+                recipient_phone: client.phone,
+                status: 'sent',
+                sent_at: new Date().toISOString()
+              });
+            }
+          }
+        }
+      }
+      
+      // Refresh logs after processing
+      fetchLogs();
+    } catch (err) {
+      console.error('Error processing inactive clients:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
+  async function processSmartReviews() {
+    if (!profile?.company_id || isProcessing) return;
+    
+    // 1. Encontrar a regra de avaliação inteligente
+    const reviewRule = rules.find(r => r.name === 'Sistema: Controle de Avaliação' && r.is_active);
+    if (!reviewRule) return;
+
+    let minIntervalDays = 30;
+    try {
+      const meta = reviewRule.benefit_text ? JSON.parse(reviewRule.benefit_text) : {};
+      minIntervalDays = meta.min_interval_days || 30;
+    } catch(e) {}
+
+    setIsProcessing(true);
+    try {
+      // 2. Buscar agendamentos concluídos nos últimos 2 dias
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+      const { data: appointments, error: apptError } = await supabase
+        .from('appointments')
+        .select(`
+          id, 
+          client_id, 
+          start_time, 
+          status,
+          profiles:client_id (phone, full_name)
+        `)
+        .eq('company_id', profile.company_id)
+        .eq('status', 'completed')
+        .gte('start_time', twoDaysAgo.toISOString());
+
+      if (apptError) throw apptError;
+
+      // 3. Buscar logs para esta regra
+      const { data: existingLogs, error: logsError } = await supabase
+        .from('automation_logs')
+        .select('recipient_phone, sent_at')
+        .eq('rule_id', reviewRule.id);
+
+      if (logsError) throw logsError;
+
+      for (const appt of (appointments || [])) {
+        const clientData = Array.isArray(appt.profiles) ? appt.profiles[0] : appt.profiles;
+        const clientPhone = clientData?.phone;
+        if (!clientPhone) continue;
+
+        // 4. Verificar barreira de tempo
+        const clientLogs = (existingLogs || []).filter(l => l.recipient_phone === clientPhone);
+        const lastLog = clientLogs.sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime())[0];
+
+        let canSend = true;
+        if (lastLog) {
+          const lastSent = new Date(lastLog.sent_at);
+          const daysSince = (new Date().getTime() - lastSent.getTime()) / (1000 * 3600 * 24);
+          if (daysSince < minIntervalDays) canSend = false;
+        }
+
+        if (canSend) {
+          await supabase.from('automation_logs').insert({
+            company_id: profile.company_id,
+            rule_id: reviewRule.id,
+            recipient_phone: clientPhone,
+            status: 'sent',
+            sent_at: new Date().toISOString()
+          });
+        }
+      }
+      fetchLogs();
+    } catch (err) {
+      console.error('Error processing reviews:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
+  useEffect(() => {
+    if (rules.length > 0 && !isProcessing) {
+      const runProcessing = async () => {
+        await processInactiveClients();
+        await processSmartReviews();
+      };
+      runProcessing();
+    }
+  }, [rules]);
 
   const handleToggleRule = async (id: string, currentState: boolean) => {
     // Optimistic Update
@@ -295,7 +569,7 @@ export default function AutomationClient() {
       setNewRule({
         name: '',
         trigger_type: 'pre_appointment',
-        time_offset_minutes: -1440,
+        time_offset_minutes: 0,
         message_template: '',
         benefit_text: '',
         is_active: true
@@ -321,14 +595,17 @@ export default function AutomationClient() {
           <p className="text-muted-foreground">Gerencie suas mensagens automáticas de WhatsApp e avaliações.</p>
         </div>
         <Button 
-          onClick={() => setIsCreating(true)} 
-          className="bg-green-600 hover:bg-green-700 text-white gap-2"
+          onClick={() => {
+            setActiveTab('rules');
+            setIsCreating(true);
+          }} 
+          className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-lg hover:shadow-green-900/10 transition-all active:scale-95"
         >
           <Plus className="w-4 h-4" /> Nova Regra
         </Button>
       </div>
 
-      <Tabs defaultValue="rules" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 lg:w-[800px] h-auto p-1 bg-muted/30 rounded-2xl border border-[#E5E0D8]">
           <TabsTrigger value="rules" className="gap-2 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl transition-all">
             <MessageSquare className="w-4 h-4" />
@@ -345,6 +622,10 @@ export default function AutomationClient() {
           <TabsTrigger value="reviews" className="gap-2 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl transition-all">
             <Star className="w-4 h-4" />
             <span className="hidden sm:inline">Avaliações (NPS)</span>
+          </TabsTrigger>
+          <TabsTrigger value="inactive" className="gap-2 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl transition-all">
+            <UserMinus className="w-4 h-4" />
+            <span className="hidden sm:inline">Inativos</span>
           </TabsTrigger>
         </TabsList>
 
@@ -375,63 +656,86 @@ export default function AutomationClient() {
                       <option value="pre_appointment">Antes do Agendamento (Lembrete)</option>
                       <option value="post_appointment">Depois do Agendamento (Pesquisa)</option>
                       <option value="birthday">Aniversário do Cliente</option>
+                      <option value="inactive_client">Clientes Inativos (Recuperação)</option>
                     </select>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Tempo de Disparo</Label>
-                  <div className="flex gap-4 items-end">
-                    <div className="space-y-1">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground">Horas</span>
+                {newRule.trigger_type === 'inactive_client' ? (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-left-2">
+                    <Label>Prazo de Inatividade (Dias)</Label>
+                    <div className="flex items-center gap-3">
                       <Input 
                         type="number" 
-                        value={Math.trunc((newRule.time_offset_minutes || 0) / 60)} 
+                        min="1"
+                        value={Math.trunc((newRule.time_offset_minutes || 0) / 1440)} 
                         onChange={(e) => {
-                          const h = parseInt(e.target.value) || 0;
-                          const currentM = Math.abs((newRule.time_offset_minutes || 0) % 60);
-                          const isNegative = h < 0 || (h === 0 && e.target.value.startsWith('-'));
-                          setNewRule({...newRule, time_offset_minutes: h * 60 + (isNegative ? -currentM : currentM)});
+                          const days = Math.max(1, parseInt(e.target.value) || 1);
+                          setNewRule({...newRule, time_offset_minutes: days * 1440});
                         }}
-                        className="w-24 h-12 text-center font-bold"
+                        className="w-32 h-12 text-center font-bold"
                       />
+                      <span className="text-sm text-muted-foreground font-medium">dias sem retorno</span>
                     </div>
-                    <div className="text-2xl font-serif text-muted-foreground pb-2">:</div>
-                    <div className="space-y-1">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground">Minutos</span>
-                      <Input 
-                        type="number" 
-                        min="0"
-                        max="59"
-                        value={Math.abs((newRule.time_offset_minutes || 0) % 60)} 
-                        onChange={(e) => {
-                          const m = Math.min(59, Math.abs(parseInt(e.target.value) || 0));
-                          const currentH = Math.trunc((newRule.time_offset_minutes ?? 0) / 60);
-                          const isNegative = currentH < 0 || (Object.is(currentH, -0) || ((newRule.time_offset_minutes ?? 0) < 0));
-                          setNewRule({...newRule, time_offset_minutes: currentH * 60 + (isNegative ? -m : m)});
-                        }}
-                        className="w-24 h-12 text-center font-bold"
-                      />
-                    </div>
-                    <div className="pb-1">
-                      <p className="text-xs text-muted-foreground italic">
-                        {newRule.trigger_type === 'pre_appointment' && 'Antes da consulta (use horas negativas)'}
-                        {newRule.trigger_type === 'post_appointment' && 'Depois da consulta (use horas positivas)'}
-                        {newRule.trigger_type === 'birthday' && 'Horário do dia (Ex: 09:00)'}
-                      </p>
+                    <p className="text-xs text-muted-foreground italic">O sistema enviará a mensagem automaticamente após esse período sem visitas.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Tempo de Disparo</Label>
+                    <div className="flex gap-4 items-end">
+                      <div className="space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground">Horas</span>
+                        <Input 
+                          type="number" 
+                          value={Math.trunc((newRule.time_offset_minutes || 0) / 60)} 
+                          onChange={(e) => {
+                            const h = parseInt(e.target.value) || 0;
+                            const currentM = Math.abs((newRule.time_offset_minutes || 0) % 60);
+                            const isNegative = h < 0 || (h === 0 && e.target.value.startsWith('-'));
+                            setNewRule({...newRule, time_offset_minutes: h * 60 + (isNegative ? -currentM : currentM)});
+                          }}
+                          className="w-24 h-12 text-center font-bold"
+                        />
+                      </div>
+                      <div className="text-2xl font-serif text-muted-foreground pb-2">:</div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground">Minutos</span>
+                        <Input 
+                          type="number" 
+                          min="0"
+                          max="59"
+                          value={Math.abs((newRule.time_offset_minutes || 0) % 60)} 
+                          onChange={(e) => {
+                            const m = Math.min(59, Math.abs(parseInt(e.target.value) || 0));
+                            const currentH = Math.trunc((newRule.time_offset_minutes ?? 0) / 60);
+                            const isNegative = currentH < 0 || (Object.is(currentH, -0) || ((newRule.time_offset_minutes ?? 0) < 0));
+                            setNewRule({...newRule, time_offset_minutes: currentH * 60 + (isNegative ? -m : m)});
+                          }}
+                          className="w-24 h-12 text-center font-bold"
+                        />
+                      </div>
+                      <div className="pb-1">
+                        <p className="text-xs text-muted-foreground italic">
+                          {newRule.trigger_type === 'pre_appointment' && 'Antes da consulta (use horas negativas)'}
+                          {newRule.trigger_type === 'post_appointment' && 'Depois da consulta (use horas positivas)'}
+                          {newRule.trigger_type === 'birthday' && 'Horário do dia (Ex: 09:00)'}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 <div className="space-y-2">
                   <Label>Mensagem (WhatsApp)</Label>
                   <textarea 
                     className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    placeholder="Olá {cliente}, ..."
+                    placeholder="Olá {cliente}, sentimos sua falta! ..."
                     value={newRule.message_template}
                     onChange={(e) => setNewRule({...newRule, message_template: e.target.value})}
                   />
-                  <p className="text-xs text-muted-foreground">Variáveis disponíveis: {'{cliente}, {profissional}, {data}, {hora}, {servico}'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Variáveis: {'{cliente}, {clinica}, {ultima_visita}, {link_agenda}'}
+                  </p>
                 </div>
 
                 {newRule.trigger_type === 'birthday' && (
@@ -466,6 +770,7 @@ export default function AutomationClient() {
                   <div className="flex items-start gap-4">
                     <div className={`p-3 rounded-full ${rule.is_active ? 'bg-green-100 text-green-600' : 'bg-neutral-100 text-neutral-400'}`}>
                       {rule.trigger_type === 'birthday' ? <Gift className="w-6 h-6" /> : 
+                       rule.trigger_type === 'inactive_client' ? <UserMinus className="w-6 h-6" /> :
                        rule.trigger_type === 'pre_appointment' ? <Clock className="w-6 h-6" /> : 
                        <MessageSquare className="w-6 h-6" />}
                     </div>
@@ -475,11 +780,14 @@ export default function AutomationClient() {
                       <div className="flex gap-2 mt-2">
                         <span className="text-xs font-medium px-2 py-1 rounded bg-secondary text-secondary-foreground uppercase tracking-wide">
                           {rule.trigger_type === 'birthday' ? 'Aniversário' : 
+                           rule.trigger_type === 'inactive_client' ? 'Cliente Inativo' :
                            rule.trigger_type === 'pre_appointment' ? 'Pré-Agendamento' : 'Pós-Agendamento'}
                         </span>
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {Math.abs(rule.time_offset_minutes)} min {rule.time_offset_minutes < 0 ? 'antes' : 'depois'}
+                          {rule.trigger_type === 'inactive_client' 
+                            ? `${Math.trunc(rule.time_offset_minutes / 1440)} dias de inatividade`
+                            : `${Math.abs(rule.time_offset_minutes)} min ${rule.time_offset_minutes < 0 ? 'antes' : 'depois'}`}
                         </span>
                       </div>
                     </div>
@@ -573,15 +881,92 @@ export default function AutomationClient() {
         <TabsContent value="reviews" className="mt-6 space-y-6">
           <ReviewsWidget />
           
-          <Card className="border-[#E5E0D8]">
-            <CardHeader>
-               <CardTitle className="font-serif">Configuração da Avaliação Híbrida</CardTitle>
-               <CardDescription>Personalize como seus clientes avaliam sua clínica após o atendimento.</CardDescription>
+          <Card className="border-[#E5E0D8] bg-card overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+               <div className="space-y-1">
+                  <CardTitle className="font-serif">Avaliação Híbrida</CardTitle>
+                  <CardDescription>Configure como os clientes avaliam seu atendimento.</CardDescription>
+               </div>
+               <Button 
+                  variant="outline" 
+                  onClick={() => setIsConfiguringReviews(!isConfiguringReviews)}
+                  className={cn("gap-2 font-bold", isConfiguringReviews && "bg-primary/5 text-primary border-primary")}
+               >
+                  {isConfiguringReviews ? 'Ocultar Configurações' : 'Configurar Avaliação'}
+               </Button>
             </CardHeader>
-            <CardContent>
-               <ReviewSettingsForm />
-            </CardContent>
+            {isConfiguringReviews && (
+              <CardContent className="border-t animate-in slide-in-from-top-4">
+                 <ReviewSettingsForm />
+              </CardContent>
+            )}
           </Card>
+        </TabsContent>
+        <TabsContent value="inactive" className="mt-6 space-y-6">
+          <Card className="bg-amber-50 border-amber-200">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <AlertCircle className="w-8 h-8 text-amber-600" />
+                <div>
+                  <CardTitle className="text-amber-900">Monitoramento de Inativos</CardTitle>
+                  <CardDescription className="text-amber-800/80">
+                    O sistema identifica automaticamente clientes sem retorno e sem agendamentos futuros para envio de convites de retorno.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+
+          <div className="grid grid-cols-1 gap-4">
+             {rules.filter(r => r.trigger_type === 'inactive_client' && r.is_active).length === 0 ? (
+               <div className="text-center py-12 border-2 border-dashed rounded-3xl">
+                  <p className="text-muted-foreground">Clique em "Nova Regra" e crie uma automação para <b>Clientes Inativos</b> para ativar esta aba.</p>
+               </div>
+             ) : isProcessing ? (
+               <div className="flex flex-col items-center justify-center py-12 gap-4">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="text-sm font-medium text-muted-foreground">Analisando base de clientes...</p>
+               </div>
+             ) : (
+               <Card>
+                 <CardHeader>
+                   <CardTitle className="text-lg">Clientes em Fase de Recuperação</CardTitle>
+                   <CardDescription>Estes clientes receberão (ou já receberam) mensagens com base nas suas regras de inatividade.</CardDescription>
+                 </CardHeader>
+                 <CardContent>
+                    <div className="space-y-4">
+                       <p className="text-xs text-muted-foreground italic">Dica: O sistema verifica automaticamente a última data de atendimento e se não existem agendamentos futuros antes de disparar.</p>
+                       <div className="rounded-xl border overflow-hidden">
+                          <table className="w-full text-sm">
+                             <thead className="bg-muted/50 border-b">
+                                <tr>
+                                   <th className="px-4 py-3 text-left font-bold uppercase text-[10px]">Cliente</th>
+                                   <th className="px-4 py-3 text-right font-bold uppercase text-[10px]">Status</th>
+                                </tr>
+                             </thead>
+                             <tbody>
+                                {logs.filter(l => rules.find(r => r.id === l.rule_id)?.trigger_type === 'inactive_client').length === 0 ? (
+                                   <tr>
+                                      <td colSpan={2} className="px-4 py-8 text-center text-muted-foreground">Nenhuma mensagem disparada ainda.</td>
+                                   </tr>
+                                ) : (
+                                   logs.filter(l => rules.find(r => r.id === l.rule_id)?.trigger_type === 'inactive_client').map(log => (
+                                      <tr key={log.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                                         <td className="px-4 py-4 font-medium">{log.recipient_phone}</td>
+                                         <td className="px-4 py-4 text-right">
+                                            <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none">Recuperado (Log Enviado)</Badge>
+                                         </td>
+                                      </tr>
+                                   ))
+                                )}
+                             </tbody>
+                          </table>
+                       </div>
+                    </div>
+                 </CardContent>
+               </Card>
+             )}
+          </div>
         </TabsContent>
       </Tabs>
     </div>

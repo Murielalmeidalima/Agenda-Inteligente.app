@@ -58,10 +58,7 @@ export function AccountsReceivableList({ companyId }: AccountsReceivableListProp
         const { data: appointments, error: appError } = await supabase
           .from('appointments')
           .select(`
-            id,
-            start_time,
-            status,
-            price_override,
+            *,
             clients (id, full_name),
             procedures (id, name, price)
           `)
@@ -77,7 +74,7 @@ export function AccountsReceivableList({ companyId }: AccountsReceivableListProp
         if (appIds.length > 0) {
           const { data: transData, error: transError } = await supabase
             .from('transactions')
-            .select('id, appointment_id, amount, status, type')
+            .select('id, appointment_id, amount, type')
             .in('appointment_id', appIds)
             .eq('type', 'income');
 
@@ -88,7 +85,7 @@ export function AccountsReceivableList({ companyId }: AccountsReceivableListProp
         const processed = (appointments || []).map(app => {
           const linkedTrans = transactions.filter(t => t.appointment_id === app.id);
           const paidConfirmed = linkedTrans
-            .filter(t => t.status === 'completed')
+            .filter(t => (t as any).status === 'completed' || !(t as any).status)
             .reduce((sum, t) => sum + Number(t.amount), 0);
           
           const hasPendingConfirmation = linkedTrans.some(t => t.status === 'pending');
@@ -102,7 +99,9 @@ export function AccountsReceivableList({ companyId }: AccountsReceivableListProp
           else if (paidConfirmed > 0) status = 'partial';
 
           // Flatten identifiers for easy filtering/searching
+          // Flatten identifiers for easy filtering/searching
           const client = Array.isArray(app.clients) ? app.clients[0] : app.clients;
+          
           const clientName = (client as any)?.full_name || 'Cliente não identificado';
           const procedureName = (procedure as any)?.name || 'Procedimento não identificado';
 
@@ -123,7 +122,8 @@ export function AccountsReceivableList({ companyId }: AccountsReceivableListProp
         setData(processed);
         setErrorHeader(null);
       } catch (err: any) {
-        console.error('Fetch error:', err);
+        console.error('Fetch error full object:', err);
+        if (err.message) console.error('Error Message:', err.message);
         setErrorHeader(err.message || 'Erro ao carregar dados financeiros.');
       } finally {
         setLoading(false);
