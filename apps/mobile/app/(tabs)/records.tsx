@@ -86,7 +86,7 @@ export default function RecordsScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>Nenhum paciente encontrado</Text>
-          </div>
+          </View>
         }
       />
     </View>

@@ -40,7 +40,7 @@ const menuItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { profile, loading } = useProfile();
+  const { profile, loading, hasPermission } = useProfile();
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -83,39 +83,59 @@ export function Sidebar() {
       </div>
       
       <nav className="flex-1 space-y-2 relative z-10">
-        {menuItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link 
-              key={item.href}
-              href={item.href} 
-              className={cn(
-                "group flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 relative overflow-hidden",
-                isActive 
-                  ? "bg-slate-50 text-slate-900 font-bold shadow-sm ring-1 ring-slate-100" 
-                  : "text-slate-400 hover:text-slate-900 hover:bg-slate-50"
-              )}
-            >
-              <div className="flex items-center gap-3.5">
-                <div className={cn(
-                  "p-2 rounded-xl transition-all duration-300",
-                   isActive ? item.bg + " shadow-lg shadow-slate-200" : "bg-transparent group-hover:bg-white border border-transparent group-hover:border-slate-100"
-                )}>
-                  <item.icon className={cn(
-                    "h-4 w-4 transition-all duration-300", 
-                     isActive ? "text-white" : cn("text-slate-300 group-hover:", item.color)
-                  )} />
+        {menuItems
+          .filter(item => {
+            // Se for Início, sempre mostra
+            if (item.label === 'Início') return true;
+            
+            // Mapeamento simples de label para chave de permissão
+            const permissionKey = item.label.toLowerCase()
+              .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove acentos
+              .replace('í', 'i').replace('ç', 'c'); // fallback manual se precisar
+
+            // Mapear casos especiais se as chaves no banco forem diferentes
+            const keyMap: { [key: string]: string } = {
+               'inicio': 'dashboard',
+               'analises': 'reports',
+               'planejamento': 'reports'
+            };
+
+            const finalKey = keyMap[permissionKey] || permissionKey;
+            return hasPermission(finalKey, 'view');
+          })
+          .map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link 
+                key={item.href}
+                href={item.href} 
+                className={cn(
+                  "group flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 relative overflow-hidden",
+                  isActive 
+                    ? "bg-slate-50 text-slate-900 font-bold shadow-sm ring-1 ring-slate-100" 
+                    : "text-slate-400 hover:text-slate-900 hover:bg-slate-50"
+                )}
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className={cn(
+                    "p-2 rounded-xl transition-all duration-300",
+                     isActive ? item.bg + " shadow-lg shadow-slate-200" : "bg-transparent group-hover:bg-white border border-transparent group-hover:border-slate-100"
+                  )}>
+                    <item.icon className={cn(
+                      "h-4 w-4 transition-all duration-300", 
+                       isActive ? "text-white" : cn("text-slate-300 group-hover:", item.color)
+                    )} />
+                  </div>
+                  <span className="text-sm tracking-wide">{item.label}</span>
                 </div>
-                <span className="text-sm tracking-wide">{item.label}</span>
-              </div>
-              {isActive && (
-                <div className="flex items-center">
-                  <div className={cn("w-1.5 h-1.5 rounded-full shadow-lg", item.bg.replace('bg-', 'bg-'))} />
-                </div>
-              )}
-            </Link>
-          );
-        })}
+                {isActive && (
+                  <div className="flex items-center">
+                    <div className={cn("w-1.5 h-1.5 rounded-full shadow-lg", item.bg.replace('bg-', 'bg-'))} />
+                  </div>
+                )}
+              </Link>
+            );
+          })}
       </nav>
 
       {/* Footer / Profile Snippet */}

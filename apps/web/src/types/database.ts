@@ -18,7 +18,16 @@ export type Company = {
   updated_at: string;
 };
 
-export type UserRole = 'admin' | 'professional' | 'receptionist';
+export type UserRole = 'admin' | 'chefe' | 'funcionario' | 'recepcao' | 'financeiro' | 'professional' | 'receptionist';
+
+export type ProfilePermissions = {
+  [key: string]: {
+    view: boolean;
+    create: boolean;
+    edit: boolean;
+    delete: boolean;
+  };
+};
 
 export type Profile = {
   id: string;
@@ -30,6 +39,11 @@ export type Profile = {
   approved: boolean;
   created_at: string;
   companies: Company | null;
+  permissions?: ProfilePermissions;
+  authorized_by_name?: string | null;
+  last_access?: string | null;
+  cargo?: string | null;
+  status?: 'active' | 'inactive';
 };
 
 export type AppointmentStatus = 

@@ -7,11 +7,10 @@ export const dynamic = 'force-dynamic'; // Ensure it runs on every request
 
 export async function GET(request: Request) {
   // Security: valid API key for cron service (e.g. Vercel Cron)
-  // const authHeader = request.headers.get('authorization');
-  // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-  //   return new Response('Unauthorized', { status: 401 });
-  // }
-  // Allowing public for now or assume internal/protected by header elsewhere
+  const authHeader = request.headers.get('authorization');
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return new Response('Unauthorized', { status: 401 });
+  }
 
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

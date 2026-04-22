@@ -211,29 +211,62 @@ function NewTransactionForm() {
     try {
       const supabase = createBrowserClient();
       
+      if (!formData.category_id || !formData.account_id || !formData.amount) {
+        setError('Por favor, preencha todos os campos obrigatórios (Valor, Categoria e Conta).');
+        setLoading(false);
+        return;
+      }
+
+      const amountNum = parseFloat(String(formData.amount).replace(',', '.'));
+      if (isNaN(amountNum) || amountNum <= 0) {
+        setError('Por favor, insira um valor válido maior que zero.');
+        setLoading(false);
+        return;
+      }
+
+      // Enviar apenas colunas que sabemos que existem no banco
       const { error: insertError } = await supabase
         .from('transactions')
         .insert({
           company_id: profile.company_id,
-          ...formData,
-          amount: parseFloat(formData.amount.replace(',', '.'))
+          type: formData.type,
+          category_id: formData.category_id,
+          account_id: formData.account_id,
+          amount: amountNum,
+          description: formData.description,
+          date: formData.date,
+          transaction_date: formData.date,
+          payment_method: formData.payment_method,
+          appointment_id: formData.appointment_id,
+          notes: formData.notes,
+          status: 'completed'
         });
 
       if (insertError) throw insertError;
 
       const multiplier = formData.type === 'income' ? 1 : -1;
-      const amountNum = parseFloat(formData.amount.replace(',', '.'));
       
-      await supabase.rpc('update_account_balance', { 
+      const { error: rpcError } = await supabase.rpc('update_account_balance', { 
         target_account_id: formData.account_id, 
         amount_diff: multiplier * amountNum 
       });
 
+      if (rpcError) {
+        console.warn('Transaction saved but balance update failed:', rpcError);
+      }
+
       router.push('/dashboard/finance');
       router.refresh();
     } catch (err: any) {
-      console.error('Error creating transaction:', err);
-      setError(err.message || 'Erro ao salvar lançamento.');
+      console.error('Full Error Object:', err);
+      
+      // Captura detalhada de erros do Postgres/Supabase
+      const details = err.details || err.hint || '';
+      const message = err.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+      
+      console.error('Formatted Error:', { message, details, code: err.code });
+      
+      setError(`${message} ${details}`.trim() || 'Erro ao salvar lançamento.');
       setLoading(false);
     }
   };

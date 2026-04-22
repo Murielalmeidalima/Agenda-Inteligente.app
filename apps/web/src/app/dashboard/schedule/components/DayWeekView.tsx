@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@projeto/ui';
 import { Appointment } from '@/types/database';
+import { showToast } from '@/lib/toast-helpers';
 
 interface DayWeekViewProps {
   view: 'day' | 'week';
@@ -21,6 +22,8 @@ interface DayWeekViewProps {
   onNewAppointment: (date: Date) => void;
   onViewAppointment: (id: string) => void;
   slotInterval: number; // In minutes, e.g., 15, 30, 60
+  scheduleBlocks: any[];
+  blockHolidays?: boolean;
 }
 
 const PIXELS_PER_MINUTE = 2; // 120 pixels per hour
@@ -33,8 +36,49 @@ export const DayWeekView = ({
   appointments, 
   onNewAppointment, 
   onViewAppointment,
-  slotInterval
+  slotInterval,
+  scheduleBlocks,
+  blockHolidays = false
 }: DayWeekViewProps) => {
+  const checkIsBlocked = (date: Date) => {
+    const dayOfWeek = date.getDay();
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const currentTime = format(date, 'HH:mm');
+
+    const found = scheduleBlocks?.find(block => {
+      if (!block.is_active) return false;
+
+      // 1. Feriados
+      if (block.type === 'holiday') {
+        const holidayDateStr = block.date_str || format(new Date(block.start_date), 'yyyy-MM-dd');
+        return dateStr === holidayDateStr;
+      }
+
+      // 2. Recorrente
+      if (block.type === 'recurring') {
+        if (block.recurring_day !== dayOfWeek) return false;
+        if (block.is_full_day) return true;
+        return currentTime >= (block.start_time || '00:00') && currentTime <= (block.end_time || '23:59');
+      }
+
+      // 3. Manual / Férias
+      const startStr = format(new Date(block.start_date), 'yyyy-MM-dd');
+      const endStr = block.end_date ? format(new Date(block.end_date), 'yyyy-MM-dd') : startStr;
+
+      if (dateStr >= startStr && dateStr <= endStr) {
+        if (block.is_full_day) return true;
+        return currentTime >= (block.start_time || '00:00') && currentTime <= (block.end_time || '23:59');
+      }
+
+      return false;
+    });
+
+    if (found) {
+      const isBlocking = found.type === 'holiday' ? blockHolidays : true;
+      return { ...found, isBlocking };
+    }
+    return null;
+  };
   // Forçar a exibição do fundo para ser em horas cheias (60 min)
   const visualSlotInterval = 60;
   
@@ -91,7 +135,8 @@ export const DayWeekView = ({
             {/* Day Header */}
             <div className={cn(
               "h-14 flex flex-col items-center justify-center border-b border-[#E5E0D8] sticky top-0 z-30 transition-colors",
-              isToday(day) ? "bg-[#D4AF37]/5 border-b-[#D4AF37]/30" : "bg-white/95 backdrop-blur-md"
+              isToday(day) ? "bg-[#D4AF37]/5 border-b-[#D4AF37]/30" : "bg-white/95 backdrop-blur-md",
+              checkIsBlocked(day) && "bg-red-50/50"
             )}>
               <span className={cn(
                 "text-[10px] uppercase font-black tracking-widest",
@@ -118,26 +163,63 @@ export const DayWeekView = ({
               {/* background clickable slots */}
               {timeSlots.map(({hour, minute}) => {
                 const isHour = minute === 0;
+                
+                const slotTime = new Date(day);
+                slotTime.setHours(hour, minute);
+                const blockedInfo = checkIsBlocked(slotTime);
+                
                 return (
                   <div 
                     key={`${hour}:${minute}`} 
                     className={cn(
                       "group/slot cursor-pointer transition-colors relative border-[#E5E0D8]/50",
-                      isHour ? "border-b" : "border-b border-dashed"
+                      isHour ? "border-b" : "border-b border-dashed",
+                      blockedInfo?.isBlocking && "cursor-not-allowed bg-red-100/40",
+                      blockedInfo && !blockedInfo.isBlocking && "bg-blue-50/10"
                     )}
                     style={{ height: `${slotHeightPx}px` }}
                     onClick={() => {
+                      if (blockedInfo?.isBlocking) {
+                        showToast.error('Bloqueado', `Este horário está bloqueado: ${blockedInfo.title}`);
+                        return;
+                      }
                       const newDate = startOfDay(day);
                       newDate.setHours(hour, minute);
                       onNewAppointment(newDate);
                     }}
                   >
+                     {blockedInfo && (
+                       <div className="absolute inset-0 flex items-center justify-center px-2">
+                         <span className={cn(
+                           "text-[9px] font-black truncate uppercase tracking-tighter opacity-70",
+                           blockedInfo.isBlocking ? "text-red-600" : "text-blue-600"
+                         )}>
+                            {blockedInfo.title}
+                         </span>
+                       </div>
+                     )}
                      <div className="absolute inset-x-0 inset-y-1 opacity-0 group-hover/slot:opacity-100 bg-[#D4AF37]/5 transition-opacity flex items-center justify-center rounded-lg mx-1">
-                        <Plus className="h-4 w-4 text-[#D4AF37]/30" />
+                        {!blockedInfo && <Plus className="h-4 w-4 text-[#D4AF37]/30" />}
                      </div>
                   </div>
                 );
               })}
+
+              {/* Overlay for full-day blocked days */}
+              {(() => {
+                const blockedInfo = checkIsBlocked(startOfDay(day));
+                if (blockedInfo && blockedInfo.is_full_day && blockedInfo.isBlocking) {
+                  return (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-red-50/20 backdrop-blur-[1px] p-4 text-center pointer-events-none">
+                       <div className="bg-white/80 border border-red-100 p-4 rounded-2xl shadow-sm animate-in zoom-in-95 fade-in duration-300">
+                          <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-1">Não haverá atendimento</p>
+                          <p className="text-sm font-black text-red-600 leading-tight italic">{blockedInfo.title}</p>
+                       </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
               {/* Render Appointments */}
               {appointments

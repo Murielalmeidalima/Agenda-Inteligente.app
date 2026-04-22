@@ -47,6 +47,9 @@ interface ScheduleCalendarProps {
   onViewAppointment: (id: string) => void;
   slotInterval: number;
   onSlotIntervalChange: (interval: number) => void;
+  scheduleBlocks: any[];
+  onOpenBlocks: () => void;
+  blockHolidays: boolean;
 }
 
 // ----------------------------------------------------------------------
@@ -56,7 +59,10 @@ export default function ScheduleCalendarComponent({
   onNewAppointment,
   onViewAppointment,
   slotInterval,
-  onSlotIntervalChange
+  onSlotIntervalChange,
+  scheduleBlocks,
+  onOpenBlocks,
+  blockHolidays
 }: ScheduleCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<CalendarViewType>('week');
@@ -100,6 +106,8 @@ export default function ScheduleCalendarComponent({
           currentDate={currentDate} 
           appointments={appointments} 
           onDayClick={handleDayClick} 
+          scheduleBlocks={scheduleBlocks}
+          blockHolidays={blockHolidays}
         />
       );
     }
@@ -112,6 +120,8 @@ export default function ScheduleCalendarComponent({
         onNewAppointment={onNewAppointment}
         onViewAppointment={onViewAppointment} 
         slotInterval={slotInterval}
+        scheduleBlocks={scheduleBlocks}
+        blockHolidays={blockHolidays}
       />
     );
   };
@@ -135,6 +145,18 @@ export default function ScheduleCalendarComponent({
         <div className="flex flex-wrap items-center gap-3">
           
 
+
+          <div className="flex items-center bg-white rounded-xl border border-[#E5E0D8] px-2 h-10">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onOpenBlocks}
+              className="gap-2 text-[#5C5855] hover:text-red-600 font-bold uppercase tracking-widest text-[10px]"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+              Bloquear Dias
+            </Button>
+          </div>
 
           {/* View Switcher */}
           <div className="flex items-center bg-white rounded-xl border border-[#E5E0D8] px-2 h-10 w-[140px]">

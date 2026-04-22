@@ -10,6 +10,7 @@ interface ProfileContextType {
   loading: boolean;
   error: any | null;
   refreshProfile: () => Promise<void>;
+  hasPermission: (screen: string, action?: 'view' | 'create' | 'edit' | 'delete') => boolean;
 }
 
 const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
@@ -91,13 +92,28 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const hasPermission = (screen: string, action: 'view' | 'create' | 'edit' | 'delete' = 'view'): boolean => {
+    if (!profile) return false;
+    
+    // Admins e Chefes têm acesso total
+    if (profile.role === 'admin' || profile.role === 'chefe') return true;
+
+    if (!profile.permissions) return false;
+
+    const screenPermissions = profile.permissions[screen.toLowerCase()];
+    if (!screenPermissions) return false;
+
+    return !!screenPermissions[action];
+  };
+
   return (
     <ProfileContext.Provider 
       value={{ 
         profile, 
         loading, 
         error, 
-        refreshProfile: fetchProfile 
+        refreshProfile: fetchProfile,
+        hasPermission
       }}
     >
       {children}

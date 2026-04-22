@@ -15,14 +15,49 @@ interface MonthViewProps {
   currentDate: Date;
   appointments: any[];
   onDayClick: (day: Date) => void;
+  scheduleBlocks: any[];
+  blockHolidays?: boolean;
 }
 
 export const MonthView = ({ 
   visibleDays, 
   currentDate, 
   appointments, 
-  onDayClick 
+  onDayClick,
+  scheduleBlocks,
+  blockHolidays = false
 }: MonthViewProps) => {
+  const checkIsBlocked = (day: Date) => {
+    const dayOfWeek = day.getDay();
+    const dateStr = format(day, 'yyyy-MM-dd');
+    
+    const found = scheduleBlocks?.find(block => {
+      if (!block.is_active) return false;
+
+      // 1. Feriados
+      if (block.type === 'holiday') {
+        const holidayDateStr = block.date_str || format(new Date(block.start_date), 'yyyy-MM-dd');
+        return dateStr === holidayDateStr;
+      }
+
+      // 2. Recorrente
+      if (block.type === 'recurring') {
+        return block.recurring_day === dayOfWeek;
+      }
+
+      // 3. Manual / Férias
+      const startStr = format(new Date(block.start_date), 'yyyy-MM-dd');
+      const endStr = block.end_date ? format(new Date(block.end_date), 'yyyy-MM-dd') : startStr;
+
+      return dateStr >= startStr && dateStr <= endStr;
+    });
+
+    if (found) {
+      const isBlocking = found.type === 'holiday' ? blockHolidays : true;
+      return { ...found, isBlocking };
+    }
+    return null;
+  };
   return (
     <div className="flex flex-col h-full bg-white/20">
       <div className="grid grid-cols-7 border-b border-[#E5E0D8] bg-[#FAF6E9]/50">
@@ -36,16 +71,19 @@ export const MonthView = ({
          {visibleDays.map((day) => {
             const isCurrentMonth = isSameMonth(day, currentDate);
             const dayApts = appointments.filter((apt) => isSameDay(new Date(apt.start_time), day));
+            const blockedInfo = checkIsBlocked(day);
             
             return (
-               <div 
-                  key={day.toString()} 
-                  className={cn(
-                     "border-r border-b border-[#E5E0D8] p-2 min-h-[80px] hover:bg-[#FAF6E9]/50 transition-colors cursor-pointer group/cell relative",
-                     !isCurrentMonth && "bg-[#F0EBE0]/20 opacity-40"
-                  )}
-                  onClick={() => onDayClick(day)}
-               >
+                <div 
+                   key={day.toString()} 
+                   className={cn(
+                      "border-r border-b border-[#E5E0D8] p-2 min-h-[80px] hover:bg-[#FAF6E9]/50 transition-colors cursor-pointer group/cell relative",
+                      !isCurrentMonth && "bg-[#F0EBE0]/20 opacity-40",
+                      blockedInfo?.isBlocking && "bg-red-50/30 hover:bg-red-50/40",
+                      blockedInfo && !blockedInfo.isBlocking && "bg-blue-50/10 hover:bg-blue-50/20"
+                   )}
+                   onClick={() => onDayClick(day)}
+                >
                   <div className="flex items-center justify-between mb-2">
                      <div className={cn(
                         "h-7 w-7 flex items-center justify-center rounded-lg text-sm font-bold",
@@ -61,15 +99,32 @@ export const MonthView = ({
                   </div>
                   
                   <div className="space-y-1">
-                     {dayApts.slice(0, 3).map((apt: any) => (
-                        <div key={apt.id} className="text-[10px] truncate px-1.5 py-0.5 rounded bg-[#FAF6E9] text-[#5C5855] border border-[#E5E0D8] hover:border-[#D4AF37]/50">
-                           {format(new Date(apt.start_time), 'HH:mm')} • {apt.clients?.full_name.split(' ')[0]}
+                      {blockedInfo ? (
+                        <div className="flex flex-col items-center justify-center py-2 gap-1 animate-in fade-in zoom-in-95">
+                          <span className={cn(
+                            "text-[8px] font-black uppercase tracking-tighter text-center leading-none",
+                            blockedInfo.isBlocking ? "text-red-400" : "text-blue-400"
+                          )}>
+                            {blockedInfo.isBlocking ? 'Indisponível' : 'Feriado'}
+                          </span>
+                          <span className={cn(
+                            "text-[9px] font-bold text-center leading-tight",
+                            blockedInfo.isBlocking ? "text-red-600" : "text-blue-600"
+                          )}>{blockedInfo.title}</span>
                         </div>
-                     ))}
-                     {dayApts.length > 3 && (
-                        <div className="text-[9px] text-[#8A847C] pl-1 font-bold">+ {dayApts.length - 3} mais</div>
-                     )}
-                  </div>
+                      ) : (
+                        <>
+                          {dayApts.slice(0, 3).map((apt: any) => (
+                              <div key={apt.id} className="text-[10px] truncate px-1.5 py-0.5 rounded bg-[#FAF6E9] text-[#5C5855] border border-[#E5E0D8] hover:border-[#D4AF37]/50">
+                                {format(new Date(apt.start_time), 'HH:mm')} • {apt.clients?.full_name.split(' ')[0]}
+                              </div>
+                          ))}
+                          {dayApts.length > 3 && (
+                              <div className="text-[9px] text-[#8A847C] pl-1 font-bold">+ {dayApts.length - 3} mais</div>
+                          )}
+                        </>
+                      )}
+                   </div>
                   
                   <div className="absolute inset-0 opacity-0 group-hover/cell:opacity-100 flex items-center justify-center pointer-events-none">
                      <Plus className="h-8 w-8 text-[#D4AF37]/20" />

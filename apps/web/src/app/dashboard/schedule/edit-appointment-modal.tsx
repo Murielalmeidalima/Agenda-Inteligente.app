@@ -180,12 +180,22 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
             const paidAmount = paymentStatus === 'paid' ? procedurePrice : Number(paymentAmount.replace(',', '.'));
             
             if (paidAmount > 0) {
-              // Buscar categoria 'Serviços' e primeira conta disponível
-              const { data: catData } = await supabase.from('financial_categories')
+              // Buscar categoria 'Procedimentos' ou qualquer categoria de 'income' como fallback
+              let { data: catData } = await supabase.from('financial_categories')
                 .select('id')
                 .eq('company_id', appointment.company_id)
-                .eq('name', 'Serviços')
+                .eq('name', 'Procedimentos')
                 .maybeSingle();
+                
+              if (!catData) {
+                const { data: fallbackCat } = await supabase.from('financial_categories')
+                  .select('id')
+                  .eq('company_id', appointment.company_id)
+                  .eq('type', 'income')
+                  .limit(1)
+                  .maybeSingle();
+                catData = fallbackCat;
+              }
                 
               const { data: accData } = await supabase.from('financial_accounts')
                 .select('id')
@@ -201,19 +211,23 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
                 account_id: accData?.id,
                 amount: paidAmount,
                 type: 'income',
+                status: 'completed',
                 payment_method: paymentMethod,
                 description: `Atendimento: ${appointment.clients?.full_name}`,
-                date: new Date().toISOString()
+                date: new Date().toISOString(),
+                transaction_date: new Date().toISOString()
               };
               
-              await supabase.from('transactions').insert(transactionValues);
+              const { error: txError } = await supabase.from('transactions').insert(transactionValues);
+              if (txError) throw txError;
 
               // Atualizar saldo da conta
               if (accData?.id) {
-                await supabase.rpc('update_account_balance', { 
+                const { error: rpcError } = await supabase.rpc('update_account_balance', { 
                   target_account_id: accData.id, 
                   amount_diff: paidAmount 
                 });
+                if (rpcError) throw rpcError;
               }
             }
           }
@@ -222,9 +236,17 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
       toast.success('Agendamento atualizado!');
       onUpdate();
       onClose();
-    } catch (error) {
-      console.error(error);
-      toast.error('Erro ao atualizar agendamento');
+    } catch (error: any) {
+      console.error('Erro detalhado ao atualizar agendamento:', error);
+      if (typeof error === 'object' && error !== null) {
+        console.error('Error Details:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
+      }
+      toast.error(error.message || 'Erro ao atualizar agendamento');
     } finally {
       setLoading(false);
     }

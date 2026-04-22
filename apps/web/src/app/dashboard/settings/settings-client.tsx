@@ -38,7 +38,8 @@ import {
   MessageSquare,
   Smartphone,
   LogOut,
-  FileText
+  FileText,
+  Users
 } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { useRouter } from 'next/navigation';
@@ -233,6 +234,16 @@ export default function SettingsClient() {
             >
               Notificações
             </NavButton>
+
+            {(profile?.role === 'admin' || profile?.role === 'chefe') && (
+              <NavButton 
+                active={activeTab === 'employees' as any} 
+                onClick={() => router.push('/dashboard/settings/employees')}
+                icon={Users}
+              >
+                Equipe & Permissões
+              </NavButton>
+            )}
 
             <div className="pt-4 mt-4 border-t border-[#E5E0D8]">
                <button 

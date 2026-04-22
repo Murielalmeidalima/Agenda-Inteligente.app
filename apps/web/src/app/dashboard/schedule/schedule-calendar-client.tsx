@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ScheduleCalendar from './ScheduleCalendarComponent';
 import { 
   Dialog, 
@@ -21,9 +21,11 @@ import {
 import { Appointment } from '@/types/database';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { format, addMinutes } from 'date-fns';
-import { Plus } from 'lucide-react';
+import { Plus, Settings2, CalendarOff } from 'lucide-react';
 import { EditAppointmentModal } from './edit-appointment-modal';
+import { BlockDaysModal } from './components/BlockDaysModal';
 import { showToast } from '@/lib/toast-helpers';
+import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 
 interface ScheduleCalendarClientProps {
   initialAppointments: any[];
@@ -57,12 +59,125 @@ export default function ScheduleCalendarClient({
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
+  // Block Modal State
+  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+  const [scheduleBlocks, setScheduleBlocks] = useState<any[]>([]);
+  const [holidays, setHolidays] = useState<any[]>([]);
+  const [showHolidays, setShowHolidays] = useState(false);
+  const [blockHolidays, setBlockHolidays] = useState(false);
+
+  const fetchSettings = async () => {
+    const supabase = createBrowserClient();
+    const { data } = await supabase
+      .from('companies')
+      .select('settings')
+      .eq('id', companyId)
+      .single();
+    if (data?.settings) {
+      setShowHolidays(data.settings.show_holidays || false);
+      setBlockHolidays(data.settings.block_holidays || false);
+    }
+  };
+
+  const fetchHolidays = async () => {
+    try {
+      const currentYear = new Date().getFullYear();
+      const nextYear = currentYear + 1;
+      
+      const fetchYear = async (y: number) => {
+        const response = await fetch(`https://brasilapi.com.br/api/feriados/v1/${y}`);
+        return await response.json();
+      };
+
+      const [dataCurrent, dataNext] = await Promise.all([fetchYear(currentYear), fetchYear(nextYear)]);
+      
+      const allHolidays = [...(Array.isArray(dataCurrent) ? dataCurrent : []), ...(Array.isArray(dataNext) ? dataNext : [])];
+      
+      if (allHolidays.length > 0) {
+        console.log('Holidays fetched:', allHolidays.length);
+        setHolidays(allHolidays.map(h => ({
+          ...h,
+          title: h.name,
+          type: 'holiday',
+          date_str: h.date, // Guardar a string direta do feriado
+          start_date: new Date(h.date + 'T12:00:00Z').toISOString(),
+          is_full_day: true,
+          is_active: true
+        })));
+      }
+    } catch (err) {
+      console.error('Error fetching holidays:', err);
+    }
+  };
+
+  const fetchBlocks = async () => {
+    const supabase = createBrowserClient();
+    const { data } = await supabase
+      .from('schedule_blocks')
+      .select('*')
+      .eq('company_id', companyId);
+    setScheduleBlocks(data || []);
+  };
+
+  useEffect(() => {
+    fetchBlocks();
+    fetchSettings();
+    fetchHolidays();
+  }, [companyId]);
+
   const handleNewAppointment = (date: Date) => {
+    // Verificar se o dia está bloqueado antes de abrir
+    const isBlocked = checkIsBlocked(date);
+    if (isBlocked) {
+      showToast.error('Indisponível', 'Este dia ou horário está bloqueado para atendimentos.');
+      return;
+    }
+
     setFormData({
       ...formData,
       startTime: format(date, "yyyy-MM-dd'T'HH:mm")
     });
     setIsModalOpen(true);
+  };
+
+  const checkIsBlocked = (date: Date) => {
+    const dayOfWeek = date.getDay();
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const currentTime = format(date, 'HH:mm');
+    const allBlocks = [...scheduleBlocks, ...(showHolidays ? holidays : [])];
+
+    return allBlocks.find(block => {
+      if (!block.is_active) return false;
+
+      // 1. Feriados (BrasilAPI usa formato 'yyyy-MM-dd')
+      if (block.type === 'holiday') {
+        const holidayDateStr = block.date_str || format(new Date(block.start_date), 'yyyy-MM-dd');
+        const matches = dateStr === holidayDateStr;
+        // Se for feriado e não estivermos bloqueando, mostramos mas não bloqueamos
+        if (matches && !blockHolidays) return false;
+        return matches;
+      }
+
+      // 2. Recorrente (Semanal)
+      if (block.type === 'recurring') {
+        if (block.recurring_day !== dayOfWeek) return false;
+        if (block.is_full_day) return true;
+        return currentTime >= (block.start_time || '00:00') && currentTime <= (block.end_time || '23:59');
+      }
+
+      // 3. Manual / Férias
+      const startStr = format(new Date(block.start_date), 'yyyy-MM-dd');
+      const endStr = block.end_date ? format(new Date(block.end_date), 'yyyy-MM-dd') : startStr;
+
+      if (dateStr >= startStr && dateStr <= endStr) {
+        if (block.is_full_day) return true;
+        
+        // Bloqueio parcial apenas se o dia for o dia atual do loop
+        return currentTime >= (block.start_time || '00:00') && currentTime <= (block.end_time || '23:59');
+      }
+
+      return false;
+    });
   };
 
   const handleSaveAppointment = async (e: React.FormEvent) => {
@@ -166,6 +281,19 @@ export default function ScheduleCalendarClient({
         }}
         slotInterval={slotInterval}
         onSlotIntervalChange={setSlotInterval}
+        scheduleBlocks={[...scheduleBlocks, ...(showHolidays ? holidays : [])]}
+        onOpenBlocks={() => setIsBlockModalOpen(true)}
+        blockHolidays={blockHolidays}
+      />
+
+      <BlockDaysModal 
+        isOpen={isBlockModalOpen}
+        onClose={() => setIsBlockModalOpen(false)}
+        companyId={companyId}
+        onRefresh={() => {
+          fetchBlocks();
+          fetchSettings();
+        }}
       />
 
       <EditAppointmentModal 

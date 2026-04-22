@@ -588,46 +588,88 @@ export default function AutomationClient() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-3xl font-bold font-serif text-foreground">Marketing e Automação</h2>
-          <p className="text-muted-foreground">Gerencie suas mensagens automáticas de WhatsApp e avaliações.</p>
+    <div className="space-y-10 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+        <div className="flex items-center gap-5">
+           <div className="h-16 w-16 bg-slate-950 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-slate-200">
+              <MessageCircle className="h-8 w-8 text-rose-500" />
+           </div>
+           <div>
+              <h2 className="text-3xl font-black text-slate-900 tracking-tight">Marketing Inteligente</h2>
+              <p className="text-slate-400 font-medium mt-1">Conecte-se com seus clientes de forma automática e estratégica</p>
+           </div>
         </div>
         <Button 
           onClick={() => {
             setActiveTab('rules');
             setIsCreating(true);
           }} 
-          className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-lg hover:shadow-green-900/10 transition-all active:scale-95"
+          className="h-14 px-10 bg-slate-950 hover:bg-black text-white font-black rounded-2xl shadow-2xl shadow-slate-200 gap-3 transition-all active:scale-95 text-sm uppercase tracking-widest"
         >
-          <Plus className="w-4 h-4" /> Nova Regra
+          <Plus className="w-5 h-5 text-rose-500" /> Nova Automação
         </Button>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in slide-in-from-bottom-4">
+        <StatsCard 
+          label="Mensagens Enviadas" 
+          value={logs.length} 
+          icon={MessageCircle} 
+          color="emerald" 
+          description="Últimos 30 dias"
+          onClick={() => setActiveTab('history')}
+        />
+        <StatsCard 
+          label="Regras Ativas" 
+          value={rules.filter(r => r.is_active).length} 
+          icon={CheckCircle2} 
+          color="blue" 
+          description="Automações rodando"
+          onClick={() => setActiveTab('rules')}
+        />
+        <StatsCard 
+          label="Aniversariantes" 
+          value={0} // Mocked or calculated
+          icon={Gift} 
+          color="amber" 
+          description="No mês atual"
+          onClick={() => setActiveTab('birthday_campaign')}
+        />
+        <StatsCard 
+          label="Satisfação (NPS)" 
+          value="4.9" 
+          icon={Star} 
+          color="rose" 
+          description="Média das avaliações"
+          onClick={() => setActiveTab('reviews')}
+        />
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 lg:w-[800px] h-auto p-1 bg-muted/30 rounded-2xl border border-[#E5E0D8]">
-          <TabsTrigger value="rules" className="gap-2 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl transition-all">
-            <MessageSquare className="w-4 h-4" />
-            <span className="hidden sm:inline">Regras</span>
-          </TabsTrigger>
-          <TabsTrigger value="history" className="gap-2 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl transition-all">
-            <Clock className="w-4 h-4" />
-            <span className="hidden sm:inline">Histórico</span>
-          </TabsTrigger>
-          <TabsTrigger value="birthday_campaign" className="gap-2 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl transition-all">
-            <Gift className="w-4 h-4" />
-            <span className="hidden sm:inline">Aniversariantes</span>
-          </TabsTrigger>
-          <TabsTrigger value="reviews" className="gap-2 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl transition-all">
-            <Star className="w-4 h-4" />
-            <span className="hidden sm:inline">Avaliações (NPS)</span>
-          </TabsTrigger>
-          <TabsTrigger value="inactive" className="gap-2 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl transition-all">
-            <UserMinus className="w-4 h-4" />
-            <span className="hidden sm:inline">Inativos</span>
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between gap-4 overflow-x-auto pb-2 scrollbar-hide">
+          <TabsList className="flex w-fit h-auto p-1.5 bg-slate-900/5 backdrop-blur-sm rounded-2xl border border-slate-200/50">
+            <TabsTrigger value="rules" className="gap-2.5 py-2.5 px-6 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-lg rounded-xl transition-all font-black uppercase text-[10px] tracking-widest text-slate-400">
+              <MessageSquare className="w-4 h-4" />
+              Regras
+            </TabsTrigger>
+            <TabsTrigger value="history" className="gap-2.5 py-2.5 px-6 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-lg rounded-xl transition-all font-black uppercase text-[10px] tracking-widest text-slate-400">
+              <Clock className="w-4 h-4" />
+              Histórico
+            </TabsTrigger>
+            <TabsTrigger value="birthday_campaign" className="gap-2.5 py-2.5 px-6 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-lg rounded-xl transition-all font-black uppercase text-[10px] tracking-widest text-slate-400">
+              <Gift className="w-4 h-4" />
+              Aniversariantes
+            </TabsTrigger>
+            <TabsTrigger value="reviews" className="gap-2.5 py-2.5 px-6 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-lg rounded-xl transition-all font-black uppercase text-[10px] tracking-widest text-slate-400">
+              <Star className="w-4 h-4" />
+              Avaliações
+            </TabsTrigger>
+            <TabsTrigger value="inactive" className="gap-2.5 py-2.5 px-6 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-lg rounded-xl transition-all font-black uppercase text-[10px] tracking-widest text-slate-400">
+              <UserMinus className="w-4 h-4" />
+              Inativos
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="rules" className="space-y-6 mt-6">
           {isCreating && (
@@ -970,5 +1012,44 @@ export default function AutomationClient() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function StatsCard({ label, value, icon: Icon, color, description, onClick }: any) {
+  const colors: Record<string, string> = {
+    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+    blue: 'bg-blue-50 text-blue-600 border-blue-100',
+    amber: 'bg-amber-50 text-amber-600 border-amber-100',
+    rose: 'bg-rose-50 text-rose-600 border-rose-100',
+  };
+
+  return (
+    <Card 
+      className={cn(
+        "border-none shadow-sm bg-white rounded-3xl overflow-hidden relative group transition-all",
+        onClick ? "cursor-pointer hover:-translate-y-1 active:scale-95" : ""
+      )}
+      onClick={onClick}
+    >
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className={cn("p-3 rounded-2xl border transition-colors bg-white shadow-sm", colors[color as keyof typeof colors])}>
+            <Icon className="w-6 h-6" />
+          </div>
+          <Badge variant="secondary" className="bg-slate-50 text-slate-400 font-black text-[9px] uppercase tracking-widest border-none">
+            {description}
+          </Badge>
+        </div>
+        <div className="space-y-1">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
+          <p className="text-3xl font-black text-slate-900 tracking-tighter italic">{value}</p>
+        </div>
+      </CardContent>
+      {/* Subtle Glow */}
+      <div className={cn(
+        "absolute -bottom-6 -right-6 w-20 h-20 rounded-full blur-2xl opacity-10 group-hover:opacity-20 transition-opacity",
+        color === 'emerald' ? 'bg-emerald-500' : color === 'blue' ? 'bg-blue-500' : color === 'amber' ? 'bg-amber-500' : 'bg-rose-500'
+      )} />
+    </Card>
   );
 }

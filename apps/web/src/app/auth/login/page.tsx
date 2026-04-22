@@ -130,6 +130,22 @@ function LoginForm() {
           await supabase.auth.signOut();
           throw new Error('Nenhuma empresa vinculada. Entre em contato com o suporte.');
         }
+
+        // 📝 Registrar Log de Acesso
+        try {
+          await supabase.from('employee_access_logs').insert({
+            company_id: profile.company_id,
+            profile_id: user.id,
+            action: 'login',
+            resource: 'system',
+            details: { method: 'password', role: profile.role }
+          });
+          
+          // Atualizar last_access no perfil
+          await supabase.from('profiles').update({ last_access: new Date().toISOString() }).eq('id', user.id);
+        } catch (logErr) {
+          console.error('[AUTH][LOG] Erro ao registrar acesso:', logErr);
+        }
       }
 
       console.log('[AUTH][LOGIN] ✅ Sucesso!');
