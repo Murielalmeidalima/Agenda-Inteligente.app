@@ -91,7 +91,6 @@ export default function PlanningPage() {
         .lte('target_date', format(monthEnd, 'yyyy-MM-dd'));
 
       if (goalsError) {
-        // @ts-ignore
         if (goalsError.code === '42P01' || (goalsError.message && goalsError.message.includes('Could not find the table'))) {
            console.warn('Tabela strategic_goals não existe ainda. Rode as migrações.');
            toast.error('Tabela de metas ausente. Rode npx supabase db push.');

@@ -74,12 +74,6 @@ function ReviewSettingsForm() {
 
   const supabase = createBrowserClient();
 
-  useEffect(() => {
-    if (profile?.company_id) {
-       fetchSettings();
-    }
-  }, [profile?.company_id]);
-
   async function fetchSettings() {
     const { data, error } = await supabase
       .from('review_settings')
@@ -114,6 +108,12 @@ function ReviewSettingsForm() {
     }
     setLoading(false);
   }
+
+  useEffect(() => {
+    if (profile?.company_id) {
+       fetchSettings();
+    }
+  }, [profile?.company_id]);
 
   async function handleSave() {
     setSaving(true);

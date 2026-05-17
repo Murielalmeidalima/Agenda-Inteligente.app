@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { 
   Card, 
   CardHeader, 
@@ -348,7 +349,13 @@ export default function SettingsClient() {
                          <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center border border-[#E5E0D8] overflow-hidden relative group/preview shadow-sm">
                            {logoPreview ? (
                              <>
-                               <img src={logoPreview} alt="Logo Preview" className="w-full h-full object-cover" />
+                               <Image 
+                                 src={logoPreview} 
+                                 alt="Logo Preview" 
+                                 fill
+                                 className="object-cover"
+                                 unoptimized
+                               />
                                {uploadingLogo && (
                                  <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
                                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#D4AF37]"></div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import Image from 'next/image';
 import { 
   Card, 
   CardHeader, 
@@ -291,11 +292,15 @@ export default function MedicalTimeline({
                   {record.type === 'attachment' && (
                     <div className="space-y-3">
                        {record.file_type?.startsWith('image/') ? (
-                          <img 
-                            src={record.file_url} 
-                            alt={record.description} 
-                            className="rounded-2xl border border-neutral-100 max-h-[400px] w-auto shadow-sm"
-                          />
+                          <div className="relative w-full max-w-[500px] h-[400px]">
+                             <Image 
+                               src={record.file_url!} 
+                               alt={record.description || "Anexo"} 
+                               fill
+                               className="rounded-2xl border border-neutral-100 object-contain shadow-sm"
+                               unoptimized
+                             />
+                          </div>
                        ) : (
                           <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
                              <Upload className="h-5 w-5 text-emerald-600" />

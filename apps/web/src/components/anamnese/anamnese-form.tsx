@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button, Input, Card, CardContent, cn, TextArea, Label } from '@projeto/ui';
+import Image from 'next/image';
 import { CheckCircle2, AlertCircle, FileText } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import SignatureCanvas from 'react-signature-canvas';
@@ -126,7 +127,15 @@ export default function AnamneseForm({ token }: { token: string }) {
       <div className="min-h-screen bg-[#FDFBF7] py-12 px-4 text-[#2C2825]">
         <div className="max-w-2xl mx-auto text-center space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
            {data?.company?.logo && (
-             <img src={data.company.logo} alt={data.company.name} className="h-16 mx-auto mb-8" />
+             <div className="relative h-16 w-full mb-8">
+               <Image 
+                 src={data.company.logo} 
+                 alt={data.company.name} 
+                 fill
+                 className="object-contain"
+                 unoptimized
+               />
+             </div>
            )}
            <div className="bg-white p-10 rounded-[40px] shadow-xl border border-[#E5E0D8] space-y-6">
               <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto">
@@ -159,7 +168,17 @@ export default function AnamneseForm({ token }: { token: string }) {
       {/* Header */}
       <div className="bg-white border-b border-[#E5E0D8] sticky top-0 z-10 shadow-sm">
          <div className="max-w-2xl mx-auto px-6 py-4 flex items-center gap-4">
-            {data.company.logo && <img src={data.company.logo} className="h-10 w-10 rounded-full object-cover border border-[#E5E0D8]" alt="Logo" />}
+            {data.company.logo && (
+               <div className="relative h-10 w-10 rounded-full overflow-hidden border border-[#E5E0D8]">
+                 <Image 
+                   src={data.company.logo} 
+                   fill
+                   className="object-cover" 
+                   alt="Logo"
+                   unoptimized
+                 />
+               </div>
+            )}
             <div>
                <h1 className="text-sm font-bold text-neutral-400 uppercase tracking-widest">{data.company.name}</h1>
                <h2 className="text-lg font-bold text-[#2C2825] font-serif leading-tight">{data.template.title}</h2>

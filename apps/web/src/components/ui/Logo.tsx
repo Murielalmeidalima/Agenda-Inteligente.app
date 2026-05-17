@@ -53,6 +53,7 @@ export function Logo({ className, size = 40, showText = false }: LogoProps) {
 }
 
 export function LogoImage({ className, size = 40, src }: LogoProps & { src?: string | null }) {
+  const [hasError, setHasError] = React.useState(false);
   const finalSrc = src || "/images/logo.jpg";
 
   return (
@@ -60,15 +61,17 @@ export function LogoImage({ className, size = 40, src }: LogoProps & { src?: str
       className={`relative flex items-center justify-center overflow-hidden rounded-xl border border-dashed border-amber-200 ${className || ''}`} 
       style={{ width: size * 3, height: size * 1.2 }}
     >
-      <img
-        src={finalSrc}
-        alt="Logo"
-        className="w-full h-full object-contain"
-        onError={(e) => {
-          e.currentTarget.style.display = 'none';
-          e.currentTarget.parentElement!.innerHTML += '<span class="text-[10px] font-bold text-amber-600">Logo</span>';
-        }}
-      />
+      {!hasError ? (
+        <Image
+          src={finalSrc}
+          alt="Logo"
+          fill
+          className="object-contain"
+          onError={() => setHasError(true)}
+        />
+      ) : (
+        <span className="text-[10px] font-bold text-amber-600">Logo</span>
+      )}
     </div>
   );
 }

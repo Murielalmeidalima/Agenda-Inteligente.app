@@ -13,12 +13,6 @@ export default function CommunicationsPage() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (profile?.company_id) {
-       fetchLogs();
-    }
-  }, [profile]);
-
   async function fetchLogs() {
      setLoading(true);
      const supabase = createBrowserClient();
@@ -36,6 +30,12 @@ export default function CommunicationsPage() {
      }
      setLoading(false);
   }
+
+  useEffect(() => {
+    if (profile?.company_id) {
+       fetchLogs();
+    }
+  }, [profile]);
 
   return (
     <div className="space-y-6">

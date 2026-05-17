@@ -77,13 +77,6 @@ export function BlockDaysModal({ isOpen, onClose, companyId, onRefresh }: BlockD
 
   const supabase = createBrowserClient();
 
-  useEffect(() => {
-    if (isOpen && companyId) {
-      fetchBlocks();
-      fetchSettings();
-    }
-  }, [isOpen, companyId]);
-
   async function fetchSettings() {
     const { data } = await supabase
       .from('companies')
@@ -109,6 +102,13 @@ export function BlockDaysModal({ isOpen, onClose, companyId, onRefresh }: BlockD
     if (!error) setBlocks(data || []);
     setLoading(false);
   }
+
+  useEffect(() => {
+    if (isOpen && companyId) {
+      fetchBlocks();
+      fetchSettings();
+    }
+  }, [isOpen, companyId]);
 
   async function handleToggleHolidays(val: boolean) {
     setShowHolidays(val);
