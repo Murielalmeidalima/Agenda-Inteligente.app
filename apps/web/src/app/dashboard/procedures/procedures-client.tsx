@@ -39,11 +39,14 @@ export default function ProceduresClient() {
   const [templates, setTemplates] = useState<any[]>([]); 
   const [loading, setLoading] = useState(true);
   const [isAddingProcedure, setIsAddingProcedure] = useState(false);
+  const [editingProcedureId, setEditingProcedureId] = useState<string | null>(null);
   
   const [newService, setNewService] = useState({
     name: '',
     duration_minutes: 60,
     price: 0,
+    description: '',
+    color: '#D4AF37',
     maintenance_required: false,
     maintenance_days_limit: 30,
     maintenance_period_unit: 'days', // 'days', 'weeks', 'months'
@@ -90,19 +93,55 @@ export default function ProceduresClient() {
   }, [companyId]);
 
   const handleCreateService = async () => {
-    const { error } = await supabase
-      .from('procedures')
-      .insert([{
-        ...newService,
-        company_id: companyId
-      }]);
+    let error;
+    if (editingProcedureId) {
+       const { error: updateError } = await supabase
+         .from('procedures')
+         .update({
+           name: newService.name,
+           duration_minutes: newService.duration_minutes,
+           price: newService.price,
+           description: newService.description,
+           color: newService.color,
+           maintenance_required: newService.maintenance_required,
+           maintenance_days_limit: newService.maintenance_days_limit,
+           maintenance_period_unit: newService.maintenance_period_unit,
+           maintenance_duration_minutes: newService.maintenance_duration_minutes,
+           requires_anamnese: newService.requires_anamnese,
+           anamnese_template_id: newService.anamnese_template_id || null
+         })
+         .eq('id', editingProcedureId)
+         .eq('company_id', companyId);
+       error = updateError;
+    } else {
+       const { error: insertError } = await supabase
+         .from('procedures')
+         .insert([{
+           name: newService.name,
+           duration_minutes: newService.duration_minutes,
+           price: newService.price,
+           description: newService.description,
+           color: newService.color,
+           maintenance_required: newService.maintenance_required,
+           maintenance_days_limit: newService.maintenance_days_limit,
+           maintenance_period_unit: newService.maintenance_period_unit,
+           maintenance_duration_minutes: newService.maintenance_duration_minutes,
+           requires_anamnese: newService.requires_anamnese,
+           anamnese_template_id: newService.anamnese_template_id || null,
+           company_id: companyId
+         }]);
+       error = insertError;
+    }
 
     if (!error) {
       setIsAddingProcedure(false);
+      setEditingProcedureId(null);
       setNewService({
         name: '',
         duration_minutes: 60,
         price: 0,
+        description: '',
+        color: '#D4AF37',
         maintenance_required: false,
         maintenance_days_limit: 30,
         maintenance_period_unit: 'days',
@@ -144,9 +183,22 @@ export default function ProceduresClient() {
           </div>
         </div>
 
-        <Dialog open={isAddingProcedure} onOpenChange={setIsAddingProcedure}>
+        <Dialog open={isAddingProcedure} onOpenChange={(open) => {
+           setIsAddingProcedure(open);
+           if (!open) {
+              setEditingProcedureId(null);
+              setNewService({
+                name: '', duration_minutes: 60, price: 0, description: '', color: '#D4AF37', maintenance_required: false, maintenance_days_limit: 30, maintenance_period_unit: 'days', maintenance_duration_minutes: 60, requires_anamnese: false, anamnese_template_id: ''
+              });
+           }
+        }}>
            <DialogTrigger asChild>
-             <Button className="h-11 px-6 bg-[#D4AF37] text-white hover:bg-[#B5952F] font-black rounded-xl active:scale-[0.98] transition-all">
+             <Button className="h-11 px-6 bg-[#D4AF37] text-white hover:bg-[#B5952F] font-black rounded-xl active:scale-[0.98] transition-all" onClick={() => {
+                setEditingProcedureId(null);
+                setNewService({
+                  name: '', duration_minutes: 60, price: 0, description: '', color: '#D4AF37', maintenance_required: false, maintenance_days_limit: 30, maintenance_period_unit: 'days', maintenance_duration_minutes: 60, requires_anamnese: false, anamnese_template_id: ''
+                });
+             }}>
                  <Plus className="h-5 w-5 mr-2" />
                  Novo Serviço
              </Button>
@@ -155,7 +207,7 @@ export default function ProceduresClient() {
              <DialogHeader>
                <DialogTitle className="text-xl font-bold flex items-center gap-2">
                  <Plus className="h-5 w-5 text-[#D4AF37]" />
-                 Novo Procedimento
+                 {editingProcedureId ? 'Editar Procedimento' : 'Novo Procedimento'}
                </DialogTitle>
              </DialogHeader>
              
@@ -168,6 +220,44 @@ export default function ProceduresClient() {
                    onChange={(e) => setNewService({...newService, name: e.target.value})}
                    className="bg-[#FDFBF7] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] font-bold" 
                  />
+               </div>
+               
+               <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                   <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Descrição</Label>
+                   <Input 
+                     placeholder="Descrição curta do procedimento" 
+                     value={newService.description}
+                     onChange={(e) => setNewService({...newService, description: e.target.value})}
+                     className="bg-[#FDFBF7] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] font-bold" 
+                   />
+                 </div>
+                 
+                 <div className="space-y-2">
+                   <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Cor na Agenda</Label>
+                   <div className="flex items-center gap-2">
+                     <Input 
+                       type="color"
+                       value={newService.color || '#D4AF37'}
+                       onChange={(e) => setNewService({...newService, color: e.target.value})}
+                       className="p-1 h-12 w-16 bg-[#FDFBF7] border-[#E5E0D8] rounded-xl cursor-pointer" 
+                     />
+                     <div className="flex gap-2 flex-wrap flex-1 ml-2">
+                       {['#D4AF37', '#3B82F6', '#8B5CF6', '#EC4899', '#10B981', '#F97316'].map((preset) => (
+                         <button 
+                           key={preset}
+                           type="button"
+                           onClick={() => setNewService({...newService, color: preset})}
+                           className={cn(
+                             "w-6 h-6 rounded-full border-2 transition-transform hover:scale-110",
+                             newService.color === preset ? "border-slate-800" : "border-transparent"
+                           )}
+                           style={{ backgroundColor: preset }}
+                         />
+                       ))}
+                     </div>
+                   </div>
+                 </div>
                </div>
                
                <div className="grid grid-cols-2 gap-4">
@@ -334,8 +424,13 @@ export default function ProceduresClient() {
              </div>
 
              <DialogFooter className="gap-3">
-               <Button variant="ghost" onClick={() => setIsAddingProcedure(false)} className="text-[#5C5855] hover:text-[#2C2825] font-bold">Cancelar</Button>
-               <Button onClick={handleCreateService} className="bg-[#D4AF37] hover:bg-[#B5952F] text-white font-bold px-8">Cadastrar Serviço</Button>
+               <Button variant="ghost" onClick={() => {
+                  setIsAddingProcedure(false);
+                  setEditingProcedureId(null);
+               }} className="text-[#5C5855] hover:text-[#2C2825] font-bold">Cancelar</Button>
+               <Button onClick={handleCreateService} className="bg-[#D4AF37] hover:bg-[#B5952F] text-white font-bold px-8">
+                 {editingProcedureId ? 'Salvar Alterações' : 'Cadastrar Serviço'}
+               </Button>
              </DialogFooter>
            </DialogContent>
         </Dialog>
@@ -367,7 +462,10 @@ export default function ProceduresClient() {
                    procedures.map((p) => (
                       <TableRow key={p.id} className="border-b border-[#F0EBE0] group hover:bg-[#FAF6E9] transition-colors">
                          <TableCell className="pl-8 py-5">
-                            <span className="font-bold text-[#2C2825] text-sm">{p.name}</span>
+                            <div className="flex items-center gap-3">
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: p.color || '#D4AF37' }}></div>
+                              <span className="font-bold text-[#2C2825] text-sm">{p.name}</span>
+                            </div>
                          </TableCell>
                          <TableCell>
                             <Badge variant="outline" className="bg-white border-[#E5E0D8] text-[#5C5855] text-[10px] font-bold uppercase">
@@ -402,9 +500,30 @@ export default function ProceduresClient() {
                          </TableCell>
                          <TableCell className="pr-4 text-right">
                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                               {/*<Button size="icon" variant="ghost" className="h-9 w-9 text-[#5C5855] hover:text-[#2C2825] hover:bg-white rounded-xl">
+                               <Button 
+                                  size="icon" 
+                                  variant="ghost" 
+                                  className="h-9 w-9 text-[#5C5855] hover:text-[#2C2825] hover:bg-white rounded-xl"
+                                  onClick={() => {
+                                    setEditingProcedureId(p.id);
+                                    setNewService({
+                                      name: p.name || '',
+                                      duration_minutes: p.duration_minutes || 60,
+                                      price: p.price || 0,
+                                      description: p.description || '',
+                                      color: p.color || '#D4AF37',
+                                      maintenance_required: p.maintenance_required || false,
+                                      maintenance_days_limit: p.maintenance_days_limit || 30,
+                                      maintenance_period_unit: p.maintenance_period_unit || 'days',
+                                      maintenance_duration_minutes: p.maintenance_duration_minutes || 60,
+                                      requires_anamnese: p.requires_anamnese || false,
+                                      anamnese_template_id: p.anamnese_template_id || ''
+                                    });
+                                    setIsAddingProcedure(true);
+                                  }}
+                               >
                                   <Edit3 className="h-4 w-4" />
-                               </Button>*/}
+                               </Button>
                                <Button 
                                   size="icon" 
                                   variant="ghost" 

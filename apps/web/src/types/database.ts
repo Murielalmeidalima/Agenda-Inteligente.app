@@ -61,8 +61,11 @@ export type Procedure = {
   duration_minutes: number;
   price: number;
   description:string | null;
+  color?: string | null;
   maintenance_required: boolean;
   maintenance_days_limit: number | null;
+  maintenance_period_unit?: string | null;
+  maintenance_duration_minutes?: number | null;
   created_at: string;
 };
 

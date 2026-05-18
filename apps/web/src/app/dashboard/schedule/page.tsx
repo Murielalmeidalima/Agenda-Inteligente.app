@@ -50,8 +50,13 @@ export default async function SchedulePage() {
       ),
       procedures (
         name,
+        color,
         duration_minutes,
-        price
+        price,
+        maintenance_required,
+        maintenance_days_limit,
+        maintenance_period_unit,
+        maintenance_duration_minutes
       )
     `)
     .eq('company_id', profile.company_id);
@@ -111,7 +116,7 @@ export default async function SchedulePage() {
 
   const { data: procedures, error: proceduresError } = await supabase
     .from('procedures')
-    .select('id, name, duration_minutes, price')
+    .select('id, name, duration_minutes, price, maintenance_required, maintenance_days_limit, maintenance_period_unit, maintenance_duration_minutes')
     .eq('company_id', profile.company_id)
     .order('name');
 

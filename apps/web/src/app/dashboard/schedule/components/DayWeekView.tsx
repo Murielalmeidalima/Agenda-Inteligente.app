@@ -244,24 +244,36 @@ export const DayWeekView = ({
                   // Lógica de Cores Inteligente
                   let cardColors = "bg-[#F0EBE0] ring-[#E5E0D8] text-[#5C5855]";
                   
-                  if (apt.paymentStatus === 'paid') {
-                    // 🟢 Verde — Pago Totalmente
-                    cardColors = "bg-emerald-50 ring-emerald-200 text-emerald-800";
-                  } else if (now < startDate) {
-                    // 🟡 Amarelo — Agendamento Futuro (ainda não aconteceu e não pago)
-                    cardColors = "bg-yellow-50 ring-yellow-200 text-yellow-800";
-                  } else if (isSameDay(now, startDate)) {
-                    // 🟠 Laranja — Pendente (Hoje / já começou ou finalizado hoje)
-                    cardColors = "bg-orange-50 ring-orange-200 text-orange-800";
+                  if (apt.status === 'completed') {
+                    if (apt.paymentStatus === 'paid') {
+                      // 🟢 Verde — Concluído e Pago
+                      cardColors = "bg-emerald-50 ring-emerald-200 text-emerald-800";
+                    } else {
+                      // 🔴 Vermelho — Concluído e Não Pago (Pendente/Parcial)
+                      cardColors = "bg-red-50 ring-red-200 text-red-800";
+                    }
                   } else {
-                    // 🔴 Vermelho — Atrasado (Dias anteriores e não pago)
-                    cardColors = "bg-red-50 ring-red-200 text-red-800";
+                    if (apt.paymentStatus === 'paid') {
+                      // 🟢 Verde — Pago antecipadamente (ainda não concluído)
+                      cardColors = "bg-emerald-50 ring-emerald-200 text-emerald-800";
+                    } else if (now < startDate) {
+                      // 🟡 Amarelo — Futuro (ainda não aconteceu e não pago)
+                      cardColors = "bg-yellow-50 ring-yellow-200 text-yellow-800";
+                    } else if (isSameDay(now, startDate)) {
+                      // 🟠 Laranja — Hoje (não concluído e não pago)
+                      cardColors = "bg-orange-50 ring-orange-200 text-orange-800";
+                    } else {
+                      // 🔴 Vermelho — Atrasado (dias anteriores, não pago e não concluído)
+                      cardColors = "bg-red-50 ring-red-200 text-red-800";
+                    }
                   }
 
                   // Handle out-of-bounds start times implicitly visually to avoid completely missing them
                   const clampedStartHour = Math.max(SCHEDULE_START_HOUR, startHour);
                   const top = ((clampedStartHour - SCHEDULE_START_HOUR) * 60 + startMin) * PIXELS_PER_MINUTE;
                   const height = duration * PIXELS_PER_MINUTE;
+                  
+                  const procedureColor = apt.procedures?.color || null;
 
                   return (
                     <div
@@ -270,7 +282,7 @@ export const DayWeekView = ({
                         "absolute left-1.5 right-1.5 rounded-xl p-2 text-[10px] overflow-hidden cursor-pointer shadow-sm transition-all hover:shadow-md hover:scale-[1.02] z-20 group/apt ring-1 ring-inset",
                         cardColors
                       )}
-                      style={{ top: `${top}px`, height: `${height}px`, minHeight: '24px' }}
+                      style={{ top: `${top}px`, height: `${height}px`, minHeight: '24px', ...(procedureColor ? { borderLeft: `6px solid ${procedureColor}` } : {}) }}
                       onClick={(e) => {
                         e.stopPropagation();
                         onViewAppointment(apt.id);
@@ -284,19 +296,28 @@ export const DayWeekView = ({
                            {apt.status === 'completed' && (
                              <div 
                                className={cn(
-                                 "w-2 h-2 rounded-full shrink-0 shadow-sm mt-0.5",
-                                 apt.paymentStatus === 'paid' ? "bg-emerald-500 shadow-emerald-200" :
-                                 apt.paymentStatus === 'partial' ? "bg-amber-500 shadow-amber-200" :
-                                 "bg-rose-500 shadow-rose-200"
+                                 "text-[8px] font-black uppercase px-1.5 py-0.5 rounded-sm shrink-0 shadow-sm ml-1",
+                                 apt.paymentStatus === 'paid' ? "bg-emerald-500 text-white" :
+                                 apt.paymentStatus === 'partial' ? "bg-amber-500 text-white" :
+                                 "bg-rose-500 text-white"
                                )}
-                               title={apt.paymentStatus === 'paid' ? 'Pago' : apt.paymentStatus === 'partial' ? 'Pago Parcialmente' : 'Pendente de Pagamento'}
-                             />
+                             >
+                               {apt.paymentStatus === 'paid' ? 'Pago' : apt.paymentStatus === 'partial' ? 'Parcial' : 'Pendente'}
+                             </div>
                            )}
                          </div>
                          {height > 35 && ( // só mostra se tiver espaço suficiente
-                           <p className="opacity-80 font-semibold truncate lowercase tracking-tight mb-1">
-                             {apt.procedures?.name || 'Procedimento'}
-                           </p>
+                           <div className="flex flex-col gap-0.5 mb-1">
+                             <p className="opacity-80 font-semibold truncate lowercase tracking-tight">
+                               {apt.procedures?.name || 'Procedimento'}
+                             </p>
+                             {apt.is_maintenance && (
+                               <span className="text-[8px] uppercase font-black bg-[#D4AF37] text-white px-1.5 py-0.5 rounded-sm w-fit flex items-center gap-1 shadow-sm">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+                                  Manutenção
+                               </span>
+                             )}
+                           </div>
                          )}
                          {(height > 45) && (
                             <div className="flex items-center gap-1.5 opacity-70 font-bold mt-auto max-w-full overflow-hidden">

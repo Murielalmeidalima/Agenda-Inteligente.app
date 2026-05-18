@@ -23,6 +23,7 @@ import { createBrowserClient } from '@/lib/supabase-browser';
 import { format, addMinutes } from 'date-fns';
 import { Plus, Settings2, CalendarOff } from 'lucide-react';
 import { EditAppointmentModal } from './edit-appointment-modal';
+import { useRouter } from 'next/navigation';
 import { BlockDaysModal } from './components/BlockDaysModal';
 import { showToast } from '@/lib/toast-helpers';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
@@ -42,6 +43,7 @@ export default function ScheduleCalendarClient({
   professionals,
   companyId
 }: ScheduleCalendarClientProps) {
+  const router = useRouter();
   const [appointments, setAppointments] = useState(initialAppointments);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -228,7 +230,7 @@ export default function ScheduleCalendarClient({
         .select(`
           *,
           clients(full_name),
-          procedures(name, duration_minutes)
+          procedures(name, duration_minutes, color)
         `)
         .single();
 
@@ -301,7 +303,7 @@ export default function ScheduleCalendarClient({
         onClose={() => setIsEditModalOpen(false)}
         appointment={selectedAppointment}
         onUpdate={() => {
-           window.location.reload();
+           router.refresh();
         }}
       />
 

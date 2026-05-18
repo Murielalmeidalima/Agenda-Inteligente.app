@@ -20,7 +20,7 @@ import {
 import { Edit2, CheckCircle2, XCircle, AlertCircle, Banknote } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, addDays, addWeeks, addMonths, isSaturday, isSunday, subDays } from 'date-fns';
 
 interface EditAppointmentModalProps {
   isOpen: boolean;
@@ -151,6 +151,61 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
       if (error) throw error;
 
       if (status === 'completed') {
+          // Lógica de Manutenção Automática
+          const proc = appointment.procedures;
+          // Note that appointment.procedures might be an array if fetched weirdly, but in page.tsx we already did `Array.isArray(app.procedures) ? app.procedures[0] : app.procedures;`
+          // So it's an object. Let's handle arrays just in case it's raw.
+          const procObj = Array.isArray(proc) ? proc[0] : proc;
+          
+          if (!isOriginallyCompleted && procObj?.maintenance_required && procObj?.maintenance_days_limit) {
+            const unit = procObj.maintenance_period_unit || 'days';
+            const amount = procObj.maintenance_days_limit;
+            
+            let futureDate = new Date(appointment.start_time);
+            if (unit === 'months') {
+              futureDate = addMonths(futureDate, amount);
+            } else if (unit === 'weeks') {
+              futureDate = addWeeks(futureDate, amount);
+            } else {
+              futureDate = addDays(futureDate, amount);
+            }
+
+            // Pular finais de semana (sempre para antes do vencimento)
+            if (isSaturday(futureDate)) {
+              futureDate = subDays(futureDate, 1); // Antecipa para Sexta-feira
+            } else if (isSunday(futureDate)) {
+              futureDate = subDays(futureDate, 2); // Antecipa para Sexta-feira
+            }
+
+            const labelUnit = unit === 'months' ? (amount === 1 ? 'mês' : 'meses') : unit === 'weeks' ? (amount === 1 ? 'semana' : 'semanas') : (amount === 1 ? 'dia' : 'dias');
+            const confirmMsg = `O procedimento ${procObj.name} prevê manutenção/retorno em ${amount} ${labelUnit}.\n\nDeseja agendar automaticamente a manutenção para o dia ${format(futureDate, 'dd/MM/yyyy')} no mesmo horário?`;
+            
+            if (window.confirm(confirmMsg)) {
+              const futureEnd = new Date(futureDate);
+              futureEnd.setMinutes(futureEnd.getMinutes() + (procObj.maintenance_duration_minutes || procObj.duration_minutes || 60));
+
+              const { error: maintError } = await supabase.from('appointments').insert({
+                company_id: appointment.company_id,
+                client_id: appointment.client_id,
+                professional_id: appointment.professional_id,
+                procedure_id: appointment.procedure_id, // keep same procedure for maintenance
+                start_time: futureDate.toISOString(),
+                end_time: futureEnd.toISOString(),
+                status: 'scheduled',
+                is_maintenance: true,
+                parent_appointment_id: appointment.id,
+                notes: 'Agendamento automático de manutenção/retorno.'
+              });
+
+              if (maintError) {
+                console.error('Erro ao criar manutenção:', maintError);
+                toast.error('Erro ao agendar manutenção.');
+              } else {
+                toast.success(`Manutenção agendada para ${format(futureDate, 'dd/MM/yyyy')}`);
+              }
+            }
+          }
+
          // Registra ficha médica
          if (recordId) {
              await supabase.from('appointment_medical_records')
