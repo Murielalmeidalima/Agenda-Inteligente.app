@@ -31,27 +31,16 @@ export default function RegisterScreen() {
       if (signUpError) throw signUpError;
       if (!authData.user) throw new Error('Erro ao criar usuário');
 
-      // 2. Criar empresa (company)
-      const { data: companyData, error: companyError } = await supabase
-        .from('companies')
-        .insert({ name: formData.companyName })
-        .select()
-        .single();
+      // 2. Chamar a Função Segura (RPC) no banco para criar Empresa e Perfil atomicamente
+      const { data: rpcData, error: rpcError } = await supabase.rpc('register_company_and_user', {
+        p_company_name: formData.companyName,
+        p_full_name: formData.fullName
+      });
 
-      if (companyError) throw companyError;
-
-      // 3. Criar profile vinculado ao user e company
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: authData.user.id,
-          company_id: companyData.id,
-          full_name: formData.fullName,
-          email: formData.email,
-          role: 'admin',
-        });
-
-      if (profileError) throw profileError;
+      if (rpcError) {
+        console.error('Erro na RPC de registro:', rpcError);
+        throw new Error(rpcError.message || 'Erro ao inicializar sua clínica.');
+      }
 
       Alert.alert('Sucesso', 'Conta criada com sucesso!');
       router.replace('/(tabs)/dashboard');
