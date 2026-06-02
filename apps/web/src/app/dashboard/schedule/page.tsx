@@ -44,25 +44,13 @@ export default async function SchedulePage() {
     .from('appointments')
     .select(`
       *,
-      clients (
-        full_name,
-        birth_date
-      ),
-      procedures (
-        name,
-        color,
-        duration_minutes,
-        price,
-        maintenance_required,
-        maintenance_days_limit,
-        maintenance_period_unit,
-        maintenance_duration_minutes
-      )
+      clients!inner(full_name, birth_date),
+      procedures!inner(name, color, duration_minutes, price, maintenance_required, maintenance_days_limit, maintenance_period_unit, maintenance_duration_minutes)
     `)
     .eq('company_id', profile.company_id);
 
   if (error) {
-    console.error('Error fetching appointments:', error);
+    console.error('Error fetching appointments:', JSON.stringify(error, null, 2));
     return <div className="p-8 text-red-600">Erro ao carregar agendamentos</div>;
   }
 

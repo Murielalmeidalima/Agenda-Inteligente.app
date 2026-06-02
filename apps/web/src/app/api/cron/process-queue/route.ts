@@ -48,6 +48,9 @@ export async function GET(request: Request) {
         if (msg.type === 'sms') {
           providerResponse = await smsService.send({ to: msg.recipient, content: msg.payload.content });
         } else if (msg.type === 'whatsapp') {
+          const { data: company } = await supabase.from('companies').select('whatsapp_instance_name').eq('id', msg.company_id).single();
+          const instanceName = company?.whatsapp_instance_name || `empresa_${msg.company_id.replace(/-/g, '')}`;
+          whatsappService.setInstance(instanceName);
           providerResponse = await whatsappService.send({ to: msg.recipient, content: msg.payload.content });
         } else if (msg.type === 'email') {
           // Fallback to existing email logic if placed in queue

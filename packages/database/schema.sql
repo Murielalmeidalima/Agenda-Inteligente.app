@@ -16,6 +16,8 @@ create table companies (
   logo_url text,
   phone text,
   email text,
+  whatsapp_instance_name text,
+  whatsapp_status text default 'disconnected',
   created_at timestamp with time zone default now(),
   updated_at timestamp with time zone default now()
 );
@@ -62,6 +64,8 @@ create table procedures (
   maintenance_days_limit int, -- Max days to return for maintenance (e.g., 30 days)
   created_at timestamp with time zone default now()
 );
+ALTER TABLE procedures ADD COLUMN maintenance_period_unit text;
+ALTER TABLE procedures ADD COLUMN maintenance_duration_minutes integer;
 
 -- 5. APPOINTMENTS (Agenda)
 create type appointment_status as enum ('scheduled', 'confirmed', 'completed', 'cancelled', 'no_show', 'rescheduled');

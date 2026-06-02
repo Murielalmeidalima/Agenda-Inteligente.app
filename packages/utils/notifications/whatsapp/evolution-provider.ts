@@ -5,16 +5,95 @@ export class EvolutionProvider implements NotificationProvider {
   private apiKey: string;
   private instanceName: string;
 
-  constructor() {
+  constructor(instanceName?: string) {
     this.apiUrl = process.env.EVOLUTION_API_URL || '';
     this.apiKey = process.env.EVOLUTION_API_KEY || '';
-    this.instanceName = process.env.EVOLUTION_INSTANCE_NAME || '';
+    // Use the specific instance if provided, otherwise fallback to default env var
+    this.instanceName = instanceName || process.env.EVOLUTION_INSTANCE_NAME || '';
+  }
+
+  setInstanceName(instanceName: string) {
+    this.instanceName = instanceName;
+  }
+
+  private checkConfig() {
+    if (!this.apiUrl || !this.apiKey || !this.instanceName) {
+      throw new Error('Evolution API credentials or instance not configured');
+    }
+  }
+
+  async createInstance(): Promise<any> {
+    this.checkConfig();
+    try {
+      const response = await fetch(`${this.apiUrl}/instance/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': this.apiKey,
+        },
+        body: JSON.stringify({
+          instanceName: this.instanceName,
+          token: this.instanceName, // using instanceName as token for simplicity
+          qrcode: true
+        }),
+      });
+      return await response.json();
+    } catch (error: any) {
+      console.error('[EVOLUTION PROVIDER] Error creating instance:', error.message);
+      throw error;
+    }
+  }
+
+  async getConnectionState(): Promise<any> {
+    this.checkConfig();
+    try {
+      const response = await fetch(`${this.apiUrl}/instance/connectionState/${this.instanceName}`, {
+        method: 'GET',
+        headers: {
+          'apikey': this.apiKey,
+        }
+      });
+      return await response.json();
+    } catch (error: any) {
+      console.error('[EVOLUTION PROVIDER] Error getting connection state:', error.message);
+      throw error;
+    }
+  }
+
+  async connect(): Promise<any> {
+    this.checkConfig();
+    try {
+      const response = await fetch(`${this.apiUrl}/instance/connect/${this.instanceName}`, {
+        method: 'GET',
+        headers: {
+          'apikey': this.apiKey,
+        }
+      });
+      return await response.json(); // This will contain the base64 QR code if not connected
+    } catch (error: any) {
+      console.error('[EVOLUTION PROVIDER] Error connecting instance:', error.message);
+      throw error;
+    }
+  }
+
+  async logout(): Promise<any> {
+    this.checkConfig();
+    try {
+      const response = await fetch(`${this.apiUrl}/instance/logout/${this.instanceName}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': this.apiKey,
+        }
+      });
+      return await response.json();
+    } catch (error: any) {
+      console.error('[EVOLUTION PROVIDER] Error logging out instance:', error.message);
+      throw error;
+    }
   }
 
   async sendMessage(message: NotificationMessage) {
-    if (!this.apiUrl || !this.apiKey || !this.instanceName) {
-      throw new Error('Evolution API credentials not configured');
-    }
+    this.checkConfig();
 
     try {
       const url = `${this.apiUrl}/message/sendText/${this.instanceName}`;

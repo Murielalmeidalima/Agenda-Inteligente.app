@@ -2,15 +2,33 @@ import { NotificationMessage, NotificationProvider } from '../types';
 import { EvolutionProvider } from './evolution-provider';
 
 export class WhatsappService {
-  private provider: NotificationProvider;
+  private provider: EvolutionProvider; // Use EvolutionProvider directly so we can call specific methods
 
-  constructor(providerName: string = 'evolution') {
-    if (providerName === 'evolution') {
-      this.provider = new EvolutionProvider();
-    } else {
-      this.provider = new EvolutionProvider();
-    }
+  constructor(instanceName?: string) {
+    this.provider = new EvolutionProvider(instanceName);
   }
+
+  setInstance(instanceName: string) {
+    this.provider.setInstanceName(instanceName);
+  }
+
+  // --- Evolution Specific Methods ---
+  async getStatus() {
+    return this.provider.getConnectionState();
+  }
+
+  async connect() {
+    return this.provider.connect();
+  }
+
+  async createInstance() {
+    return this.provider.createInstance();
+  }
+
+  async logout() {
+    return this.provider.logout();
+  }
+  // ----------------------------------
 
   private formatPhoneNumber(phone: string): string {
     const cleaned = phone.replace(/\D/g, '');
@@ -30,7 +48,7 @@ export class WhatsappService {
     });
   }
 
-  async checkStatus(messageId: string) {
+  async checkMessageStatus(messageId: string) {
     return this.provider.getStatus(messageId);
   }
 }
