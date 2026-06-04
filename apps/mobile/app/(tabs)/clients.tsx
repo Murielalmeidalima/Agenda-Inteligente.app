@@ -1,39 +1,34 @@
-import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { theme } from '../../src/styles/theme';
-import { useState, useEffect } from 'react';
-import { supabase } from '../../src/lib/supabase';
+import { useState, useEffect, useCallback } from 'react';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+
+import { initDatabase, getLocalClients } from '../../src/lib/database-local';
+import { SyncService } from '../../src/lib/sync-service';
 
 export default function ClientsScreen() {
+  const router = useRouter();
   const [clients, setClients] = useState<any[]>([]);
+  const [filteredClients, setFilteredClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
 
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async (isRefresh = false) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const db = await initDatabase();
+      const localData = await getLocalClients(db);
+      
+      setClients(localData);
+      setFilteredClients(localData);
+      setLoading(false);
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('id', user.id)
-        .single();
-
-      if (profile?.company_id) {
-        let query = supabase
-          .from('clients')
-          .select('*')
-          .eq('company_id', profile.company_id)
-          .order('full_name');
-
-        if (search) {
-          query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
-        }
-
-        const { data } = await query;
-        setClients(data || []);
+      if (isRefresh || localData.length === 0) {
+        await SyncService.syncAll();
+        const freshLocal = await getLocalClients(db);
+        setClients(freshLocal);
+        setFilteredClients(freshLocal);
       }
     } catch (error) {
       console.error('Error fetching clients:', error);
@@ -41,23 +36,49 @@ export default function ClientsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchClients();
-  }, [search]);
+  }, [fetchClients]);
+
+  useEffect(() => {
+    if (search.trim() === '') {
+      setFilteredClients(clients);
+    } else {
+      const lower = search.toLowerCase();
+      const filtered = clients.filter(c => 
+        c.full_name?.toLowerCase().includes(lower) || 
+        c.phone?.includes(lower) || 
+        c.email?.toLowerCase().includes(lower)
+      );
+      setFilteredClients(filtered);
+    }
+  }, [search, clients]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchClients();
+    fetchClients(true);
+  };
+
+  const handleAddClient = () => {
+    router.push('/clients/new');
   };
 
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Pacientes</Text>
+        <TouchableOpacity style={styles.addButton} onPress={handleAddClient}>
+          <MaterialIcons name="add" size={24} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.searchContainer}>
-        <MaterialIcons name="search" size={20} color={theme.colors.textMuted} />
+        <MaterialIcons name="search" size={22} color={theme.colors.textMuted} />
         <TextInput
-          placeholder="Buscar cliente..."
+          placeholder="Buscar paciente..."
+          placeholderTextColor={theme.colors.textMuted}
           style={styles.searchInput}
           value={search}
           onChangeText={setSearch}
@@ -70,27 +91,36 @@ export default function ClientsScreen() {
       </View>
 
       <FlatList
-        data={clients}
+        data={filteredClients}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
         }
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.clientCard}>
+          <TouchableOpacity style={styles.clientCard} activeOpacity={0.7}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{item.full_name.charAt(0)}</Text>
+              <Text style={styles.avatarText}>{item.full_name?.charAt(0)?.toUpperCase() || '?'}</Text>
             </View>
             <View style={styles.clientInfo}>
               <Text style={styles.clientName}>{item.full_name}</Text>
-              <Text style={styles.clientDetails}>{item.phone || item.email || 'Sem contato'}</Text>
+              <Text style={styles.clientDetails}>
+                {item.phone ? item.phone : (item.email || 'Sem contato')}
+              </Text>
             </View>
-            <MaterialIcons name="chevron-right" size={24} color={theme.colors.border} />
+            <TouchableOpacity style={styles.actionIcon}>
+              <MaterialIcons name="history" size={22} color={theme.colors.primary} />
+            </TouchableOpacity>
           </TouchableOpacity>
         )}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Nenhum cliente encontrado</Text>
+            <View style={styles.emptyIconPlaceholder}>
+              <MaterialIcons name="people-outline" size={32} color={theme.colors.textMuted} />
+            </View>
+            <Text style={styles.emptyText}>
+              {search ? 'Nenhum paciente encontrado' : 'Lista vazia'}
+            </Text>
           </View>
         }
       />
@@ -101,19 +131,52 @@ export default function ClientsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#f8fafc',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 16,
+    backgroundColor: '#fff',
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: theme.colors.text,
+    letterSpacing: -0.5,
+  },
+  addButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    margin: 16,
+    marginHorizontal: 20,
+    marginTop: -10,
+    marginBottom: 16,
     paddingHorizontal: 16,
-    height: 50,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    ...theme.shadows.sm,
+    height: 52,
+    borderRadius: 16,
+    shadowColor: '#64748b',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
+    zIndex: 10,
   },
   searchInput: {
     flex: 1,
@@ -122,51 +185,74 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
   },
   listContent: {
-    padding: 16,
-    paddingTop: 0,
+    padding: 20,
+    paddingTop: 4,
   },
   clientCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
     padding: 16,
-    borderRadius: 16,
-    marginBottom: 12,
-    ...theme.shadows.sm,
+    borderRadius: 20,
+    marginBottom: 16,
+    shadowColor: '#64748b',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: theme.colors.primaryLight,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: theme.colors.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
   },
   avatarText: {
     color: theme.colors.primaryDark,
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '800',
   },
   clientInfo: {
     flex: 1,
   },
   clientName: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '700',
     color: theme.colors.text,
+    marginBottom: 4,
   },
   clientDetails: {
-    fontSize: 13,
+    fontSize: 14,
     color: theme.colors.textSecondary,
-    marginTop: 2,
+    fontWeight: '500',
+  },
+  actionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primary + '10',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyContainer: {
-    padding: 40,
+    padding: 60,
     alignItems: 'center',
+  },
+  emptyIconPlaceholder: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#e2e8f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   emptyText: {
     color: theme.colors.textMuted,
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: '600',
   }
 });

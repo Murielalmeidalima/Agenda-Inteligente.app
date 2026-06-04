@@ -1,0 +1,20 @@
+{
+  "name": "@projeto/worker",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "start": "ts-node index.ts",
+    "dev": "ts-node-dev --respawn index.ts"
+  },
+  "dependencies": {
+    "@next/env": "^14.0.0",
+    "node-fetch": "^2.7.0",
+    "@supabase/supabase-js": "^2.47.10",
+    "@projeto/utils": "*"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.1",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.0.0"
+  }
+}

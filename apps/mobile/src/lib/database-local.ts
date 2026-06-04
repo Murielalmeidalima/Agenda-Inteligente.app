@@ -1,4 +1,4 @@
-import * as SQLite from 'expo-sqlite';
+import { Platform } from 'react-native';
 
 /**
  * Interface do Banco de Dados Local (Offline-First)
@@ -6,6 +6,15 @@ import * as SQLite from 'expo-sqlite';
  */
 
 export async function initDatabase() {
+  if (Platform.OS === 'web') {
+    return {
+      execAsync: async () => {},
+      runAsync: async () => {},
+      getAllAsync: async () => []
+    } as any;
+  }
+
+  const SQLite = require('expo-sqlite');
   const db = await SQLite.openDatabaseAsync('projetoapp.db');
 
   // Tabela de Clientes Local
@@ -28,6 +37,19 @@ export async function initDatabase() {
       start_time TEXT NOT NULL,
       status TEXT NOT NULL,
       last_sync INTEGER NOT NULL
+    );
+  `);
+
+  // Tabela de Fila Offline (Ações a serem enviadas para a nuvem)
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS local_offline_queue (
+      id TEXT PRIMARY KEY NOT NULL,
+      action_type TEXT NOT NULL,
+      table_name TEXT NOT NULL,
+      record_id TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      created_at INTEGER NOT NULL
     );
   `);
 
@@ -77,4 +99,29 @@ export async function getLocalMedicalRecords(db: SQLite.SQLiteDatabase, clientId
     'SELECT * FROM local_medical_records WHERE client_id = ? ORDER BY created_at DESC',
     [clientId]
   );
+}
+
+// === OFFLINE QUEUE ===
+
+export async function queueOfflineAction(
+  db: SQLite.SQLiteDatabase,
+  actionType: 'INSERT' | 'UPDATE' | 'DELETE',
+  tableName: string,
+  recordId: string,
+  payload: any
+) {
+  const id = Date.now().toString() + Math.random().toString(36).substring(7);
+  const now = Date.now();
+  await db.runAsync(
+    'INSERT INTO local_offline_queue (id, action_type, table_name, record_id, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    [id, actionType, tableName, recordId, JSON.stringify(payload), now]
+  );
+}
+
+export async function getPendingOfflineActions(db: SQLite.SQLiteDatabase) {
+  return await db.getAllAsync("SELECT * FROM local_offline_queue WHERE status = 'pending' ORDER BY created_at ASC");
+}
+
+export async function markActionCompleted(db: SQLite.SQLiteDatabase, actionId: string) {
+  await db.runAsync("UPDATE local_offline_queue SET status = 'completed' WHERE id = ?", [actionId]);
 }

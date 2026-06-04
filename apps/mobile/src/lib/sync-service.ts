@@ -3,7 +3,9 @@ import {
   initDatabase, 
   saveLocalClients, 
   saveLocalAppointments,
-  saveLocalMedicalRecords 
+  saveLocalMedicalRecords,
+  getPendingOfflineActions,
+  markActionCompleted
 } from './database-local';
 
 /**
@@ -19,22 +21,46 @@ export const SyncService = {
     const db = await initDatabase();
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      // 0. Processar Fila Offline (Upload)
+      const pendingActions = await getPendingOfflineActions(db);
+      if (pendingActions.length > 0) {
+        console.log(`[Sync] Processando ${pendingActions.length} ações offline pendentes...`);
+        for (const action of pendingActions as any[]) {
+          try {
+            const payload = JSON.parse(action.payload);
+            
+            if (action.action_type === 'UPDATE') {
+              const { error } = await supabase
+                .from(action.table_name)
+                .update(payload)
+                .eq('id', action.record_id);
+              if (error) throw error;
+            } else if (action.action_type === 'INSERT') {
+              const { error } = await supabase
+                .from(action.table_name)
+                .insert([payload]);
+              if (error) throw error;
+            } else if (action.action_type === 'DELETE') {
+              const { error } = await supabase
+                .from(action.table_name)
+                .delete()
+                .eq('id', action.record_id);
+              if (error) throw error;
+            }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('id', user.id)
-        .single();
+            await markActionCompleted(db, action.id);
+            console.log(`[Sync] Ação offline ${action.id} sincronizada com sucesso.`);
+          } catch (actionErr) {
+            console.error(`[Sync] Erro ao processar ação ${action.id}:`, actionErr);
+            // Continua a execução, tentará novamente na próxima sincronização
+          }
+        }
+      }
 
-      if (!profile?.company_id) return;
-
-      // 1. Sincronizar Clientes
+      // 1. Sincronizar Clientes (Download)
       const { data: clients } = await supabase
         .from('clients')
-        .select('*')
-        .eq('company_id', profile.company_id);
+        .select('*');
       
       if (clients) {
         await saveLocalClients(db, clients);
@@ -52,7 +78,6 @@ export const SyncService = {
           clients(full_name),
           procedures(name)
         `)
-        .eq('company_id', profile.company_id)
         .gte('start_time', start);
 
       if (appointments) {
@@ -66,8 +91,7 @@ export const SyncService = {
         .select(`
           *,
           professional:profiles(full_name)
-        `)
-        .eq('company_id', profile.company_id);
+        `);
       
       if (records) {
         await saveLocalMedicalRecords(db, records);

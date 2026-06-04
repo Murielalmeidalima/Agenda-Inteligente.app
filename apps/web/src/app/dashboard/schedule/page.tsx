@@ -96,7 +96,7 @@ export default async function SchedulePage() {
   // Buscar Clientes e Procedimentos para os formulários de criação
   const { data: clients, error: clientsError } = await supabase
     .from('clients')
-    .select('id, full_name, birth_date')
+    .select('id, full_name, birth_date, phone')
     .eq('company_id', profile.company_id)
     .order('full_name');
 

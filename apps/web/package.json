@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@projeto/ui": "*",
+    "@projeto/utils": "*",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.10",
     "@types/nodemailer": "^7.0.10",

@@ -30,7 +30,7 @@ import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 
 interface ScheduleCalendarClientProps {
   initialAppointments: any[];
-  clients: { id: string, full_name: string }[];
+  clients: { id: string, full_name: string, phone?: string }[];
   procedures: { id: string, name: string, duration_minutes: number, price: number }[];
   professionals: { id: string, full_name: string }[];
   companyId: string;
@@ -245,6 +245,21 @@ export default function ScheduleCalendarClient({
           message: `${data.clients?.full_name} agendado para ${data.procedures?.name} em ${format(start, 'dd/MM HH:mm')}.`,
           type: 'reminder',
           link: '/dashboard/schedule'
+        });
+      }
+
+      // Adicionar mensagem na fila do WhatsApp (Confirmação imediata)
+      const client = clients.find(c => c.id === formData.clientId);
+      if (client?.phone) {
+        await supabase.from('message_queue').insert({
+          company_id: companyId,
+          type: 'whatsapp',
+          recipient: client.phone,
+          payload: { 
+            content: `Olá ${client.full_name.split(' ')[0]},\n\nSeu agendamento de *${procedure.name}* está confirmado para *${format(start, 'dd/MM/yyyy')}* às *${format(start, 'HH:mm')}*.\n\nQualquer dúvida, estamos à disposição!` 
+          },
+          status: 'pending',
+          scheduled_for: new Date().toISOString()
         });
       }
 

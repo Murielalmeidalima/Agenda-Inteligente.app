@@ -3,4 +3,6 @@ export const formatDate = (date: Date) => {
 };
 
 export * from './supabase';
+export * from './notifications/sms/sms-service';
+export * from './notifications/whatsapp/whatsapp-service';
 
