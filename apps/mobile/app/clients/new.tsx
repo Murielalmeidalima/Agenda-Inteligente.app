@@ -1,11 +1,11 @@
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { theme } from '../../../src/styles/theme';
+import { theme } from '../../src/styles/theme';
 import { useState } from 'react';
 import { MaterialIcons } from '@expo/vector-icons';
-import { initDatabase, queueOfflineAction } from '../../../src/lib/database-local';
-import { supabase } from '../../../src/lib/supabase';
-import { SyncService } from '../../../src/lib/sync-service';
+import { initDatabase, queueOfflineAction } from '../../src/lib/database-local';
+import { supabase } from '../../src/lib/supabase';
+import { SyncService } from '../../src/lib/sync-service';
 
 export default function NewClientScreen() {
   const router = useRouter();
@@ -133,7 +133,7 @@ export default function NewClientScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: theme.colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -142,9 +142,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'ios' ? 60 : 24,
     paddingBottom: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: theme.colors.border,
   },
   backButton: {
     width: 44,
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 22,
-    backgroundColor: '#f8fafc',
+    backgroundColor: theme.colors.background,
   },
   headerTitle: {
     fontSize: 20,
@@ -173,14 +173,14 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     height: 56,
     borderRadius: 16,
     paddingHorizontal: 16,
     fontSize: 16,
     color: theme.colors.text,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: theme.colors.border,
     shadowColor: '#64748b',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.02,
@@ -189,9 +189,9 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: 24,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: theme.colors.border,
   },
   saveButton: {
     backgroundColor: theme.colors.primary,
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   saveButtonText: {
-    color: '#fff',
+    color: theme.colors.background,
     fontSize: 16,
     fontWeight: 'bold',
   }

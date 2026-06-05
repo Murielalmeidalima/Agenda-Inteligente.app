@@ -22,7 +22,7 @@ export default function DashboardScreen() {
       const db = await initDatabase();
       const localApts = await getLocalAppointments(db);
       if (localApts.length > 0) {
-        setAppointments(localApts.map(a => ({
+        setAppointments(localApts.map((a: any) => ({
           ...a,
           clients: { full_name: a.client_name },
           procedures: { name: a.procedure_name }
@@ -43,7 +43,7 @@ export default function DashboardScreen() {
       const syncSuccess = await SyncService.syncAll();
       if (syncSuccess) {
         const updatedLocalApts = await getLocalAppointments(db);
-        setAppointments(updatedLocalApts.map(a => ({
+        setAppointments(updatedLocalApts.map((a: any) => ({
           ...a,
           clients: { full_name: a.client_name },
           procedures: { name: a.procedure_name }
@@ -245,13 +245,13 @@ const createStyles = (theme: any) => StyleSheet.create({
     color: theme.colors.textSecondary,
   },
   statusBadge: {
-    backgroundColor: theme.colors.accentLight,
+    backgroundColor: theme.colors.border,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
   statusText: {
-    color: theme.colors.accent,
+    color: theme.colors.textSecondary,
     fontSize: 11,
     fontWeight: 'bold',
   }

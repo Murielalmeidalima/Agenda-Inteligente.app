@@ -24,16 +24,16 @@ const baseBorderRadius = {
 export const lightTheme = {
   dark: false,
   colors: {
-    primary: '#14b8a6',
-    primaryLight: '#ccfbf1',
-    primaryDark: '#0f766e',
-    accent: '#f59e0b',
-    accentLight: '#fef3c7',
-    background: '#ffffff',
-    surface: '#f9fafb',
+    primary: '#D4AF37', // Gold
+    primaryLight: '#F5ECBF',
+    primaryDark: '#7F6921',
+    accent: '#2C2825', // Coffee
+    accentLight: '#5C5855',
+    background: '#FDFBF7', // Ivory
+    surface: '#ffffff',
     border: '#e5e7eb',
-    text: '#111827',
-    textSecondary: '#6b7280',
+    text: '#2C2825', // Coffee
+    textSecondary: '#5C5855',
     textMuted: '#9ca3af',
     success: '#10b981',
     error: '#ef4444',
@@ -50,17 +50,17 @@ export const lightTheme = {
 export const darkTheme = {
   dark: true,
   colors: {
-    primary: '#2dd4bf', // Teal 400 para melhor contraste em dark
-    primaryLight: '#042f2e',
-    primaryDark: '#5eead4',
-    accent: '#fbbf24',
-    accentLight: '#451a03',
-    background: '#020617', // Slate 950
-    surface: '#0f172a', // Slate 900
-    border: '#1e293b', // Slate 800
-    text: '#f8fafc',
-    textSecondary: '#94a3b8',
-    textMuted: '#64748b',
+    primary: '#D4AF37',
+    primaryLight: '#554616',
+    primaryDark: '#E6D166',
+    accent: '#FAF6E9',
+    accentLight: '#FDFBF7',
+    background: '#151205',
+    surface: '#2A230B',
+    border: '#554616',
+    text: '#FDFBF7',
+    textSecondary: '#E6E6E6',
+    textMuted: '#a1a1aa',
     success: '#10b981',
     error: '#ef4444',
     warning: '#f59e0b',
