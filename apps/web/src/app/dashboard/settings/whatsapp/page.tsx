@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, Button } from '@projeto/ui';
 import { RefreshCw, QrCode, Smartphone, LogOut, Loader2, AlertCircle } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { toast } from 'sonner';
 
 export default function WhatsAppSettingsPage() {
   const [status, setStatus] = useState<string>('loading');

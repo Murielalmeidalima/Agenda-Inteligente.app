@@ -27,8 +27,10 @@ import {
   Loader2
 } from 'lucide-react';
 import Link from 'next/link';
+import { use } from 'react';
 
-export default function EditClientPage({ params }: { params: { id: string } }) {
+export default function EditClientPage(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -146,19 +148,19 @@ export default function EditClientPage({ params }: { params: { id: string } }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
            <Link href={`/dashboard/clients/${params.id}`}>
-              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-xl bg-[#0f172a]/50 text-neutral-400 hover:text-white hover:bg-neutral-800 transition-all">
+              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-xl bg-[#FAF9F6] border border-[#E5E0D8] text-[#8A847C] hover:text-[#D4AF37] hover:bg-white hover:border-[#D4AF37]/30 shadow-sm transition-all">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
            </Link>
            <div>
-              <h1 className="text-3xl font-extrabold text-white tracking-tight">Editar Cadastro</h1>
-              <p className="text-neutral-500 text-sm font-bold uppercase tracking-widest mt-1">Atualizar informações do paciente</p>
+              <h1 className="text-3xl font-black text-[#2C2825] tracking-tight font-serif">Editar Cadastro</h1>
+              <p className="text-[#8A847C] text-sm font-bold uppercase tracking-widest mt-1">Atualizar informações do paciente</p>
            </div>
         </div>
 
         <Button 
           onClick={handleSubmit}
-          className="h-12 px-8 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/10 active:scale-[0.98] transition-all"
+          className="h-12 px-8 bg-[#D4AF37] hover:bg-[#b5952f] text-white font-bold rounded-xl shadow-lg shadow-[#D4AF37]/20 active:scale-[0.98] transition-all"
           disabled={saving}
           loading={saving}
         >
@@ -171,22 +173,22 @@ export default function EditClientPage({ params }: { params: { id: string } }) {
          
          {/* Main Info */}
          <div className="lg:col-span-2 space-y-8">
-            <Card className="bg-[#0f172a]/30 border-neutral-800 rounded-3xl overflow-hidden backdrop-blur-sm">
-               <CardHeader className="bg-[#020617]/50 border-b border-neutral-800 py-4 px-8">
-                  <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                     <User className="h-4 w-4 text-primary-500" />
+            <Card className="bg-white border-[#E5E0D8] rounded-[2rem] overflow-hidden shadow-sm">
+               <CardHeader className="bg-[#FAF9F6] border-b border-[#E5E0D8] py-5 px-8">
+                  <CardTitle className="text-lg font-black text-[#2C2825] flex items-center gap-2 tracking-tight">
+                     <User className="h-5 w-5 text-[#D4AF37]" />
                      Dados Pessoais
                   </CardTitle>
                </CardHeader>
                <CardContent className="p-8 space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Nome Completo</label>
+                        <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Nome Completo</label>
                         <div className="relative group">
-                           <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-600 group-focus-within:text-primary-500 transition-colors" />
+                           <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#8A847C] group-focus-within:text-[#D4AF37] transition-colors" />
                            <Input 
                               placeholder="Digite o nome..." 
-                              className="bg-[#020617] border-neutral-800 h-11 pl-10 rounded-xl text-white placeholder:text-neutral-700"
+                              className="bg-[#FAF9F6] border-[#E5E0D8] h-12 pl-12 rounded-xl text-[#2C2825] placeholder:text-[#8A847C] focus:border-[#D4AF37] focus:ring-[#D4AF37]/20 font-medium"
                               required
                               value={formData.full_name}
                               onChange={(e) => handleChange('full_name', e.target.value)}
@@ -194,37 +196,37 @@ export default function EditClientPage({ params }: { params: { id: string } }) {
                         </div>
                      </div>
                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-neutral-500 uppercase ml-1">CPF</label>
+                        <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">CPF</label>
                         <div className="relative group">
-                           <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-600 group-focus-within:text-primary-500 transition-colors" />
+                           <Hash className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#8A847C] group-focus-within:text-[#D4AF37] transition-colors" />
                            <Input 
                               placeholder="000.000.000-00" 
-                              className="bg-[#020617] border-neutral-800 h-11 pl-10 rounded-xl text-white placeholder:text-neutral-700"
+                              className="bg-[#FAF9F6] border-[#E5E0D8] h-12 pl-12 rounded-xl text-[#2C2825] placeholder:text-[#8A847C] focus:border-[#D4AF37] focus:ring-[#D4AF37]/20 font-medium"
                               value={formData.cpf}
                               onChange={(e) => handleChange('cpf', e.target.value)}
                            />
                         </div>
                      </div>
                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-neutral-500 uppercase ml-1">E-mail</label>
+                        <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">E-mail</label>
                         <div className="relative group">
-                           <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-600 group-focus-within:text-primary-500 transition-colors" />
+                           <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#8A847C] group-focus-within:text-[#D4AF37] transition-colors" />
                            <Input 
                               type="email"
                               placeholder="exemplo@email.com" 
-                              className="bg-[#020617] border-neutral-800 h-11 pl-10 rounded-xl text-white placeholder:text-neutral-700"
+                              className="bg-[#FAF9F6] border-[#E5E0D8] h-12 pl-12 rounded-xl text-[#2C2825] placeholder:text-[#8A847C] focus:border-[#D4AF37] focus:ring-[#D4AF37]/20 font-medium"
                               value={formData.email}
                               onChange={(e) => handleChange('email', e.target.value)}
                            />
                         </div>
                      </div>
                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Telefone / WhatsApp</label>
+                        <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Telefone / WhatsApp</label>
                         <div className="relative group">
-                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-600 group-focus-within:text-primary-500 transition-colors" />
+                           <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#8A847C] group-focus-within:text-[#D4AF37] transition-colors" />
                            <Input 
                               placeholder="(00) 00000-0000" 
-                              className="bg-[#020617] border-neutral-800 h-11 pl-10 rounded-xl text-white placeholder:text-neutral-700"
+                              className="bg-[#FAF9F6] border-[#E5E0D8] h-12 pl-12 rounded-xl text-[#2C2825] placeholder:text-[#8A847C] focus:border-[#D4AF37] focus:ring-[#D4AF37]/20 font-medium"
                               required
                               value={formData.phone}
                               onChange={(e) => handleChange('phone', e.target.value)}
@@ -235,22 +237,22 @@ export default function EditClientPage({ params }: { params: { id: string } }) {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Instagram</label>
+                        <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Instagram</label>
                         <div className="relative group">
-                           <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-600 group-focus-within:text-purple-500 transition-colors" />
+                           <Instagram className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#8A847C] group-focus-within:text-[#D4AF37] transition-colors" />
                            <Input 
                               placeholder="@usuario" 
-                              className="bg-[#020617] border-neutral-800 h-11 pl-10 rounded-xl text-white placeholder:text-neutral-700"
+                              className="bg-[#FAF9F6] border-[#E5E0D8] h-12 pl-12 rounded-xl text-[#2C2825] placeholder:text-[#8A847C] focus:border-[#D4AF37] focus:ring-[#D4AF37]/20 font-medium"
                               value={formData.instagram}
                               onChange={(e) => handleChange('instagram', e.target.value)}
                            />
                         </div>
                      </div>
                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Data de Nascimento</label>
+                        <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Data de Nascimento</label>
                         <Input 
                            type="date"
-                           className="bg-[#020617] border-neutral-800 h-11 rounded-xl text-white appearance-none"
+                           className="bg-[#FAF9F6] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] focus:border-[#D4AF37] focus:ring-[#D4AF37]/20 font-medium px-4 appearance-none"
                            value={formData.birth_date}
                            onChange={(e) => handleChange('birth_date', e.target.value)}
                         />
@@ -259,29 +261,29 @@ export default function EditClientPage({ params }: { params: { id: string } }) {
                </CardContent>
             </Card>
 
-            <Card className="bg-[#0f172a]/30 border-neutral-800 rounded-3xl overflow-hidden backdrop-blur-sm">
-               <CardHeader className="bg-[#020617]/50 border-b border-neutral-800 py-4 px-8">
-                  <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                     <MapPin className="h-4 w-4 text-primary-500" />
+            <Card className="bg-white border-[#E5E0D8] rounded-[2rem] overflow-hidden shadow-sm">
+               <CardHeader className="bg-[#FAF9F6] border-b border-[#E5E0D8] py-5 px-8">
+                  <CardTitle className="text-lg font-black text-[#2C2825] flex items-center gap-2 tracking-tight">
+                     <MapPin className="h-5 w-5 text-[#D4AF37]" />
                      Endereço
                   </CardTitle>
                </CardHeader>
                <CardContent className="p-8 space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                      <div className="md:col-span-4 space-y-2">
-                        <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Rua / Logradouro</label>
+                        <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Rua / Logradouro</label>
                         <Input 
                            placeholder="Ex: Av. Brasil" 
-                           className="bg-[#020617] border-neutral-800 h-11 rounded-xl text-white placeholder:text-neutral-700"
+                           className="bg-[#FAF9F6] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] placeholder:text-[#8A847C] focus:border-[#D4AF37] focus:ring-[#D4AF37]/20 font-medium px-4"
                            value={formData.address_street}
                            onChange={(e) => handleChange('address_street', e.target.value)}
                         />
                      </div>
                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Nº</label>
+                        <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Nº</label>
                         <Input 
                            placeholder="123" 
-                           className="bg-[#020617] border-neutral-800 h-11 rounded-xl text-white placeholder:text-neutral-700"
+                           className="bg-[#FAF9F6] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] placeholder:text-[#8A847C] focus:border-[#D4AF37] focus:ring-[#D4AF37]/20 font-medium px-4"
                            value={formData.address_number}
                            onChange={(e) => handleChange('address_number', e.target.value)}
                         />
@@ -289,19 +291,19 @@ export default function EditClientPage({ params }: { params: { id: string } }) {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Bairro</label>
+                        <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Bairro</label>
                         <Input 
                            placeholder="Digite o bairro..." 
-                           className="bg-[#020617] border-neutral-800 h-11 rounded-xl text-white placeholder:text-neutral-700"
+                           className="bg-[#FAF9F6] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] placeholder:text-[#8A847C] focus:border-[#D4AF37] focus:ring-[#D4AF37]/20 font-medium px-4"
                            value={formData.address_neighborhood}
                            onChange={(e) => handleChange('address_neighborhood', e.target.value)}
                         />
                      </div>
                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Cidade</label>
+                        <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Cidade</label>
                         <Input 
                            placeholder="Ex: São Paulo" 
-                           className="bg-[#020617] border-neutral-800 h-11 rounded-xl text-white placeholder:text-neutral-700"
+                           className="bg-[#FAF9F6] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] placeholder:text-[#8A847C] focus:border-[#D4AF37] focus:ring-[#D4AF37]/20 font-medium px-4"
                            value={formData.address_city}
                            onChange={(e) => handleChange('address_city', e.target.value)}
                         />
@@ -313,28 +315,28 @@ export default function EditClientPage({ params }: { params: { id: string } }) {
 
          {/* Side Info */}
          <div className="space-y-8">
-            <Card className="bg-[#0f172a]/30 border-neutral-800 rounded-3xl overflow-hidden backdrop-blur-sm">
-               <CardHeader className="bg-[#020617]/50 border-b border-neutral-800 py-4 px-8">
-                  <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                     <AlertCircle className="h-4 w-4 text-amber-500" />
+            <Card className="bg-white border-[#E5E0D8] rounded-[2rem] overflow-hidden shadow-sm">
+               <CardHeader className="bg-[#FAF9F6] border-b border-[#E5E0D8] py-5 px-8">
+                  <CardTitle className="text-lg font-black text-[#2C2825] flex items-center gap-2 tracking-tight">
+                     <AlertCircle className="h-5 w-5 text-red-500" />
                      Contato Emergência
                   </CardTitle>
                </CardHeader>
                <CardContent className="p-8 space-y-4">
                   <div className="space-y-2">
-                     <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Nome do Contato</label>
+                     <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Nome do Contato</label>
                      <Input 
                         placeholder="Nome..." 
-                        className="bg-[#020617] border-neutral-800 h-11 rounded-xl text-white placeholder:text-neutral-700"
+                        className="bg-[#FAF9F6] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] placeholder:text-[#8A847C] focus:border-[#D4AF37] focus:ring-[#D4AF37]/20 font-medium px-4"
                         value={formData.emergency_contact_name}
                         onChange={(e) => handleChange('emergency_contact_name', e.target.value)}
                      />
                   </div>
                   <div className="space-y-2">
-                     <label className="text-xs font-bold text-neutral-500 uppercase ml-1">Telefone</label>
+                     <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Telefone</label>
                      <Input 
                         placeholder="(00) 00000-0000" 
-                        className="bg-[#020617] border-neutral-800 h-11 rounded-xl text-white placeholder:text-neutral-700"
+                        className="bg-[#FAF9F6] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] placeholder:text-[#8A847C] focus:border-[#D4AF37] focus:ring-[#D4AF37]/20 font-medium px-4"
                         value={formData.emergency_contact_phone}
                         onChange={(e) => handleChange('emergency_contact_phone', e.target.value)}
                      />
@@ -342,17 +344,17 @@ export default function EditClientPage({ params }: { params: { id: string } }) {
                </CardContent>
             </Card>
 
-            <Card className="bg-[#0f172a]/30 border-neutral-800 rounded-3xl overflow-hidden backdrop-blur-sm">
-               <CardHeader className="bg-[#020617]/50 border-b border-neutral-800 py-4 px-8">
-                  <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                     <Contact2 className="h-4 w-4 text-primary-500" />
+            <Card className="bg-white border-[#E5E0D8] rounded-[2rem] overflow-hidden shadow-sm">
+               <CardHeader className="bg-[#FAF9F6] border-b border-[#E5E0D8] py-5 px-8">
+                  <CardTitle className="text-lg font-black text-[#2C2825] flex items-center gap-2 tracking-tight">
+                     <Contact2 className="h-5 w-5 text-[#D4AF37]" />
                      Observações
                   </CardTitle>
                </CardHeader>
                <CardContent className="p-8">
                   <TextArea 
                      placeholder="Histórico médico, restrições ou notas importantes sobre o paciente..."
-                     className="bg-[#020617] border-neutral-800 rounded-2xl text-white placeholder:text-neutral-700 h-40"
+                     className="bg-[#FAF9F6] border-[#E5E0D8] rounded-2xl text-[#2C2825] placeholder:text-[#8A847C] focus:border-[#D4AF37] focus:ring-[#D4AF37]/20 font-medium p-4 h-40 resize-none"
                      value={formData.observations}
                      onChange={(e) => handleChange('observations', e.target.value)}
                   />

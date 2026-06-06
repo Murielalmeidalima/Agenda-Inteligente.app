@@ -124,8 +124,8 @@ export default function ClientsPage() {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-amber-950 rounded-2xl shadow-lg border border-amber-900/50">
-            <Users className="h-8 w-8 text-amber-500" />
+          <div className="p-3 bg-amber-100 rounded-2xl shadow-sm border border-amber-200">
+            <Users className="h-8 w-8 text-amber-600" />
           </div>
           <div>
             <h1 className="text-3xl font-black text-[#2C2825] tracking-tight font-serif">

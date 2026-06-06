@@ -1,10 +1,14 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
 jobs:
   build-and-test:
@@ -14,6 +18,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -25,10 +31,14 @@ jobs:
       run: npm ci
 
     - name: Lint
-      run: npm run lint
+      run: npx turbo run lint
 
-    - name: Build
-      run: npm run build
+    - name: Build Web
+      run: npx turbo run build --filter=web
+      env:
+        # Variáveis dummy necessárias apenas para o Next.js buildar sem quebrar (o runtime usará as reais)
+        NEXT_PUBLIC_SUPABASE_URL: "https://mock.supabase.co"
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: "mock-key"
 
-    - name: Test
-      run: npm run test
+    - name: Unit Tests
+      run: npx turbo run test

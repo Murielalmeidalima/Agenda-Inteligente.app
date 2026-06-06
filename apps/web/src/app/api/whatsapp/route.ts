@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/auth';
-import { WhatsappService } from 'utils/notifications/whatsapp/whatsapp-service';
+import { WhatsappService } from '@projeto/utils';
 
 export async function POST(req: NextRequest) {
   try {

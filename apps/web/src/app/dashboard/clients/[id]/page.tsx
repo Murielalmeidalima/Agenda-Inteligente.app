@@ -14,11 +14,10 @@ import ClientDetailTabs from './client-detail-tabs';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ClientDetailPage({
-  params,
-}: {
-  params: { id: string };
+export default async function ClientDetailPage(props: {
+  params: Promise<{ id: string }>;
 }) {
+  const params = await props.params;
   const supabase = createServerClient();
 
   // Verificar autenticação

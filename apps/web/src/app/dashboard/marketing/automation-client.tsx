@@ -30,11 +30,13 @@ import {
   AlertCircle,
   Loader2,
   Trash2,
-  Star
+  Star,
+  Smartphone
 } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { useProfile } from '@/providers/profile-provider';
 import { ReviewsWidget } from '@/components/marketing/ReviewsWidget';
+import { WhatsAppConnectionTab } from '@/components/marketing/WhatsAppConnectionTab';
 
 type Rule = {
   id: string;
@@ -428,8 +430,8 @@ export default function AutomationClient() {
     <div className="space-y-10 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
         <div className="flex items-center gap-5">
-           <div className="h-16 w-16 bg-slate-950 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-slate-200">
-              <MessageCircle className="h-8 w-8 text-rose-500" />
+           <div className="h-16 w-16 bg-rose-100 rounded-[2rem] flex items-center justify-center shadow-sm border border-rose-200">
+              <MessageCircle className="h-8 w-8 text-rose-600" />
            </div>
            <div>
               <h2 className="text-3xl font-black text-slate-900 tracking-tight">Marketing Inteligente</h2>
@@ -504,6 +506,10 @@ export default function AutomationClient() {
             <TabsTrigger value="inactive" className="gap-2.5 py-2.5 px-6 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-lg rounded-xl transition-all font-black uppercase text-[10px] tracking-widest text-slate-400">
               <UserMinus className="w-4 h-4" />
               Inativos
+            </TabsTrigger>
+            <TabsTrigger value="whatsapp" className="gap-2.5 py-2.5 px-6 data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-lg rounded-xl transition-all font-black uppercase text-[10px] tracking-widest text-slate-400 hover:text-emerald-500">
+              <Smartphone className="w-4 h-4" />
+              Conexão WhatsApp
             </TabsTrigger>
           </TabsList>
         </div>
@@ -846,6 +852,10 @@ export default function AutomationClient() {
                </Card>
              )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="whatsapp" className="mt-6 space-y-6">
+          <WhatsAppConnectionTab />
         </TabsContent>
       </Tabs>
     </div>

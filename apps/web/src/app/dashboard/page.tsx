@@ -186,108 +186,112 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-12">
       {/* Header com Branding */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 bg-card p-8 rounded-3xl border border-border shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32 transition-colors group-hover:bg-primary/10" />
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 bg-gradient-to-br from-slate-900 to-slate-800 p-10 rounded-[2.5rem] shadow-2xl shadow-slate-900/20 relative overflow-hidden group">
+        {/* Decorative elements */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[#D4AF37]/20 rounded-full blur-[100px] -mr-32 -mt-32 transition-all duration-700 group-hover:bg-[#D4AF37]/30" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-[80px] -ml-32 -mb-32" />
         
-        <div className="flex items-center gap-6 relative z-10">
-          <div className="relative z-10 flex items-center justify-center">
+        <div className="flex items-center gap-8 relative z-10">
+          <div className="relative z-10 flex items-center justify-center p-1 bg-white/10 rounded-[2rem] backdrop-blur-md border border-white/20">
             <LogoImage 
-              size={60} 
+              size={64} 
               src={companyData?.logo_url} 
-              className="bg-muted rounded-2xl border border-border overflow-hidden shadow-inner w-20 h-20 md:w-24 md:h-24"
+              className="bg-white rounded-3xl overflow-hidden shadow-inner w-20 h-20 md:w-24 md:h-24"
             />
           </div>
           <div>
-            <h2 className="text-3xl font-bold text-foreground tracking-tight">
+            <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight font-serif mb-2">
               Bom dia, {profile?.role === 'admin' ? 'Gestor' : 'Profissional'}
             </h2>
-            <p className="text-muted-foreground mt-1 font-medium flex items-center gap-2">
-              <CalendarCheck2 className="w-4 h-4" />
-              Resumo diário de {format(today, "EEEE, d 'de' MMMM", { locale: ptBR })}
+            <p className="text-slate-300 font-medium flex items-center gap-2 text-sm uppercase tracking-widest">
+              <CalendarCheck2 className="w-4 h-4 text-[#D4AF37]" />
+              Resumo de {format(today, "EEEE, d 'de' MMMM", { locale: ptBR })}
             </p>
           </div>
         </div>
-        
-
       </div>
 
       {/* Grid de Métricas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Link href="/dashboard/schedule" className="block group">
-          <Card className="bg-card border-border hover:border-amber-200 transition-all duration-300 hover:shadow-xl hover:shadow-amber-500/5 group-hover:scale-[1.02] active:scale-95 cursor-pointer h-full">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+        <Link href="/dashboard/schedule" className="block group h-full">
+          <Card className="bg-white border-[#E5E0D8] rounded-[2rem] hover:border-amber-300 transition-all duration-500 hover:shadow-2xl hover:shadow-amber-500/10 hover:-translate-y-2 cursor-pointer h-full relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-400/5 rounded-full blur-2xl group-hover:bg-amber-400/20 transition-colors" />
+            <CardHeader className="flex flex-row items-center justify-between pb-4">
+              <CardTitle className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest">
                 Agendamentos Hoje
               </CardTitle>
-              <div className="p-2 bg-amber-50 rounded-xl group-hover:bg-amber-500 group-hover:text-white transition-all duration-300 border border-amber-100/50 group-hover:border-amber-400 shadow-sm">
-                <CalendarCheck2 className="h-4 w-4 text-amber-600 group-hover:text-white transition-colors" />
+              <div className="p-3 bg-amber-50 rounded-2xl group-hover:bg-amber-500 group-hover:text-white transition-all duration-500 shadow-sm group-hover:scale-110">
+                <CalendarCheck2 className="h-5 w-5 text-amber-600 group-hover:text-white" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-black text-foreground font-serif tracking-tighter">{todayAppointments}</div>
-              <p className="text-[10px] text-muted-foreground mt-2 uppercase font-black tracking-widest flex items-center">
-                <span className="text-amber-600 mr-1">{unconfirmedAppointments.length}</span> aguardando confirmação
+              <div className="text-5xl font-black text-[#2C2825] tracking-tighter">{todayAppointments}</div>
+              <p className="text-[10px] text-[#8A847C] mt-3 uppercase font-black tracking-widest flex items-center">
+                <span className="text-amber-600 mr-1.5 font-bold bg-amber-100 px-2 py-0.5 rounded-md">{unconfirmedAppointments.length}</span> aguardando
               </p>
             </CardContent>
           </Card>
         </Link>
 
         {profile?.role === 'admin' && (
-          <Link href="/dashboard/finance" className="block group">
-            <Card className="bg-card border-border hover:border-emerald-200 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-500/5 group-hover:scale-[1.02] active:scale-95 cursor-pointer h-full">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                  Faturamento Projetado
+          <Link href="/dashboard/finance" className="block group h-full">
+            <Card className="bg-white border-[#E5E0D8] rounded-[2rem] hover:border-emerald-300 transition-all duration-500 hover:shadow-2xl hover:shadow-emerald-500/10 hover:-translate-y-2 cursor-pointer h-full relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/5 rounded-full blur-2xl group-hover:bg-emerald-400/20 transition-colors" />
+              <CardHeader className="flex flex-row items-center justify-between pb-4">
+                <CardTitle className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest">
+                  Faturamento Previsto
                 </CardTitle>
-                <div className="p-2 bg-emerald-50 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 border border-emerald-100/50 group-hover:border-emerald-500 shadow-sm">
-                  <TrendingUp className="h-4 w-4 text-emerald-600 group-hover:text-white transition-colors" />
+                <div className="p-3 bg-emerald-50 rounded-2xl group-hover:bg-emerald-500 group-hover:text-white transition-all duration-500 shadow-sm group-hover:scale-110">
+                  <TrendingUp className="h-5 w-5 text-emerald-600 group-hover:text-white" />
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-black text-foreground font-serif tracking-tighter">
+                <div className="text-4xl font-black text-[#2C2825] tracking-tighter truncate">
                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(todayRevenue)}
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-2 uppercase font-black tracking-widest">
-                  Com base nos serviços de hoje
+                <p className="text-[10px] text-[#8A847C] mt-3 uppercase font-black tracking-widest">
+                  Serviços de hoje
                 </p>
               </CardContent>
             </Card>
           </Link>
         )}
 
-        <Link href="/dashboard/clients" className="block group">
-          <Card className="bg-card border-border hover:border-blue-200 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/5 group-hover:scale-[1.02] active:scale-95 cursor-pointer h-full">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+        <Link href="/dashboard/clients" className="block group h-full">
+          <Card className="bg-white border-[#E5E0D8] rounded-[2rem] hover:border-blue-300 transition-all duration-500 hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-2 cursor-pointer h-full relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-400/5 rounded-full blur-2xl group-hover:bg-blue-400/20 transition-colors" />
+            <CardHeader className="flex flex-row items-center justify-between pb-4">
+              <CardTitle className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest">
                 Aniversariantes
               </CardTitle>
-              <div className="p-2 bg-blue-50 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 border border-blue-100/50 group-hover:border-blue-500 shadow-sm">
-                <Cake className="h-4 w-4 text-blue-600 group-hover:text-white transition-colors" />
+              <div className="p-3 bg-blue-50 rounded-2xl group-hover:bg-blue-500 group-hover:text-white transition-all duration-500 shadow-sm group-hover:scale-110">
+                <Cake className="h-5 w-5 text-blue-600 group-hover:text-white" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-black text-foreground font-serif tracking-tighter">{birthdaysToday.length}</div>
-              <p className="text-[10px] text-muted-foreground mt-2 uppercase font-black tracking-widest flex items-center">
-                Clientes fazendo aniversário hoje
+              <div className="text-5xl font-black text-[#2C2825] tracking-tighter">{birthdaysToday.length}</div>
+              <p className="text-[10px] text-[#8A847C] mt-3 uppercase font-black tracking-widest">
+                Clientes apagando velinhas
               </p>
             </CardContent>
           </Card>
         </Link>
 
-        <Link href="/dashboard/settings" className="block group">
-          <Card className="bg-card border-border hover:border-purple-200 transition-all duration-300 hover:shadow-xl hover:shadow-purple-500/5 group-hover:scale-[1.02] active:scale-95 cursor-pointer h-full">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                Profissionais Ativos
+        <Link href="/dashboard/settings" className="block group h-full">
+          <Card className="bg-white border-[#E5E0D8] rounded-[2rem] hover:border-purple-300 transition-all duration-500 hover:shadow-2xl hover:shadow-purple-500/10 hover:-translate-y-2 cursor-pointer h-full relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-400/5 rounded-full blur-2xl group-hover:bg-purple-400/20 transition-colors" />
+            <CardHeader className="flex flex-row items-center justify-between pb-4">
+              <CardTitle className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest">
+                Equipe
               </CardTitle>
-              <div className="p-2 bg-purple-50 rounded-xl group-hover:bg-purple-600 group-hover:text-white transition-all duration-300 border border-purple-100/50 group-hover:border-purple-500 shadow-sm">
-                <Users className="h-4 w-4 text-purple-600 group-hover:text-white transition-colors" />
+              <div className="p-3 bg-purple-50 rounded-2xl group-hover:bg-purple-500 group-hover:text-white transition-all duration-500 shadow-sm group-hover:scale-110">
+                <Users className="h-5 w-5 text-purple-600 group-hover:text-white" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-black text-foreground font-serif tracking-tighter">{professionalsCount || 0}</div>
-              <p className="text-[10px] text-muted-foreground mt-2 uppercase font-black tracking-widest">
-                Equipe cadastrada no sistema
+              <div className="text-5xl font-black text-[#2C2825] tracking-tighter">{professionalsCount || 0}</div>
+              <p className="text-[10px] text-[#8A847C] mt-3 uppercase font-black tracking-widest">
+                Profissionais ativos
               </p>
             </CardContent>
           </Card>
@@ -299,75 +303,85 @@ export default async function DashboardPage() {
         
         {/* Lado Esquerdo: Timeline (Ocupa 2/3) */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-2xl font-bold font-serif text-foreground">Timeline de Hoje</h3>
+          <div className="flex items-center justify-between pl-2">
+            <h3 className="text-2xl font-black text-[#2C2825] tracking-tighter">Timeline de Hoje</h3>
             <Link href="/dashboard/schedule">
-              <Button variant="outline" size="sm">
-                Ver Agenda Completa
+              <Button variant="outline" className="h-10 rounded-xl font-bold border-[#E5E0D8] text-[#5C5855] hover:bg-[#FAF9F6]">
+                Ver Agenda
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
           </div>
 
-          <Card className="shadow-sm border-border">
-            <CardContent className="p-0">
+          <Card className="shadow-sm border-[#E5E0D8] rounded-[2rem] overflow-hidden bg-white">
+            <CardContent className="p-6">
               {appointmentsData && appointmentsData.length > 0 ? (
-                <div className="divide-y divide-border">
-                  {appointmentsData.map((apt: any) => {
-                    const aptStart = parseISO(apt.start_time);
-                    const isPast = aptStart < new Date() && apt.status !== 'completed';
-                    
-                    return (
-                      <div key={apt.id} className="p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center hover:bg-muted/30 transition-colors">
-                        <div className="flex flex-col items-center justify-center min-w-[80px] bg-muted/50 p-2 rounded-xl text-center">
-                          <span className="text-sm font-black text-foreground">{format(aptStart, 'HH:mm')}</span>
-                        </div>
-                        
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <h4 className="font-bold text-foreground text-lg mb-1 flex items-center gap-2">
-                                {apt.clients?.full_name || 'Cliente Removido'}
-                              </h4>
-                              <p className="text-sm text-muted-foreground font-medium">
-                                {apt.procedures?.name || 'Procedimento não especificado'} • {apt.procedures?.duration || 0} min
-                              </p>
+                <div className="relative pl-6 sm:pl-8">
+                  {/* Linha vertical conectando os eventos da timeline */}
+                  <div className="absolute left-10 sm:left-12 top-6 bottom-6 w-0.5 bg-[#E5E0D8] rounded-full" />
+                  
+                  <div className="space-y-8">
+                    {appointmentsData.map((apt: any, idx: number) => {
+                      const aptStart = parseISO(apt.start_time);
+                      const isPast = aptStart < new Date() && apt.status !== 'completed';
+                      
+                      return (
+                        <div key={apt.id} className="relative flex flex-col sm:flex-row gap-6 items-start group">
+                          {/* Bolinha do tempo */}
+                          <div className="absolute -left-10 sm:-left-8 top-1.5 w-4 h-4 rounded-full bg-white border-4 border-[#D4AF37] shadow-[0_0_0_4px_white] z-10 group-hover:scale-125 transition-transform" />
+                          
+                          <div className="flex flex-col min-w-[70px] mt-1">
+                            <span className="text-lg font-black text-[#2C2825]">{format(aptStart, 'HH:mm')}</span>
+                            <span className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest">{apt.procedures?.duration || 0} min</span>
+                          </div>
+                          
+                          <div className="flex-1 bg-[#FAF9F6] p-5 rounded-3xl border border-[#E5E0D8] group-hover:border-[#D4AF37]/30 group-hover:bg-[#D4AF37]/5 transition-colors w-full">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                              <div>
+                                <h4 className="font-black text-[#2C2825] text-lg mb-1 flex items-center gap-2">
+                                  {apt.clients?.full_name || 'Cliente Removido'}
+                                </h4>
+                                <p className="text-sm text-[#8A847C] font-semibold flex items-center gap-2">
+                                  <span className="w-2 h-2 rounded-full bg-[#D4AF37]" />
+                                  {apt.procedures?.name || 'Procedimento não especificado'}
+                                </p>
+                              </div>
+                              <Badge className={`border px-3 py-1 uppercase tracking-widest text-[9px] font-black rounded-lg shadow-sm ${getStatusColor(apt.status)}`}>
+                                <span className="flex items-center">
+                                  {getStatusIcon(apt.status)}
+                                  {getStatusText(apt.status)}
+                                </span>
+                              </Badge>
                             </div>
-                            <Badge variant="outline" className={`border px-2 py-0.5 mt-1 sm:mt-0 shadow-sm ${getStatusColor(apt.status)}`}>
-                              <span className="flex items-center">
-                                {getStatusIcon(apt.status)}
-                                {getStatusText(apt.status)}
-                              </span>
-                            </Badge>
+
+                            <div className="flex flex-wrap items-center gap-3 mt-5 pt-4 border-t border-[#E5E0D8]/60 shrink-0">
+                              {apt.status === 'scheduled' && apt.clients?.phone && (
+                                <Link href={`https://wa.me/${apt.clients.phone.replace(/\D/g, '')}?text=Olá! Lembramos da sua consulta hoje às ${format(aptStart, 'HH:mm')}.`} target="_blank">
+                                  <Button size="sm" className="bg-[#25D366]/10 text-[#128C7E] hover:bg-[#25D366] hover:text-white h-9 rounded-xl font-bold transition-colors">
+                                    <MessageCircle className="w-4 h-4 mr-2" />
+                                    Confirmar no Zap
+                                  </Button>
+                                </Link>
+                              )}
+                              <Link href={`/dashboard/clients/${apt.client_id}`}>
+                                <Button variant="ghost" size="sm" className="h-9 rounded-xl font-bold text-[#8A847C] hover:text-[#5C5855]">
+                                  Ver Ficha do Cliente
+                                </Button>
+                              </Link>
+                            </div>
                           </div>
                         </div>
-
-                        <div className="flex items-center gap-2 mt-4 sm:mt-0 shrink-0">
-                          {apt.status === 'scheduled' && apt.clients?.phone && (
-                            <Link href={`https://wa.me/${apt.clients.phone.replace(/\D/g, '')}?text=Olá! Lembramos da sua consulta hoje às ${format(aptStart, 'HH:mm')}.`} target="_blank">
-                              <Button variant="outline" size="sm" className="border-[#25D366] text-[#25D366] hover:bg-[#25D366] hover:text-white">
-                                <MessageCircle className="w-4 h-4 mr-2" />
-                                Confirmar
-                              </Button>
-                            </Link>
-                          )}
-                          <Link href={`/dashboard/clients/${apt.client_id}`}>
-                            <Button variant="ghost" size="sm">
-                              Ver Ficha
-                            </Button>
-                          </Link>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               ) : (
-                <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center">
-                  <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                    <CalendarCheck2 className="w-8 h-8 opacity-50" />
+                <div className="p-16 text-center flex flex-col items-center justify-center">
+                  <div className="w-24 h-24 bg-[#FAF9F6] rounded-[2rem] flex items-center justify-center mb-6 shadow-inner border border-[#E5E0D8]">
+                    <CalendarCheck2 className="w-10 h-10 text-[#D4AF37] opacity-60" />
                   </div>
-                  <p className="text-lg font-medium">Nenhum agendamento para hoje</p>
-                  <p className="text-sm mt-1">Aproveite para organizar a clínica ou fazer marketing.</p>
+                  <h3 className="text-2xl font-black text-[#2C2825] mb-2">Nenhum agendamento para hoje</h3>
+                  <p className="text-[#8A847C] max-w-sm">Aproveite para organizar a clínica, responder mensagens ou planejar suas ações de marketing da semana.</p>
                 </div>
               )}
             </CardContent>
@@ -376,26 +390,26 @@ export default async function DashboardPage() {
 
         {/* Lado Direito: Alertas e Ações (Ocupa 1/3) */}
         <div className="space-y-6">
-          <h3 className="text-2xl font-bold font-serif text-foreground">Alertas Rápidos</h3>
+          <h3 className="text-2xl font-black text-[#2C2825] tracking-tighter pl-2">Radar da Clínica</h3>
 
           <div className="space-y-4">
             {/* Alerta de Confirmações Pendentes */}
             {unconfirmedAppointments.length > 0 && (
-              <Card className="border-amber-200 bg-amber-50/50 shadow-sm relative overflow-hidden">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400" />
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-4">
-                    <div className="p-2 bg-amber-100 rounded-full text-amber-600 mt-1">
-                      <AlertCircle className="w-5 h-5" />
+              <Card className="border-amber-200 bg-amber-50 rounded-[2rem] shadow-sm relative overflow-hidden group">
+                <div className="absolute -left-4 -top-4 w-20 h-20 bg-amber-400/20 rounded-full blur-xl group-hover:bg-amber-400/30 transition-colors" />
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-4 relative z-10">
+                    <div className="p-3 bg-amber-100/80 rounded-2xl text-amber-600 mt-1 shrink-0 border border-amber-200">
+                      <AlertCircle className="w-6 h-6" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-amber-900 mb-1">Confirmações Pendentes</h4>
-                      <p className="text-sm text-amber-800/80 mb-3 leading-relaxed">
-                        Existem {unconfirmedAppointments.length} agendamentos hoje aguardando confirmação.
+                      <h4 className="font-black text-amber-900 mb-1 text-lg leading-tight">Aguardando Confirmação</h4>
+                      <p className="text-sm text-amber-800/80 mb-4 font-medium">
+                        Você tem <strong className="text-amber-600">{unconfirmedAppointments.length} agendamentos</strong> para confirmar hoje.
                       </p>
                       <Link href="/dashboard/communications">
-                        <Button variant="outline" size="sm" className="bg-white border-amber-200 text-amber-700 hover:bg-amber-50">
-                          Acessar Central
+                        <Button className="w-full h-10 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold shadow-md shadow-amber-500/20">
+                          Ir para Central
                         </Button>
                       </Link>
                     </div>
@@ -406,37 +420,34 @@ export default async function DashboardPage() {
 
             {/* Aniversariantes */}
             {birthdaysToday.length > 0 && (
-              <Card className="border-blue-200 bg-blue-50/50 shadow-sm relative overflow-hidden">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-400" />
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-4">
-                    <div className="p-2 bg-blue-100 rounded-full text-blue-600 mt-1">
-                      <Cake className="w-5 h-5" />
+              <Card className="border-blue-200 bg-blue-50 rounded-[2rem] shadow-sm relative overflow-hidden group">
+                <div className="absolute -left-4 -top-4 w-20 h-20 bg-blue-400/20 rounded-full blur-xl group-hover:bg-blue-400/30 transition-colors" />
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-4 relative z-10">
+                    <div className="p-3 bg-blue-100/80 rounded-2xl text-blue-600 mt-1 shrink-0 border border-blue-200">
+                      <Cake className="w-6 h-6" />
                     </div>
                     <div className="w-full">
-                      <h4 className="font-bold text-blue-900 mb-1">Aniversariantes do Dia</h4>
-                      <p className="text-sm text-blue-800/80 leading-relaxed mb-3">
-                        {birthdaysToday.length} cliente{birthdaysToday.length > 1 ? 's fazem' : ' faz'} aniversário hoje! Deseje parabéns para fidelizar.
+                      <h4 className="font-black text-blue-900 mb-1 text-lg leading-tight">Festa na Clínica!</h4>
+                      <p className="text-sm text-blue-800/80 font-medium mb-4">
+                        Temos {birthdaysToday.length} cliente{birthdaysToday.length > 1 ? 's fazendo' : ' fazendo'} aniversário.
                       </p>
-                      <div className="space-y-2 mb-3">
+                      <div className="space-y-2 mb-4">
                         {birthdaysToday.slice(0, 3).map(client => (
-                          <div key={client.id} className="flex items-center justify-between bg-white/60 p-2 rounded-lg text-sm border border-blue-100">
-                            <span className="font-medium text-blue-900 truncate pr-2 flex-1">{client.full_name}</span>
+                          <div key={client.id} className="flex items-center justify-between bg-white p-2.5 rounded-xl text-sm border border-blue-100/50 shadow-sm">
+                            <span className="font-bold text-blue-900 truncate pr-2 flex-1">{client.full_name}</span>
                             {client.phone && (
                               <Link href={`https://wa.me/${client.phone.replace(/\D/g, '')}?text=Feliz aniversário, ${client.full_name}! A clínica deseja muitas felicidades e um dia excelente!`} target="_blank">
-                                <Button size="icon" variant="ghost" className="h-6 w-6 text-blue-600 hover:bg-blue-100 hover:text-blue-700">
+                                <Button size="icon" className="h-8 w-8 bg-blue-100 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg transition-colors">
                                   <MessageCircle className="w-4 h-4" />
                                 </Button>
                               </Link>
                             )}
                           </div>
                         ))}
-                        {birthdaysToday.length > 3 && (
-                          <p className="text-xs text-blue-700 font-medium text-center pt-1">+ {birthdaysToday.length - 3} outros</p>
-                        )}
                       </div>
                       <Link href="/dashboard/clients">
-                        <Button variant="outline" size="sm" className="w-full bg-white border-blue-200 text-blue-700 hover:bg-blue-50">
+                        <Button variant="outline" className="w-full h-10 border-blue-200 text-blue-700 hover:bg-blue-100 rounded-xl font-bold bg-white/50">
                           Ver Todos
                         </Button>
                       </Link>
@@ -448,31 +459,30 @@ export default async function DashboardPage() {
 
             {/* No alerts fallback */}
             {unconfirmedAppointments.length === 0 && birthdaysToday.length === 0 && (
-              <Card className="border-border shadow-sm border-dashed bg-muted/10">
-                <CardContent className="p-8 text-center flex flex-col items-center">
-                  <div className="bg-emerald-100 p-3 rounded-full text-emerald-600 mb-3">
-                    <CheckCircle2 className="w-6 h-6" />
+              <Card className="border-[#E5E0D8] shadow-sm border-dashed bg-white rounded-[2rem]">
+                <CardContent className="p-10 text-center flex flex-col items-center">
+                  <div className="bg-emerald-50 p-4 rounded-3xl text-emerald-500 mb-4 border border-emerald-100">
+                    <CheckCircle2 className="w-8 h-8" />
                   </div>
-                  <h4 className="font-bold text-foreground mb-1">Tudo em ordem</h4>
-                  <p className="text-sm text-muted-foreground">Não há pendências de confirmação ou aniversariantes hoje.</p>
+                  <h4 className="font-black text-xl text-[#2C2825] mb-2">Tudo em ordem</h4>
+                  <p className="text-sm text-[#8A847C] max-w-[200px]">Sem pendências ou alertas urgentes por agora.</p>
                 </CardContent>
               </Card>
             )}
 
-            {/* Espaço para Novidades (Placeholder para Marketing/Planejamento) */}
-            <Card className="bg-muted/30 border-border shadow-sm mt-4 overflow-hidden relative group">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent z-0" />
-              <CardContent className="p-6 relative z-10">
-                <h4 className="font-bold text-foreground mb-2 flex items-center">
-                  <User className="w-4 h-4 mr-2" />
-                  Performance da Semana
+            {/* Espaço para Novidades */}
+            <Card className="bg-[#FAF9F6] border-[#E5E0D8] shadow-sm mt-4 overflow-hidden relative group rounded-[2rem]">
+              <CardContent className="p-6">
+                <h4 className="font-black text-[#2C2825] text-lg mb-2 flex items-center">
+                  <TrendingUp className="w-5 h-5 mr-2 text-[#D4AF37]" />
+                  Visão Geral
                 </h4>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Acompanhe os resultados da clínica e veja pontos de melhoria na seção avançada de relatórios.
+                <p className="text-sm text-[#8A847C] font-medium mb-5">
+                  Mergulhe fundo nos dados de crescimento da clínica para traçar as próximas metas.
                 </p>
                 <Link href="/dashboard/analytics">
-                  <Button variant="primary" size="sm" className="w-full shadow-sm">
-                    Ver Relatórios Completos
+                  <Button className="w-full h-11 bg-slate-900 hover:bg-black text-white rounded-xl font-bold shadow-xl shadow-slate-900/10">
+                    Acessar Relatórios
                   </Button>
                 </Link>
               </CardContent>

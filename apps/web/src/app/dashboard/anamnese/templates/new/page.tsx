@@ -175,7 +175,7 @@ export default function NewTemplatePage() {
           <div className="lg:col-span-2 space-y-4">
              <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-[#2C2825]">Perguntas</h2>
-                <span className="text-[#2C2825]xt-[#8A847C] bg-neutral-900 px-3 py-1 rounded-full">{questions.length} perguntas</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-[#5C5855] bg-[#FAF9F6] border border-[#E5E0D8] px-3 py-1 rounded-full shadow-sm">{questions.length} perguntas</span>
              </div>
              
              <QuestionEditor questions={questions} onChange={setQuestions} />

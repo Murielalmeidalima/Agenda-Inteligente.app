@@ -42,6 +42,7 @@ export function EmployeeManagementClient({ companyId }: EmployeeManagementClient
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Profile | null>(null);
+  const [maxUsers, setMaxUsers] = useState<number>(1);
   const router = useRouter();
   
   const supabase = createBrowserClient();
@@ -57,6 +58,22 @@ export function EmployeeManagementClient({ companyId }: EmployeeManagementClient
 
       if (error) throw error;
       setEmployees(data || []);
+
+      // Buscar limite do plano da empresa
+      const { data: subData } = await supabase
+        .from('subscriptions')
+        .select('plan:plans(max_users)')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (subData?.plan) {
+        const planData = Array.isArray(subData.plan) ? subData.plan[0] : subData.plan;
+        if (planData && 'max_users' in planData) {
+          setMaxUsers((planData as any).max_users);
+        }
+      }
     } catch (err: any) {
       showToast.error('Erro ao carregar funcionários', err.message);
     } finally {
@@ -131,16 +148,26 @@ export function EmployeeManagementClient({ companyId }: EmployeeManagementClient
           <p className="text-sm text-slate-500 font-medium">Gerencie o acesso e as permissões dos seus funcionários</p>
         </div>
 
-        <Button 
-          onClick={() => {
-            setSelectedEmployee(null);
-            setIsModalOpen(true);
-          }}
-          className="bg-slate-900 text-white rounded-2xl h-12 px-6 font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
-        >
-          <UserPlus className="h-4 w-4 mr-2" />
-          Novo Funcionário
-        </Button>
+        <div className="flex flex-col items-end gap-1">
+          <Button 
+            onClick={() => {
+              if (employees.length >= maxUsers) {
+                showToast.error('Limite atingido', `Seu plano permite até ${maxUsers} funcionários. Faça um upgrade.`);
+                router.push('/dashboard/settings/billing');
+                return;
+              }
+              setSelectedEmployee(null);
+              setIsModalOpen(true);
+            }}
+            className="bg-slate-900 text-white rounded-2xl h-12 px-6 font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Novo Funcionário
+          </Button>
+          <span className="text-[10px] font-bold text-slate-400">
+            {employees.length} / {maxUsers} usuários no plano
+          </span>
+        </div>
       </div>
 
       {/* Filters & Search */}

@@ -49,6 +49,10 @@ export default function ScheduleCalendarClient({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [slotInterval, setSlotInterval] = useState<number>(30);
   
+  useEffect(() => {
+    setAppointments(initialAppointments);
+  }, [initialAppointments]);
+  
   const [formData, setFormData] = useState({
     clientId: '',
     procedureId: '',
@@ -263,7 +267,9 @@ export default function ScheduleCalendarClient({
         });
       }
 
-      setAppointments([...appointments, data]);
+      // Refresh the page data from server to get all hydrated properties properly
+      router.refresh();
+      
       setIsModalOpen(false);
       setFormData({
         clientId: '',

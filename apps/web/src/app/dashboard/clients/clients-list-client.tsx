@@ -81,32 +81,36 @@ export default function ClientsListClient({ initialClients, companyId }: Clients
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-neutral-900">Clientes</h1>
-          <p className="text-neutral-600 mt-1">Gerencie seus clientes cadastrados</p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-[2rem] shadow-xl shadow-slate-900/10 relative overflow-hidden group">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[#D4AF37]/20 rounded-full blur-3xl -mr-32 -mt-32 transition-colors group-hover:bg-[#D4AF37]/30" />
+        <div className="relative z-10">
+          <h1 className="text-3xl font-black text-white tracking-tight font-serif">Clientes</h1>
+          <p className="text-slate-300 mt-1 font-medium text-sm uppercase tracking-widest">
+            Gerencie e encante seus pacientes
+          </p>
         </div>
-        <Link href="/dashboard/clients/new">
-          <Button>
-            <Plus className="h-4 w-4" />
+        <Link href="/dashboard/clients/new" className="relative z-10 w-full sm:w-auto">
+          <Button className="w-full sm:w-auto h-12 px-6 rounded-xl font-bold bg-[#D4AF37] hover:bg-[#b5952f] text-white shadow-lg shadow-[#D4AF37]/20 transition-transform active:scale-95">
+            <Plus className="h-5 w-5 mr-2" />
             Novo Cliente
           </Button>
         </Link>
       </div>
 
       {/* Search */}
-      <Card>
-        <form onSubmit={handleSearch} className="p-4">
-          <div className="flex gap-2">
-            <div className="flex-1">
+      <Card className="rounded-[2rem] border-[#E5E0D8] shadow-sm overflow-hidden bg-white">
+        <form onSubmit={handleSearch} className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#8A847C]" />
               <Input
                 placeholder="Buscar por nome, email ou telefone..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-12 h-12 bg-[#FAF9F6] border-[#E5E0D8] rounded-xl focus:border-[#D4AF37] focus:ring-[#D4AF37]/20 transition-all font-medium text-[#2C2825]"
               />
             </div>
-            <Button type="submit" variant="secondary">
-              <Search className="h-4 w-4" />
+            <Button type="submit" variant="outline" className="h-12 px-8 rounded-xl font-bold border-[#E5E0D8] text-[#5C5855] hover:bg-[#FAF9F6]">
               Buscar
             </Button>
           </div>
@@ -114,73 +118,81 @@ export default function ClientsListClient({ initialClients, companyId }: Clients
       </Card>
 
       {/* Table */}
-      <Card>
+      <Card className="rounded-[2rem] border-[#E5E0D8] shadow-sm bg-white overflow-hidden">
         {clients.length === 0 ? (
-          <div className="p-12 text-center">
-            <p className="text-neutral-500 text-lg">Nenhum cliente encontrado</p>
-            <p className="text-neutral-400 text-sm mt-2">
-              Comece cadastrando seu primeiro cliente
+          <div className="p-16 text-center bg-[#FAF9F6]">
+            <div className="w-20 h-20 bg-white rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-sm border border-[#E5E0D8]">
+              <Search className="h-10 w-10 text-[#D4AF37]/40" />
+            </div>
+            <p className="text-[#2C2825] text-xl font-black mb-2">Nenhum cliente encontrado</p>
+            <p className="text-[#8A847C] font-medium">
+              Comece cadastrando seu primeiro cliente ou tente buscar por outro termo.
             </p>
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Contato</TableHead>
-                <TableHead>Data de Nascimento</TableHead>
-                <TableHead>Cadastrado em</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+            <TableHeader className="bg-[#FAF9F6]">
+              <TableRow className="border-[#E5E0D8]">
+                <TableHead className="font-black text-[#8A847C] uppercase tracking-widest text-[10px]">Paciente</TableHead>
+                <TableHead className="font-black text-[#8A847C] uppercase tracking-widest text-[10px]">Contato</TableHead>
+                <TableHead className="font-black text-[#8A847C] uppercase tracking-widest text-[10px]">Nascimento</TableHead>
+                <TableHead className="font-black text-[#8A847C] uppercase tracking-widest text-[10px]">Cadastro</TableHead>
+                <TableHead className="font-black text-[#8A847C] uppercase tracking-widest text-[10px] text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {clients.map((client) => (
-                <TableRow key={client.id}>
-                  <TableCell className="font-medium">
+                <TableRow key={client.id} className="border-[#E5E0D8]/50 hover:bg-[#FAF9F6] transition-colors group">
+                  <TableCell className="font-bold text-[#2C2825]">
                     {client.full_name}
                   </TableCell>
                   <TableCell>
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       {client.email && (
-                        <div className="flex items-center gap-1 text-sm text-neutral-600">
-                          <Mail className="h-3 w-3" />
+                        <div className="flex items-center gap-2 text-sm text-[#5C5855] font-medium">
+                          <Mail className="h-3.5 w-3.5 text-[#D4AF37]" />
                           {client.email}
                         </div>
                       )}
                       {client.phone && (
-                        <div className="flex items-center gap-1 text-sm text-neutral-600">
-                          <Phone className="h-3 w-3" />
+                        <div className="flex items-center gap-2 text-sm text-[#5C5855] font-medium">
+                          <Phone className="h-3.5 w-3.5 text-[#D4AF37]" />
                           {formatPhone(client.phone)}
                         </div>
                       )}
                       {!client.email && !client.phone && (
-                        <span className="text-sm text-neutral-400">-</span>
+                        <span className="text-sm text-[#8A847C] font-medium">Sem contato</span>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>{formatDate(client.birth_date)}</TableCell>
-                  <TableCell>{formatDate(client.created_at)}</TableCell>
+                  <TableCell className="font-medium text-[#5C5855]">{formatDate(client.birth_date)}</TableCell>
+                  <TableCell className="font-medium text-[#5C5855]">{formatDate(client.created_at)}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-60 group-hover:opacity-100 transition-opacity">
                       <Link href={`/dashboard/clients/${client.id}`}>
-                        <Button variant="ghost" size="icon">
-                          <Eye className="h-4 w-4" />
+                        <Button variant="outline" size="sm" className="h-9 px-3 rounded-xl border-blue-200 text-blue-600 bg-blue-50/50 hover:bg-blue-600 hover:text-white hover:border-blue-600 font-bold transition-all shadow-sm">
+                          <Eye className="h-4 w-4 mr-1.5" />
+                          Prontuário
                         </Button>
                       </Link>
                       <Link href={`/dashboard/clients/${client.id}/edit`}>
-                        <Button variant="ghost" size="icon">
-                          <Edit className="h-4 w-4" />
+                        <Button variant="outline" size="sm" className="h-9 px-3 rounded-xl border-[#E5E0D8] text-[#5C5855] bg-white hover:bg-[#D4AF37] hover:text-white hover:border-[#D4AF37] font-bold transition-all shadow-sm">
+                          <Edit className="h-4 w-4 mr-1.5" />
+                          Editar
                         </Button>
                       </Link>
                       <Button
-                        variant="ghost"
-                        size="icon"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 px-3 rounded-xl border-red-200 text-red-600 bg-red-50/50 hover:bg-red-600 hover:text-white hover:border-red-600 font-bold transition-all shadow-sm"
                         onClick={() => {
                           setClientToDelete(client);
                           setDeleteDialogOpen(true);
                         }}
                       >
-                        <Trash2 className="h-4 w-4 text-red-600" />
+                        <Trash2 className="h-4 w-4 mr-1.5" />
+                        Excluir
                       </Button>
                     </div>
                   </TableCell>
@@ -188,6 +200,7 @@ export default function ClientsListClient({ initialClients, companyId }: Clients
               ))}
             </TableBody>
           </Table>
+          </div>
         )}
       </Card>
 

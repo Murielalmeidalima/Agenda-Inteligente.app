@@ -133,15 +133,35 @@ export default function RegisterPage() {
         }
       }
 
-      // ─── Etapa 5: Sign out ─────────────────────────────────────────────────
-      // CRÍTICO: o signUp() cria uma sessão automaticamente.
-      // O usuário ainda precisa de aprovação do admin antes de acessar o dashboard.
-      // Se não fizer signOut aqui, o middleware vai detectar sessão ativa,
-      // tentar acessar o dashboard, ver que approved=false e criar um LOOP de redirect.
-      await supabase.auth.signOut();
+      // ─── Etapa 5: Setup SaaS (Trial & Auto-Approve) ──────────────────────
+      const setupRes = await fetch('/api/auth/setup-tenant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName: formData.companyName,
+          fullName: formData.fullName,
+          email: formData.email
+        })
+      });
 
-      console.log('[REGISTER] ✅ Cadastro completo! Sessão encerrada — aguardando aprovação.');
-      setSuccess(true);
+      if (!setupRes.ok) {
+        console.warn('[REGISTER] Falha parcial no setup do tenant (Asaas).', await setupRes.text());
+        // Mesmo falhando, podemos prosseguir e o painel avisará
+      }
+
+      // CRÍTICO: NÃO fazemos signOut(). O usuário será redirecionado para o dashboard.
+      // E ele já estará aprovado, com subscription criada.
+
+      console.log('[REGISTER] ✅ Cadastro completo! Redirecionando ao dashboard...');
+      
+      // Forçar atualização da sessão no router do Next
+      router.refresh();
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 1000);
+
+      // Não definimos setSuccess(true) porque não vamos mostrar a tela antiga de "Pendente"
+      return;
 
     } catch (err: any) {
       console.error('[REGISTER] Exceção:', err.message);
