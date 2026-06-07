@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { Button, Input, Badge } from '@projeto/ui';
 import Link from 'next/link';
@@ -9,8 +9,11 @@ import { AlertCircle, CheckCircle2, ArrowRight, Building, User, Mail, Lock, Load
 import { LogoImage } from '@/components/ui/Logo';
 import { AnimatedBackground } from '@/components/auth/AnimatedBackground';
 
-export default function RegisterPage() {
+function RegisterFormContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const selectedPlan = searchParams.get('plan') || 'profissional';
+  
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -54,8 +57,6 @@ export default function RegisterPage() {
       });
 
       if (signUpError) {
-        // Usuário já existe mas o cadastro ficou incompleto (sem empresa/perfil)
-        // Tenta fazer login para completar o setup
         if (signUpError.message?.includes('already registered') || signUpError.message?.includes('already been registered')) {
           console.log('[REGISTER] Usuário já existe, tentando completar cadastro...');
           const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
@@ -80,6 +81,12 @@ export default function RegisterPage() {
           return;
         }
         userId = authData.user.id;
+
+        // --- Etapa 1.1: Salvar Logs de Consentimento (LGPD) ---
+        await supabase.from('consent_logs').insert([
+          { user_id: userId, document_type: 'TERMS_OF_USE', version: '1.0' },
+          { user_id: userId, document_type: 'PRIVACY_POLICY', version: '1.0' }
+        ]);
       }
 
       // ─── Etapa 2: Verificar se já tem empresa/perfil ────────────────────────
@@ -90,14 +97,11 @@ export default function RegisterPage() {
         .maybeSingle();
 
       if (existingProfile?.company_id) {
-        // Tudo já está configurado — ir para o sucesso
-        console.log('[REGISTER] Perfil já existe e está completo.');
         setSuccess(true);
         return;
       }
 
       // ─── Etapa 3: Criar empresa ─────────────────────────────────────────────
-      // INSERT separado do SELECT para não acionar a policy SELECT que causa recursão
       const companyId = crypto.randomUUID();
       const { error: companyError } = await supabase
         .from('companies')
@@ -105,11 +109,10 @@ export default function RegisterPage() {
 
       if (companyError) {
         console.error('[REGISTER] Erro ao criar empresa:', JSON.stringify(companyError));
-        setError('Erro ao criar empresa. Verifique as permissões no Supabase (RLS da tabela companies).');
+        setError('Erro ao criar empresa. Verifique as permissões no Supabase.');
         setLoading(false);
         return;
       }
-
 
       // ─── Etapa 4: Criar/atualizar perfil ───────────────────────────────────
       const { error: profileError } = await supabase
@@ -121,7 +124,6 @@ export default function RegisterPage() {
           email: formData.email,
           role: 'admin',
           approved: false
-          // Não incluir 'preferences' — a coluna pode não existir e causa erro silencioso
         }, { onConflict: 'id' });
 
       if (profileError) {
@@ -133,42 +135,46 @@ export default function RegisterPage() {
         }
       }
 
-      // ─── Etapa 5: Setup SaaS (Trial & Auto-Approve) ──────────────────────
+      // ─── Etapa 5: Setup SaaS (Trial & Auto-Approve & Asaas) ──────────────────────
       const setupRes = await fetch('/api/auth/setup-tenant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           companyName: formData.companyName,
           fullName: formData.fullName,
-          email: formData.email
+          email: formData.email,
+          plan: selectedPlan
         })
       });
 
       if (!setupRes.ok) {
         console.warn('[REGISTER] Falha parcial no setup do tenant (Asaas).', await setupRes.text());
-        // Mesmo falhando, podemos prosseguir e o painel avisará
+        // Mesmo falhando, cai pro dashboard
+        router.push('/dashboard');
+        return;
       }
 
-      // CRÍTICO: NÃO fazemos signOut(). O usuário será redirecionado para o dashboard.
-      // E ele já estará aprovado, com subscription criada.
-
-      console.log('[REGISTER] ✅ Cadastro completo! Redirecionando ao dashboard...');
+      const setupData = await setupRes.json();
       
-      // Forçar atualização da sessão no router do Next
+      console.log('[REGISTER] ✅ Cadastro completo!');
+      
+      // Se houver Link do Asaas, redirecionar para pagar
+      if (setupData.invoiceUrl) {
+        window.location.href = setupData.invoiceUrl;
+        return;
+      }
+
+      // Fallback
       router.refresh();
       setTimeout(() => {
         router.push('/dashboard');
       }, 1000);
-
-      // Não definimos setSuccess(true) porque não vamos mostrar a tela antiga de "Pendente"
-      return;
 
     } catch (err: any) {
       console.error('[REGISTER] Exceção:', err.message);
       setError('Erro inesperado: ' + (err.message || 'Desconhecido'));
       setLoading(false);
     }
-
   };
 
   if (success) {
@@ -318,6 +324,35 @@ export default function RegisterPage() {
                  </div>
               </div>
 
+              {/* Checkboxes LGPD */}
+              <div className="space-y-3 pt-2">
+                 <label className="flex items-start gap-3 p-3 rounded-xl border border-[#E5E0D8] bg-[#FAF9F6] cursor-pointer hover:border-[#D4AF37]/50 transition-colors">
+                    <div className="flex items-center h-5">
+                       <input 
+                         type="checkbox" 
+                         required 
+                         className="w-4 h-4 rounded border-gray-300 text-[#D4AF37] focus:ring-[#D4AF37]" 
+                       />
+                    </div>
+                    <div className="text-xs text-[#5C5855] leading-relaxed">
+                       Eu li e concordo com os <Link href="/termos-de-uso" target="_blank" className="font-bold text-[#D4AF37] hover:underline">Termos de Uso</Link> da plataforma Agenda Inteligente.
+                    </div>
+                 </label>
+
+                 <label className="flex items-start gap-3 p-3 rounded-xl border border-[#E5E0D8] bg-[#FAF9F6] cursor-pointer hover:border-[#D4AF37]/50 transition-colors">
+                    <div className="flex items-center h-5">
+                       <input 
+                         type="checkbox" 
+                         required 
+                         className="w-4 h-4 rounded border-gray-300 text-[#D4AF37] focus:ring-[#D4AF37]" 
+                       />
+                    </div>
+                    <div className="text-xs text-[#5C5855] leading-relaxed">
+                       Eu li e concordo com a <Link href="/politica-de-privacidade" target="_blank" className="font-bold text-[#D4AF37] hover:underline">Política de Privacidade</Link> e autorizo o tratamento dos meus dados.
+                    </div>
+                 </label>
+              </div>
+
               <Button
                 type="submit"
                 className="w-full h-12 mt-4 bg-gradient-to-r from-[#2C2825] to-[#403c39] hover:from-black hover:to-[#2C2825] text-white font-bold text-base rounded-xl shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
@@ -348,7 +383,210 @@ export default function RegisterPage() {
                  </Link>
                </p>
                
-               <p className="text-[9px] text-[#A8A49D] font-medium uppercase tracking-widest opacity-70">
+               <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6 text-[10px] font-bold text-[#A8A49D] uppercase tracking-widest mt-4">
+                 <Link href="/politica-de-privacidade" className="hover:text-[#D4AF37] transition-colors">Privacidade</Link>
+                 <span className="hidden sm:inline">•</span>
+                 <Link href="/termos-de-uso" className="hover:text-[#D4AF37] transition-colors">Termos de Uso</Link>
+                 <span className="hidden sm:inline">•</span>
+                 <Link href="/suporte" className="hover:text-[#D4AF37] transition-colors">Suporte</Link>
+               </div>
+               
+               <p className="text-[9px] text-[#A8A49D] font-medium uppercase tracking-widest opacity-70 mt-4">
+               className="w-full h-12 bg-gradient-to-r from-[#2C2825] to-[#403c39] hover:from-black hover:to-[#2C2825] text-white font-bold rounded-xl shadow-lg transform hover:-translate-y-0.5 transition-all relative z-10"
+             >
+               Voltar ao Login
+             </Button>
+        </div>
+      </AnimatedBackground>
+    );
+  }
+
+  return (
+    <AnimatedBackground>
+       {/* Glassmorphism Card */}
+       <div className="bg-white/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-white/40 overflow-hidden relative w-full max-w-xl mx-4">
+          
+          {/* Decorative Elements */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-[#D4AF37]/10 rounded-bl-[100px] pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-[#D4AF37]/5 rounded-tr-[100px] pointer-events-none" />
+
+          <div className="px-8 sm:px-12 py-10 relative z-10">
+            <div className="mb-8 text-center">
+              <div className="flex justify-center mb-6">
+                 <div className="bg-white p-3 rounded-2xl shadow-lg border border-[#F0EBE0]/50">
+                    <LogoImage size={56} />
+                 </div>
+              </div>
+              
+              <h1 className="text-2xl font-bold tracking-tight text-[#2C2825] mb-2 font-serif">Crie sua conta</h1>
+              <p className="text-[#5C5855] text-sm leading-relaxed">
+                Faça seu primeiro acesso para gerenciar sua clínica.
+              </p>
+            </div>
+
+            <form className="space-y-4" onSubmit={handleRegister}>
+              {error && (
+                <div className="flex items-center gap-3 rounded-xl bg-red-50/90 border border-red-100 p-3 text-xs text-red-600 animate-shake shadow-sm">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+                  <span className="font-medium">{error}</span>
+                </div>
+              )}
+              
+              <div className="space-y-3">
+                 {/* Nome e Empresa */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1 group">
+                      <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1 group-focus-within:text-[#D4AF37] transition-colors">Nome da Clínica</label>
+                      <div className="relative">
+                        <Building className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8A49D] group-focus-within:text-[#D4AF37] transition-colors duration-300" />
+                        <Input
+                          placeholder="Ex: Clínica Saúde"
+                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300 shadow-sm hover:bg-white/80"
+                          required
+                          value={formData.companyName}
+                          onChange={(e) => handleChange('companyName', e.target.value)}
+                          disabled={loading}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-1 group">
+                      <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1 group-focus-within:text-[#D4AF37] transition-colors">Seu Nome</label>
+                      <div className="relative">
+                        <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8A49D] group-focus-within:text-[#D4AF37] transition-colors duration-300" />
+                        <Input
+                          placeholder="Ex: Dr. Silva"
+                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300 shadow-sm hover:bg-white/80"
+                          required
+                          value={formData.fullName}
+                          onChange={(e) => handleChange('fullName', e.target.value)}
+                          disabled={loading}
+                        />
+                      </div>
+                    </div>
+                 </div>
+
+                 {/* Email */}
+                 <div className="space-y-1 group">
+                   <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1 group-focus-within:text-[#D4AF37] transition-colors">E-mail Corporativo</label>
+                   <div className="relative">
+                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8A49D] group-focus-within:text-[#D4AF37] transition-colors duration-300" />
+                     <Input
+                       type="email"
+                       placeholder="seu@email.com"
+                       className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300 shadow-sm hover:bg-white/80"
+                       required
+                       value={formData.email}
+                       onChange={(e) => handleChange('email', e.target.value)}
+                       disabled={loading}
+                     />
+                   </div>
+                 </div>
+
+                 {/* Senhas */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1 group">
+                      <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1 group-focus-within:text-[#D4AF37] transition-colors">Senha</label>
+                      <div className="relative">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8A49D] group-focus-within:text-[#D4AF37] transition-colors duration-300" />
+                        <Input
+                          type="password"
+                          placeholder="••••••"
+                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300 shadow-sm hover:bg-white/80"
+                          required
+                          value={formData.password}
+                          onChange={(e) => handleChange('password', e.target.value)}
+                          disabled={loading}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-1 group">
+                      <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1 group-focus-within:text-[#D4AF37] transition-colors">Confirmar</label>
+                      <div className="relative">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8A49D] group-focus-within:text-[#D4AF37] transition-colors duration-300" />
+                        <Input
+                          type="password"
+                          placeholder="••••••"
+                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300 shadow-sm hover:bg-white/80"
+                          required
+                          value={formData.confirmPassword}
+                          onChange={(e) => handleChange('confirmPassword', e.target.value)}
+                          disabled={loading}
+                        />
+                      </div>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Checkboxes LGPD */}
+              <div className="space-y-3 pt-2">
+                 <label className="flex items-start gap-3 p-3 rounded-xl border border-[#E5E0D8] bg-[#FAF9F6] cursor-pointer hover:border-[#D4AF37]/50 transition-colors">
+                    <div className="flex items-center h-5">
+                       <input 
+                         type="checkbox" 
+                         required 
+                         className="w-4 h-4 rounded border-gray-300 text-[#D4AF37] focus:ring-[#D4AF37]" 
+                       />
+                    </div>
+                    <div className="text-xs text-[#5C5855] leading-relaxed">
+                       Eu li e concordo com os <Link href="/termos-de-uso" target="_blank" className="font-bold text-[#D4AF37] hover:underline">Termos de Uso</Link> da plataforma Agenda Inteligente.
+                    </div>
+                 </label>
+
+                 <label className="flex items-start gap-3 p-3 rounded-xl border border-[#E5E0D8] bg-[#FAF9F6] cursor-pointer hover:border-[#D4AF37]/50 transition-colors">
+                    <div className="flex items-center h-5">
+                       <input 
+                         type="checkbox" 
+                         required 
+                         className="w-4 h-4 rounded border-gray-300 text-[#D4AF37] focus:ring-[#D4AF37]" 
+                       />
+                    </div>
+                    <div className="text-xs text-[#5C5855] leading-relaxed">
+                       Eu li e concordo com a <Link href="/politica-de-privacidade" target="_blank" className="font-bold text-[#D4AF37] hover:underline">Política de Privacidade</Link> e autorizo o tratamento dos meus dados.
+                    </div>
+                 </label>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-12 mt-4 bg-gradient-to-r from-[#2C2825] to-[#403c39] hover:from-black hover:to-[#2C2825] text-white font-bold text-base rounded-xl shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
+                loading={loading}
+                disabled={loading}
+              >
+                {loading ? (
+                   <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Criando conta...
+                   </span>
+                ) : (
+                   <span className="flex items-center gap-2">
+                      Criar minha conta profissional
+                   </span>
+                )}
+              </Button>
+            </form>
+            
+            <div className="mt-8 pt-6 border-t border-[#E5E0D8]/50 flex flex-col items-center gap-4">
+               <p className="text-[#8A847C] text-xs">
+                 Já possui acesso?{' '}
+                 <Link 
+                   href="/auth/login" 
+                   className="font-bold text-[#D4AF37] hover:text-[#B5952F] transition-colors hover:underline"
+                 >
+                   Acessar minha conta
+                 </Link>
+               </p>
+               
+               <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6 text-[10px] font-bold text-[#A8A49D] uppercase tracking-widest mt-4">
+                 <Link href="/politica-de-privacidade" className="hover:text-[#D4AF37] transition-colors">Privacidade</Link>
+                 <span className="hidden sm:inline">•</span>
+                 <Link href="/termos-de-uso" className="hover:text-[#D4AF37] transition-colors">Termos de Uso</Link>
+                 <span className="hidden sm:inline">•</span>
+                 <Link href="/suporte" className="hover:text-[#D4AF37] transition-colors">Suporte</Link>
+               </div>
+               
+               <p className="text-[9px] text-[#A8A49D] font-medium uppercase tracking-widest opacity-70 mt-4">
                  © 2026 Agenda Inteligente
                </p>
             </div>
@@ -356,4 +594,12 @@ export default function RegisterPage() {
        </div>
     </AnimatedBackground>
   );
+}
+
+export default function RegisterPage() {
+   return (
+     <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#FDFBF7]"><Loader2 className="h-8 w-8 animate-spin text-[#D4AF37]" /></div>}>
+       <RegisterFormContent />
+     </Suspense>
+   );
 }

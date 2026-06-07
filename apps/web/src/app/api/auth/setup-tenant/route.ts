@@ -12,65 +12,67 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { companyName, fullName, email } = await req.json();
+    const { companyName, fullName, email, plan } = await req.json();
 
-    // 1. Criar Cliente no Asaas
+    // 1. Identificar o valor do plano
+    let planValue = 97.00; // default profissional
+    let planName = 'Profissional';
+    
+    if (plan === 'basico') { planValue = 49.00; planName = 'Básico'; }
+    if (plan === 'empresarial') { planValue = 197.00; planName = 'Empresarial'; }
+
+    // Obter ou criar Plano no DB local
+    let { data: planDb } = await supabase.from('plans').select('id').eq('name', planName).maybeSingle();
+    let planId = planDb?.id;
+    if (!planId) {
+      const { data: newPlan } = await supabase.from('plans').insert({ name: planName, price: planValue, max_users: 5 }).select('id').single();
+      planId = newPlan?.id;
+    }
+
+    const { data: profile } = await supabase.from('profiles').select('company_id').eq('id', session.user.id).single();
+    if (!profile || !profile.company_id) {
+      return NextResponse.json({ error: 'Company not found' }, { status: 400 });
+    }
+
+    // 2. Criar Cliente no Asaas
     const customer = await AsaasService.createCustomer({
       name: companyName,
       email: email
     });
 
-    // 2. Criar Assinatura Trial no Asaas (opicional se for mock, mas criamos)
+    // 3. Criar Assinatura no Asaas (7 Dias Grátis)
     const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 7); // 7 Dias de Trial
+    dueDate.setDate(dueDate.getDate() + 7);
 
-    // 3. Obter ou criar Plano Inicial no DB local
-    const { data: basicPlan } = await supabase
-      .from('plans')
-      .select('id')
-      .eq('name', 'Inicial')
-      .single();
+    const subscription = await AsaasService.createSubscription({
+      customer: customer.id,
+      billingType: 'UNDEFINED', // Permite escolher Pix, Cartão ou Boleto no link
+      value: planValue,
+      nextDueDate: dueDate.toISOString().split('T')[0], // Data de vencimento = hoje + 7
+      cycle: 'MONTHLY',
+      description: `Assinatura Agenda Inteligente - Plano ${planName}`
+    });
 
-    let planId = basicPlan?.id;
-    if (!planId) {
-      // Fallback
-      const { data: newPlan } = await supabase.from('plans').insert({
-        name: 'Inicial',
-        price: 97.00,
-        max_users: 1
-      }).select('id').single();
-      planId = newPlan?.id;
-    }
-
-    // Obter o ID da companhia recém criada (o front-end criou ou criaremos aqui)
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('company_id')
-      .eq('id', session.user.id)
-      .single();
-      
-    if (!profile || !profile.company_id) {
-      return NextResponse.json({ error: 'Company not found' }, { status: 400 });
-    }
-
-    // 4. Salvar Assinatura no Banco de Dados com Status = 'trial'
+    // 4. Salvar Assinatura no Banco de Dados
     await supabase.from('subscriptions').insert({
       company_id: profile.company_id,
       plan_id: planId,
       asaas_customer_id: customer.id,
-      status: 'trial',
+      asaas_subscription_id: subscription.id,
+      status: 'trial', // O webhook mudará para active quando pagar
       trial_start: new Date().toISOString(),
       trial_end: dueDate.toISOString(),
       current_period_end: dueDate.toISOString()
     });
 
     // 5. Auto-Aprovar o Usuário
-    await supabase
-      .from('profiles')
-      .update({ approved: true })
-      .eq('id', session.user.id);
+    await supabase.from('profiles').update({ approved: true }).eq('id', session.user.id);
 
-    return NextResponse.json({ success: true });
+    // 6. Buscar o Link de Pagamento (InvoiceUrl) da assinatura
+    const payments = await AsaasService.getSubscriptionPayments(subscription.id);
+    const invoiceUrl = payments?.data?.[0]?.invoiceUrl;
+
+    return NextResponse.json({ success: true, invoiceUrl });
   } catch (error: any) {
     console.error('[Setup Tenant] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

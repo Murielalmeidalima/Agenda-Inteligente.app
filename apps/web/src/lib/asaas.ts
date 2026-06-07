@@ -103,5 +103,28 @@ export const AsaasService = {
       console.error('[Asaas] Erro ao gerar PIX:', error);
       throw error;
     }
+  },
+
+  /**
+   * Busca as cobranças atreladas a uma assinatura para resgatar a invoiceUrl (Link de checkout)
+   */
+  async getSubscriptionPayments(subscriptionId: string) {
+    if (!ASAAS_API_KEY) return { data: [{ invoiceUrl: 'http://localhost:3000/mock-payment' }] };
+
+    try {
+      const response = await fetch(`${ASAAS_API_URL}/payments?subscription=${subscriptionId}`, {
+        method: 'GET',
+        headers
+      });
+
+      if (!response.ok) {
+        throw new Error(`Asaas Error: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('[Asaas] Erro ao buscar pagamentos da assinatura:', error);
+      throw error;
+    }
   }
 };
