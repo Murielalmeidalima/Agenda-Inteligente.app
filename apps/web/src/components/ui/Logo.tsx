@@ -10,7 +10,7 @@ interface LogoProps {
 
 export function Logo({ className, size = 40, showText = false }: LogoProps) {
   const [hasError, setHasError] = React.useState(false);
-  const src = "/images/logo.jpg";
+  const src = "/images/logo.png";
 
   return (
     <div className={`flex items-center gap-2 ${className || ''}`}>
@@ -36,7 +36,7 @@ export function Logo({ className, size = 40, showText = false }: LogoProps) {
 
 export function LogoImage({ className, size = 40, src }: LogoProps & { src?: string | null }) {
   const [hasError, setHasError] = React.useState(false);
-  const finalSrc = src || "/images/logo.jpg";
+  const finalSrc = src || "/images/logo.png";
 
   return (
     <div 
@@ -57,3 +57,4 @@ export function LogoImage({ className, size = 40, src }: LogoProps & { src?: str
     </div>
   );
 }
+

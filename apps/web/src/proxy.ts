@@ -68,6 +68,7 @@ export default async function proxy(request: NextRequest) {
   if (user && isPublicPath) {
     const shouldRedirect =
       pathname.startsWith('/auth/') &&
+      !pathname.startsWith('/auth/login') &&
       !pathname.startsWith('/auth/register') &&
       !pathname.startsWith('/auth/pending');
 

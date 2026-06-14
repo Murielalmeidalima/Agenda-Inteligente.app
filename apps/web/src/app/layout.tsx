@@ -1,34 +1,60 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Playfair_Display, Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@projeto/ui";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const playfairDisplay = Playfair_Display({
+  variable: "--font-playfair-display",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
 });
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false, // App-like feel
-  themeColor: "#D4AF37",
+  maximumScale: 5,
+  themeColor: "#7d525f",
 };
 
 export const metadata: Metadata = {
-  title: "Agenda Inteligente",
-  description: "Sistema de Gestão de Clínicas e Consultórios",
+  title: "Agenda Inteligente — Sistema de Gestão para Clínicas e Consultórios",
+  description:
+    "Agenda, financeiro, estoque, anamnese digital, marketing e gestão de equipe em uma única plataforma. Teste grátis por 7 dias.",
+  keywords: [
+    "agenda para clínica",
+    "sistema para clínica",
+    "gestão de clínica",
+    "agendamento online",
+    "prontuário eletrônico",
+    "anamnese digital",
+    "controle financeiro clínica",
+    "software para consultório",
+  ],
+  openGraph: {
+    title: "Agenda Inteligente — Gestão Completa para Clínicas",
+    description:
+      "Transforme sua clínica em uma máquina de agendamentos e faturamento. Teste grátis.",
+    type: "website",
+    locale: "pt_BR",
+    siteName: "Agenda Inteligente",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Gestor Pro",
+    title: "Agenda Inteligente",
   },
   formatDetection: {
     telephone: false,
@@ -41,8 +67,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="pt-BR" className="scroll-smooth">
+      <body
+        className={`${playfairDisplay.variable} ${inter.variable} font-sans antialiased`}
+      >
         {children}
         <Toaster position="top-right" />
       </body>

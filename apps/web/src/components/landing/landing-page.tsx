@@ -1,37 +1,30 @@
 'use client';
 
 import { HeroSection } from './sections/HeroSection';
-import { FounderSection } from './sections/FounderSection';
 import { PainPointsSection } from './sections/PainPointsSection';
-import { FeaturesSection } from './sections/FeaturesSection';
+import { FounderSection } from './sections/FounderSection';
+import { VideoSection } from './sections/VideoSection';
 import { GallerySection } from './sections/GallerySection';
-import { BenefitsSection } from './sections/BenefitsSection';
-import { ComparisonSection } from './sections/ComparisonSection';
-import { TestimonialsSection } from './sections/TestimonialsSection';
+import { SecuritySection } from './sections/SecuritySection';
 import { PricingSection } from './sections/PricingSection';
 import { FAQSection } from './sections/FAQSection';
 import { CTASection } from './sections/CTASection';
 import { FooterSection } from './sections/FooterSection';
 import { PublicNavbar } from './PublicNavbar';
-import Link from 'next/link';
-import { Button } from '@projeto/ui';
-import { Logo } from '@/components/ui/Logo';
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#FDFBF7] text-[#2C2825] transition-colors duration-300 scroll-smooth">
+    <div className="min-h-screen bg-[#fff8f8] text-[#1f1a1b] transition-colors duration-300 scroll-smooth">
       {/* Navigation Navbar */}
       <PublicNavbar />
 
       <main>
         <HeroSection />
-        <FounderSection />
         <PainPointsSection />
-        <FeaturesSection />
+        <FounderSection />
+        <VideoSection />
         <GallerySection />
-        <BenefitsSection />
-        <ComparisonSection />
-        <TestimonialsSection />
+        <SecuritySection />
         <PricingSection />
         <FAQSection />
         <CTASection />
@@ -41,3 +34,4 @@ export default function LandingPage() {
     </div>
   );
 }
+

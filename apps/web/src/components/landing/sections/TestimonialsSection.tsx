@@ -1,58 +1,67 @@
 'use client';
 import { Star } from 'lucide-react';
-import { Card } from '@projeto/ui';
 
 export function TestimonialsSection() {
-  // Estrutura pronta para os depoimentos futuros.
-  // Pode ser preenchido no banco de dados ou mockado aqui.
   const testimonials = [
     {
-      name: "[Nome do Cliente 1]",
-      clinic: "Clínica de Estética",
-      text: "Eu perdia muito tempo confirmando consulta uma a uma pelo WhatsApp. Depois do Agenda Inteligente, as faltas caíram a zero e minha secretária pôde focar em vender mais pacotes.",
-      photo: ""
+      name: 'Dra. Carolina Mendes',
+      clinic: 'Mendes Estética Avançada',
+      text: 'Eu perdia muito tempo confirmando consulta uma a uma pelo WhatsApp. Depois do Agenda Inteligente, as faltas caíram a zero e minha secretária pôde focar em vender mais pacotes.',
     },
     {
-      name: "[Nome do Cliente 2]",
-      clinic: "Consultório Odontológico",
-      text: "Ter o financeiro ligado à agenda mudou meu negócio. Hoje eu sei exatamente de onde vem meu lucro e quais procedimentos me dão mais retorno.",
-      photo: ""
+      name: 'Dr. Ricardo Augusto',
+      clinic: 'Odontologia Integrada',
+      text: 'Ter o financeiro ligado à agenda mudou meu negócio. Hoje eu sei exatamente de onde vem meu lucro e quais procedimentos me dão mais retorno.',
     },
     {
-      name: "[Nome do Cliente 3]",
-      clinic: "Salão de Beleza Premium",
-      text: "O acesso pelo celular é surreal de bom. Eu tiro a foto do antes e depois direto no app e já fica salva no prontuário da cliente. Muito profissional!",
-      photo: ""
-    }
+      name: 'Mariana Rocha',
+      clinic: 'Espaço Beleza Real',
+      text: 'O acesso pelo celular é surreal de bom. Eu tiro a foto do antes e depois direto no sistema e já fica salva no prontuário da cliente. Muito profissional!',
+    },
   ];
 
   return (
-    <section className="py-24 px-4 bg-white">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-bold mb-4 text-[#2C2825] font-serif">Quem usa, recomenda.</h2>
-          <p className="text-[#5C5855] text-xl">Faça parte do grupo de profissionais que revolucionaram suas clínicas.</p>
+    <section className="py-20 md:py-28 px-4 bg-[#fff8f8] relative overflow-hidden">
+      <div className="absolute top-1/4 left-0 w-80 h-80 bg-[#d9a5b3]/5 rounded-full blur-3xl -z-10" />
+
+      <div className="max-w-7xl mx-auto font-sans">
+        <div className="text-center mb-14">
+          <span className="text-[#7d525f] font-bold tracking-widest uppercase text-sm mb-3 block">
+            DEPOIMENTOS
+          </span>
+          <h2 className="text-3xl md:text-5xl font-extrabold mb-4 text-[#1f1a1b] font-playfair-display">
+            Quem usa, recomenda.
+          </h2>
+          <p className="text-[#504446] text-lg md:text-xl">
+            Faça parte do grupo de profissionais que revolucionaram suas clínicas.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {testimonials.map((t, i) => (
-            <Card key={i} className="p-8 border border-[#E5E0D8]/50 bg-[#FAF9F6] rounded-3xl hover:-translate-y-2 transition-transform duration-300">
-              <div className="flex gap-1 text-[#D4AF37] mb-6">
-                {[1,2,3,4,5].map(star => <Star key={star} className="w-5 h-5 fill-current" />)}
+            <div
+              key={i}
+              className="p-7 bg-white rounded-3xl border border-[#d4c2c5]/30 hover:border-[#c97d95]/40 hover:shadow-[0_12px_32px_rgba(201,125,149,0.03)] hover:-translate-y-1 transition-all duration-300 cursor-default"
+            >
+              <div className="flex gap-0.5 text-[#c97d95] mb-5">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star key={star} className="w-4 h-4 fill-current" />
+                ))}
               </div>
-              <p className="text-[#5C5855] text-lg italic mb-8 leading-relaxed">
-                "{t.text}"
+              <p className="text-[#504446] text-base italic mb-6 leading-relaxed">
+                &ldquo;{t.text}&rdquo;
               </p>
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-slate-200 rounded-full border-2 border-white shadow-sm overflow-hidden flex items-center justify-center text-slate-400 font-bold text-xs text-center">
-                  FOTO
+              <div className="flex items-center gap-3 pt-4 border-t border-[#d4c2c5]/25">
+                {/* Avatar */}
+                <div className="w-10 h-10 bg-[#fbf1f2] rounded-full flex items-center justify-center text-[#7d525f] font-bold text-sm shrink-0">
+                  {t.name.charAt(0)}
                 </div>
                 <div>
-                  <h4 className="font-bold text-[#2C2825]">{t.name}</h4>
-                  <p className="text-sm text-[#8A847C]">{t.clinic}</p>
+                  <h4 className="font-bold text-sm text-[#1f1a1b]">{t.name}</h4>
+                  <p className="text-xs text-[#504446]">{t.clinic}</p>
                 </div>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       </div>

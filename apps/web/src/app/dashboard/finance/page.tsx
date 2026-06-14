@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { 
   Button, 
@@ -62,6 +63,7 @@ type Period = 'today' | 'week' | 'month' | 'year';
 
 export default function FinancePage() {
   const { profile } = useProfile();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>('month');
@@ -92,10 +94,21 @@ export default function FinancePage() {
   });
 
   useEffect(() => {
-    if (profile?.company_id) {
-      fetchData();
+    if (profile) {
+      // Checagem de RBAC (Segurança)
+      if (profile.role !== 'admin' && profile.role !== 'chefe') {
+        const hasAccess = profile.permissions?.finance?.view;
+        if (!hasAccess) {
+          router.push('/dashboard');
+          return;
+        }
+      }
+
+      if (profile.company_id) {
+        fetchData();
+      }
     }
-  }, [profile, period]);
+  }, [profile, period, router]);
 
   async function fetchData() {
     setLoading(true);

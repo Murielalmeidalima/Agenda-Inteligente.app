@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/auth';
 import { WhatsappService } from '@projeto/utils';
+import { z } from 'zod';
+
+const actionSchema = z.object({
+  action: z.enum(['status', 'create', 'connect', 'logout'])
+});
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,7 +26,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Company not found' }, { status: 400 });
     }
 
-    const { action } = await req.json();
+    const body = await req.json();
+    const parseResult = actionSchema.safeParse(body);
+    
+    if (!parseResult.success) {
+      return NextResponse.json({ error: 'Invalid action payload', details: parseResult.error.format() }, { status: 400 });
+    }
+
+    const { action } = parseResult.data;
 
     const companyId = profile.company_id;
     const instanceName = `empresa_${companyId.replace(/-/g, '')}`;

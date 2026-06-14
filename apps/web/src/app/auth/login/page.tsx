@@ -38,14 +38,18 @@ function LoginForm() {
     }
   }, [searchParams]);
 
-  // Auto-redirect se já estiver logado
+  // Limpar sessão existente se entrar na tela de login por segurança
   useEffect(() => {
-    const checkSession = async () => {
+    const clearSession = async () => {
       const supabase = createBrowserClient();
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) router.replace('/dashboard/schedule');
+      if (session) {
+        console.log('[AUTH][LOGIN] Sessão ativa detectada na tela de login. Forçando logout...');
+        await supabase.auth.signOut();
+        router.refresh();
+      }
     };
-    checkSession();
+    clearSession();
   }, [router]);
 
   const validateForm = () => {

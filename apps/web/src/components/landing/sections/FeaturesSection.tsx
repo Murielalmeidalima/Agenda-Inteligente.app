@@ -1,40 +1,53 @@
 'use client';
-import { Calendar, TrendingUp, Package, ShieldCheck, Smartphone, Users, MessageSquareShare, FileCheck2, Bot, BellRing } from 'lucide-react';
-import { Card } from '@projeto/ui';
+import { Calendar, TrendingUp, Package, Users, FileCheck2, MessageSquareShare, BellRing, Bot, Smartphone, BarChart3 } from 'lucide-react';
 
 export function FeaturesSection() {
   const features = [
-    { icon: <Calendar className="w-6 h-6" />, title: "Agenda Inteligente", desc: "Controle de horários, salas e profissionais em uma visão única." },
-    { icon: <TrendingUp className="w-6 h-6" />, title: "Financeiro Completo", desc: "Fluxo de caixa, contas a pagar, comissões e DRE automático." },
-    { icon: <Package className="w-6 h-6" />, title: "Estoque Integrado", desc: "Baixa automática no uso de insumos e alertas de reposição." },
-    { icon: <Bot className="w-6 h-6" />, title: "Automações", desc: "Criação de fluxos automáticos de marketing e lembretes." },
-    { icon: <Users className="w-6 h-6" />, title: "Gestão de Equipe", desc: "Permissões de acesso e comissionamento por profissional." },
-    { icon: <FileCheck2 className="w-6 h-6" />, title: "Anamnese Digital", desc: "Prontuário eletrônico seguro com assinatura e anexos." },
-    { icon: <MessageSquareShare className="w-6 h-6" />, title: "WhatsApp Connect", desc: "Envie lembretes e mensagens diretamente pelo sistema." },
-    { icon: <BellRing className="w-6 h-6" />, title: "Captação de Avaliações", desc: "Peça feedback no Google pós-consulta automaticamente." }
+    { icon: Calendar, title: 'Agenda Inteligente', desc: 'Controle de horários, salas e profissionais com visão unificada e sem conflitos.' },
+    { icon: TrendingUp, title: 'Financeiro Completo', desc: 'Fluxo de caixa, contas a pagar/receber, DRE e controle de inadimplência.' },
+    { icon: Package, title: 'Estoque Integrado', desc: 'Baixa automática de insumos, alertas de reposição e controle de validade.' },
+    { icon: Bot, title: 'Marketing Automático', desc: 'Campanhas de reengajamento, aniversariantes e clientes inativos no automático.' },
+    { icon: Users, title: 'Gestão de Equipe', desc: 'Permissões de acesso, comissões por profissional e auditoria de acessos.' },
+    { icon: FileCheck2, title: 'Anamnese Digital', desc: 'Prontuário eletrônico seguro com fotos, assinatura digital e histórico.' },
+    { icon: MessageSquareShare, title: 'WhatsApp Automatizado', desc: 'Lembretes de consulta, confirmações e campanhas direto no WhatsApp.' },
+    { icon: BellRing, title: 'Avaliações Automáticas', desc: 'Solicite avaliações no Google automaticamente após cada atendimento.' },
+    { icon: Smartphone, title: 'Acesso Mobile', desc: 'Use de qualquer lugar, do celular ou tablet, com interface 100% responsiva.' },
+    { icon: BarChart3, title: 'Relatórios e Metas', desc: 'Dashboards visuais, metas mensais e relatórios gerenciais para decisões.' },
   ];
 
   return (
-    <section id="features" className="py-24 px-4 bg-white relative">
-      <div className="absolute top-0 right-0 w-1/3 h-1/2 bg-[#D4AF37]/5 blur-[100px] -z-10" />
-      
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-16">
-          <span className="text-[#D4AF37] font-bold tracking-widest uppercase text-sm mb-2 block">A SOLUÇÃO</span>
-          <h2 className="text-3xl md:text-5xl font-bold mb-4 text-[#2C2825] font-serif">Tudo em um só lugar</h2>
-          <p className="text-[#5C5855] text-xl">Mais de 10 módulos integrados para escalar a sua operação.</p>
+    <section id="features" className="py-20 md:py-28 px-4 bg-[#fff8f8] relative">
+      <div className="absolute top-0 right-0 w-1/3 h-1/2 bg-[#d9a5b3]/10 blur-[100px] -z-10" />
+
+      <div className="max-w-7xl mx-auto font-sans">
+        <div className="text-center mb-14">
+          <span className="text-[#7d525f] font-bold tracking-widest uppercase text-sm mb-3 block">
+            A SOLUÇÃO
+          </span>
+          <h2 className="text-3xl md:text-5xl font-extrabold mb-4 text-[#1f1a1b] font-playfair-display">
+            Tudo em um só lugar
+          </h2>
+          <p className="text-[#504446] text-lg md:text-xl">
+            Mais de 10 módulos integrados para escalar a operação da sua clínica.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {features.map((feat, idx) => (
-            <Card key={idx} className="p-6 border border-[#E5E0D8]/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group cursor-default">
-              <div className="w-12 h-12 bg-[#FAF6E9] rounded-xl flex items-center justify-center mb-4 text-[#D4AF37] group-hover:bg-[#D4AF37] group-hover:text-white transition-colors">
-                {feat.icon}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {features.map((feat, idx) => {
+            const Icon = feat.icon;
+            return (
+              <div
+                key={idx}
+                className="p-5 bg-white border border-[#d4c2c5]/30 rounded-3xl hover:border-[#c97d95]/40 hover:shadow-[0_12px_32px_rgba(201,125,149,0.03)] hover:-translate-y-1 transition-all duration-300 group cursor-default"
+              >
+                <div className="w-11 h-11 bg-[#f5ecec] rounded-xl flex items-center justify-center mb-4 text-[#7d525f] group-hover:bg-[#7d525f] group-hover:text-white transition-all duration-300">
+                  <Icon className="w-5 h-5" />
+                </div>
+                <h3 className="text-base font-bold mb-1.5 text-[#1f1a1b] font-playfair-display">{feat.title}</h3>
+                <p className="text-[#504446] text-xs leading-relaxed">{feat.desc}</p>
               </div>
-              <h3 className="text-lg font-bold mb-2 text-[#2C2825]">{feat.title}</h3>
-              <p className="text-[#8A847C] text-sm leading-relaxed">{feat.desc}</p>
-            </Card>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

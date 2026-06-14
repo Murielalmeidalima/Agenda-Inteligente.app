@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, Button } from '@projeto/ui';
+import Image from 'next/image';
 import { RefreshCw, QrCode, Smartphone, LogOut, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -175,7 +176,7 @@ export function WhatsAppConnectionTab() {
           {status === 'qr_ready' && qrCode && (
             <div className="flex flex-col items-center gap-8 w-full animate-in zoom-in-95 duration-500">
               <div className="bg-white p-6 rounded-3xl shadow-[0_0_40px_-10px_rgba(0,0,0,0.1)] border-2 border-slate-100">
-                <img src={qrCode} alt="WhatsApp QR Code" className="w-64 h-64 object-contain" />
+                <Image src={qrCode} alt="WhatsApp QR Code" width={256} height={256} className="w-64 h-64 object-contain" unoptimized />
               </div>
               <div className="text-center space-y-2">
                 <h3 className="font-black text-2xl text-slate-900">Escaneie o QR Code</h3>

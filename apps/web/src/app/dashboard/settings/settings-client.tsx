@@ -163,10 +163,21 @@ export default function SettingsClient() {
   };
 
   useEffect(() => {
-    if (companyId) {
-      fetchProcedures();
+    if (profile) {
+      // Checagem de RBAC (Segurança)
+      if (profile.role !== 'admin' && profile.role !== 'chefe') {
+        const hasAccess = profile.permissions?.settings?.view;
+        if (!hasAccess) {
+          router.push('/dashboard');
+          return;
+        }
+      }
+
+      if (profile.company_id) {
+        fetchProcedures();
+      }
     }
-  }, [companyId]);
+  }, [profile, router]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
