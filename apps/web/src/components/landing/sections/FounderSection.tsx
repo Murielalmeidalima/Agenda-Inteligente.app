@@ -1,46 +1,142 @@
 'use client';
+
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 
+interface Scene {
+  image: string;
+  text: string;
+  subText?: string;
+}
+
+const SCENES: Scene[] = [
+  {
+    image: '/images/founder_4.jpg', // Dra Jamily writing
+    text: "Por trás de toda grande solução existe uma história.",
+    subText: "Uma jornada que une cuidado, dedicação e o desejo de fazer a diferença para profissionais da saúde."
+  },
+  {
+    image: '/images/founder_2.jpg', // Dra Jamily at work
+    text: "Após identificar os desafios enfrentados por clínicas e consultórios...",
+    subText: "O estresse da agenda de papel, as faltas de pacientes e a falta de controle financeiro organizados."
+  },
+  {
+    image: '/images/founder_3.jpg', // Dra Jamily confident
+    text: "...nasceu o Agenda Inteligente.",
+    subText: "A resposta tecnológica focada em humanizar o atendimento e otimizar processos diários."
+  },
+  {
+    image: '/images/founder_1.jpg', // Dra Jamily with sphere
+    text: "Ajudar profissionais a terem mais organização, produtividade e crescimento.",
+    subText: "Uma plataforma pensada por quem vivencia e entende a rotina clínica no dia a dia."
+  },
+  {
+    image: '/images/founder_5.jpg', // Dra Jamily portrait
+    text: "Mais do que um sistema. Uma plataforma feita para transformar a gestão clínica.",
+    subText: "Projetada com alma e sensibilidade para encantar sua equipe e seus pacientes."
+  }
+];
+
 export function FounderSection() {
+  const [currentScene, setCurrentScene] = useState(0);
+  const duration = 5000; // 5 seconds per slide
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentScene((prevScene) => (prevScene + 1) % SCENES.length);
+    }, duration);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const activeScene = SCENES[currentScene];
+
   return (
     <section className="py-24 px-4 md:px-10 max-w-7xl mx-auto bg-[#fff8f8]">
-      <div className="flex flex-col md:flex-row items-center gap-16">
-        {/* Lado Esquerdo: Foto com Borda Deslocada */}
-        <div className="w-full md:w-1/2 animate-fade-in-up">
-          <div className="relative">
-            <div className="absolute -bottom-6 -right-6 w-full h-full border-2 border-[#d9a5b3] rounded-2xl"></div>
-            <div className="relative rounded-2xl overflow-hidden aspect-[4/5] bg-[#fbf1f2] shadow-xl">
-              <Image 
-                alt="Founder" 
-                className="relative rounded-2xl w-full h-full object-cover object-center" 
-                src="/images/founder_photo.png"
-                fill
-                sizes="(max-w-md) 100vw, 500px"
-              />
+      <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
+        
+        {/* Left Side: Images of the Founder */}
+        <div className="w-full lg:w-1/2 flex justify-center">
+          <div className="relative w-full max-w-[450px] aspect-[4/5] bg-[#fbf1f2] rounded-3xl overflow-hidden shadow-xl border-4 border-white shadow-[#7d525f]/10">
+            
+            {/* Smooth transition between images (Ken Burns effect) */}
+            <div className="absolute inset-0 select-none pointer-events-none overflow-hidden">
+              {SCENES.map((scene, idx) => (
+                <div 
+                  key={idx}
+                  className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+                    idx === currentScene ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                  }`}
+                >
+                  <Image 
+                    alt={`Dra. Jamily Guimarães - Foto ${idx + 1}`} 
+                    className={`relative w-full h-full object-cover object-center transition-transform duration-[5200ms] ease-out ${
+                      idx === currentScene ? 'scale-110' : 'scale-100'
+                    }`}
+                    src={scene.image}
+                    fill
+                    priority={idx === 0}
+                    sizes="(max-w-md) 100vw, 500px"
+                  />
+                </div>
+              ))}
             </div>
+
+            {/* Subtle light/color glow effects */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-[#d9a5b3]/10 rounded-full blur-[60px] -mr-16 -mt-16 pointer-events-none z-20" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#c97d95]/10 rounded-full blur-[50px] -ml-12 -mb-12 pointer-events-none z-20" />
           </div>
         </div>
 
-        {/* Lado Direito: Storytelling */}
-        <div className="w-full md:w-1/2 space-y-6 animate-fade-in-up">
-          <span className="text-[#8c4a60] font-semibold tracking-widest uppercase text-sm font-sans block">
-            Nossa Missão
-          </span>
-          <h2 className="font-playfair-display text-3xl md:text-[32px] font-bold text-[#7d525f] leading-[1.3]">
-            Tecnologia com Alma Feminina
-          </h2>
-          <blockquote className="text-2xl font-playfair-display italic text-[#504446] leading-relaxed">
-            "Criei o Agenda Inteligente para ajudar clínicas e consultórios a trabalharem com mais organização, menos estresse e mais faturamento."
-          </blockquote>
-          <div>
-            <p className="font-bold text-lg text-[#7d525f] font-sans">Dra. Jamily Martins</p>
-            <p className="text-[#504446] text-sm font-sans">Fundadora &amp; CEO</p>
+        {/* Right Side: Storytelling & Corporate Message */}
+        <div className="w-full lg:w-1/2 flex flex-col justify-center min-h-[350px] space-y-6">
+          <div className="space-y-2">
+            <span className="text-[#8c4a60] font-semibold tracking-widest uppercase text-xs font-sans block">
+              Conheça a Fundadora
+            </span>
+            <h2 className="font-playfair-display text-3xl md:text-4xl font-bold text-[#7d525f] leading-tight tracking-tight">
+              Dra. Jamily Guimarães
+            </h2>
+            <p className="text-[#504446]/60 text-xs font-black uppercase tracking-widest mt-0.5">
+              Fundadora &amp; CEO
+            </p>
           </div>
           
-          <div className="flex gap-4">
+          {/* Dynamic narrative text corresponding to the active image, animating on change */}
+          <div 
+            key={currentScene} 
+            className="space-y-4 animate-fade-in min-h-[140px] flex flex-col justify-center"
+          >
+            <blockquote className="font-playfair-display text-xl md:text-2xl lg:text-3xl italic text-[#504446] leading-relaxed relative pl-5 border-l-4 border-[#d9a5b3]">
+              "{activeScene.text}"
+            </blockquote>
+            {activeScene.subText && (
+              <p className="text-[#504446]/75 text-sm md:text-base font-normal leading-relaxed pl-5 font-sans">
+                {activeScene.subText}
+              </p>
+            )}
+          </div>
+
+          {/* Simple dot indicator in sync with the current slide */}
+          <div className="flex items-center gap-2 pt-2">
+            {SCENES.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => setCurrentScene(idx)}
+                className={`h-2.5 rounded-full transition-all duration-300 ${
+                  idx === currentScene ? 'w-8 bg-[#8c4a60]' : 'w-2.5 bg-[#eae0e1]'
+                }`}
+                aria-label={`Ir para o slide ${idx + 1}`}
+              />
+            ))}
+          </div>
+
+          <div className="pt-6 border-t border-[#d4c2c5]/20 flex flex-wrap gap-4">
             <a 
-              className="w-10 h-10 rounded-full bg-[#eae0e1] flex items-center justify-center text-[#7d525f] hover:bg-[#7d525f] hover:text-white transition-colors duration-300 cursor-pointer" 
-              href="#"
+              className="w-10 h-10 rounded-full bg-[#eae0e1] flex items-center justify-center text-[#7d525f] hover:bg-[#7d525f] hover:text-white transition-colors duration-300 cursor-pointer shadow-sm" 
+              href="https://instagram.com"
+              target="_blank"
+              rel="noopener noreferrer"
               aria-label="Instagram"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -48,8 +144,10 @@ export function FounderSection() {
               </svg>
             </a>
             <a 
-              className="w-10 h-10 rounded-full bg-[#eae0e1] flex items-center justify-center text-[#7d525f] hover:bg-[#7d525f] hover:text-white transition-colors duration-300 cursor-pointer" 
-              href="#"
+              className="w-10 h-10 rounded-full bg-[#eae0e1] flex items-center justify-center text-[#7d525f] hover:bg-[#7d525f] hover:text-white transition-colors duration-300 cursor-pointer shadow-sm" 
+              href="https://linkedin.com"
+              target="_blank"
+              rel="noopener noreferrer"
               aria-label="LinkedIn"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -58,6 +156,7 @@ export function FounderSection() {
             </a>
           </div>
         </div>
+        
       </div>
     </section>
   );

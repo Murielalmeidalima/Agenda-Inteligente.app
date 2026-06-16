@@ -7,6 +7,7 @@ import { PostgrestError } from '@supabase/supabase-js';
 
 interface ProfileContextType {
   profile: Profile | null;
+  subscription: any | null;
   loading: boolean;
   error: any | null;
   refreshProfile: () => Promise<void>;
@@ -17,6 +18,7 @@ const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
 
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [subscription, setSubscription] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any | null>(null);
   const supabase = createBrowserClient();
@@ -30,6 +32,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
       if (!user) {
         setProfile(null);
+        setSubscription(null);
         return;
       }
       userId = user.id;
@@ -42,6 +45,25 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
       if (fetchError) throw fetchError;
       setProfile(data);
+
+      // Buscar assinatura mais recente da clínica
+      if (data?.company_id) {
+        const { data: subData, error: subError } = await supabase
+          .from('subscriptions')
+          .select('*, plan:plans(*)')
+          .eq('company_id', data.company_id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (subError) {
+          console.error('[ProfileProvider] Erro ao carregar assinatura:', subError);
+        } else {
+          setSubscription(subData || null);
+        }
+      } else {
+        setSubscription(null);
+      }
     } catch (err) {
       const pgError = err as PostgrestError;
       
@@ -110,6 +132,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     <ProfileContext.Provider 
       value={{ 
         profile, 
+        subscription,
         loading, 
         error, 
         refreshProfile: fetchProfile,

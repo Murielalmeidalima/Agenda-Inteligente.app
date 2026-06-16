@@ -59,7 +59,15 @@ export default function InventoryPage() {
       setProducts(data || []);
     } catch (err: any) {
       if (err.message?.includes('AbortError') || err.name === 'AbortError') return;
-      console.error('Error fetching inventory:', JSON.stringify(err, null, 2));
+      console.error('Error fetching inventory:', err.message || err);
+      if (err && typeof err === 'object') {
+        console.error('Error Details:', {
+          message: err.message,
+          code: err.code,
+          details: err.details,
+          hint: err.hint
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -118,9 +126,17 @@ export default function InventoryPage() {
 
       // Re-fetch para garantir sincronia total com o servidor
       await fetchProducts();
-    } catch (err) {
-      console.error('Error recording transaction:', JSON.stringify(err, null, 2));
-      alert('Falha ao registrar movimentação no servidor. Revertendo alteração local...');
+    } catch (err: any) {
+      console.error('Error recording transaction:', err.message || err);
+      if (err && typeof err === 'object') {
+        console.error('Error Details:', {
+          message: err.message,
+          code: err.code,
+          details: err.details,
+          hint: err.hint
+        });
+      }
+      alert(`Falha ao registrar movimentação: ${err.message || 'Erro no servidor'}`);
       fetchProducts(); // Reverte para o estado do servidor
     }
   }
@@ -155,8 +171,16 @@ export default function InventoryPage() {
       fetchProducts();
       alert("Produto cadastrado com sucesso!");
     } catch (err: any) {
-      console.error('Error creating product:', err);
-      alert(`Erro ao cadastrar produto: ${err.message || 'Verifique o console'}`);
+      console.error('Error creating product:', err.message || err);
+      if (err && typeof err === 'object') {
+        console.error('Error Details:', {
+          message: err.message,
+          code: err.code,
+          details: err.details,
+          hint: err.hint
+        });
+      }
+      alert(`Erro ao cadastrar produto: ${err.message || err.details || 'Verifique o console'}`);
     }
   }
 

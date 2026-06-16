@@ -186,13 +186,13 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-12">
       {/* Header com Branding */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 bg-gradient-to-br from-slate-900 to-slate-800 p-10 rounded-[2.5rem] shadow-2xl shadow-slate-900/20 relative overflow-hidden group">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 bg-gradient-to-br from-[#FAF8F5] via-[#EFE5D3] to-[#DFD0B8] p-10 rounded-[2.5rem] shadow-xl border border-[#E5DBC7] shadow-slate-200/50 relative overflow-hidden group">
         {/* Decorative elements */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-[#D4AF37]/20 rounded-full blur-[100px] -mr-32 -mt-32 transition-all duration-700 group-hover:bg-[#D4AF37]/30" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-[80px] -ml-32 -mb-32" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[#D4AF37]/15 rounded-full blur-[80px] -mr-32 -mt-32 transition-all duration-700 group-hover:bg-[#D4AF37]/25" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/40 rounded-full blur-[60px] -ml-32 -mb-32" />
         
         <div className="flex items-center gap-8 relative z-10">
-          <div className="relative z-10 flex items-center justify-center p-1 bg-white/10 rounded-[2rem] backdrop-blur-md border border-white/20">
+          <div className="relative z-10 flex items-center justify-center p-1 bg-white/40 rounded-[2rem] backdrop-blur-md border border-white/60 shadow-sm">
             <LogoImage 
               size={64} 
               src={companyData?.logo_url} 
@@ -200,11 +200,11 @@ export default async function DashboardPage() {
             />
           </div>
           <div>
-            <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight font-serif mb-2">
+            <h2 className="text-3xl md:text-4xl font-black text-[#2C2825] tracking-tight font-serif mb-2">
               Bom dia, {profile?.role === 'admin' ? 'Gestor' : 'Profissional'}
             </h2>
-            <p className="text-slate-300 font-medium flex items-center gap-2 text-sm uppercase tracking-widest">
-              <CalendarCheck2 className="w-4 h-4 text-[#D4AF37]" />
+            <p className="text-[#6A645C] font-semibold flex items-center gap-2 text-sm uppercase tracking-widest">
+              <CalendarCheck2 className="w-4 h-4 text-[#B89855]" />
               Resumo de {format(today, "EEEE, d 'de' MMMM", { locale: ptBR })}
             </p>
           </div>

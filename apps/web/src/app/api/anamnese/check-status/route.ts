@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-// Client moved inside handler
+import { createServerClient } from '@/lib/auth';
 
 // Endpoint chamado ao tentar marcar como realizado
 export async function POST(request: NextRequest) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  const supabase = createServerClient();
   try {
     const { appointment_id } = await request.json();
 
@@ -27,20 +22,23 @@ export async function POST(request: NextRequest) {
     if (appError || !appointment) throw new Error('Agendamento não encontrado');
 
     // 2. Se não exige anamnese, libera
-    if (!appointment.procedures.requires_anamnese) {
+    const procedures = Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures;
+    if (!procedures || !procedures.requires_anamnese) {
         return NextResponse.json({ allow: true });
     }
 
     // 3. Se exige, verificar se há resposta válida para este cliente no prazo
     const { data: latestResponse, error: respError } = await supabase
       .from('anamnese_responses')
-      .select('status, created_at, anamnese_templates(validity_months)')
+      .select('status, created_at, anamnese_templates(validity_value, validity_unit)')
       .eq('client_id', appointment.client_id)
-      .eq('template_id', appointment.procedures.anamnese_template_id)
+      .eq('template_id', procedures.anamnese_template_id)
       .in('status', ['completed_client', 'completed_internal'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (respError) throw respError;
 
     if (latestResponse) {
       const anamneseTemplates = latestResponse.anamnese_templates as any;
@@ -70,6 +68,6 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Anamnese Check Error:', error);
-    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Erro interno' }, { status: 500 });
   }
 }

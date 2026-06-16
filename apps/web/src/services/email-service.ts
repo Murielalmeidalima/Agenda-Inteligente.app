@@ -1,11 +1,20 @@
 import nodemailer from 'nodemailer';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Supabase Admin for logging (bypassing RLS)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+let supabaseAdminInstance: SupabaseClient | null = null;
+
+function getSupabaseAdmin() {
+  if (!supabaseAdminInstance) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) {
+      throw new Error('Supabase URL and Service Role Key are required for email operations.');
+    }
+    supabaseAdminInstance = createClient(url, key);
+  }
+  return supabaseAdminInstance;
+}
 
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
@@ -18,6 +27,7 @@ const transporter = nodemailer.createTransport({
 });
 
 async function logEmail(appointmentId: string | undefined, companyId: string, recipient: string, type: string, status: 'sent' | 'failed', error?: any) {
+    const supabaseAdmin = getSupabaseAdmin();
     await supabaseAdmin.from('email_logs').insert({
         appointment_id: appointmentId,
         company_id: companyId,

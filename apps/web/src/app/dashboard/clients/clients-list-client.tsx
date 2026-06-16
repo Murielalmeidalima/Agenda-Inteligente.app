@@ -81,11 +81,11 @@ export default function ClientsListClient({ initialClients, companyId }: Clients
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-[2rem] shadow-xl shadow-slate-900/10 relative overflow-hidden group">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-[#D4AF37]/20 rounded-full blur-3xl -mr-32 -mt-32 transition-colors group-hover:bg-[#D4AF37]/30" />
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gradient-to-br from-[#FAF8F5] via-[#EFE5D3] to-[#DFD0B8] p-8 rounded-[2rem] shadow-lg border border-[#E5DBC7] shadow-slate-200/50 relative overflow-hidden group">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[#D4AF37]/15 rounded-full blur-3xl -mr-32 -mt-32 transition-colors group-hover:bg-[#D4AF37]/25" />
         <div className="relative z-10">
-          <h1 className="text-3xl font-black text-white tracking-tight font-serif">Clientes</h1>
-          <p className="text-slate-300 mt-1 font-medium text-sm uppercase tracking-widest">
+          <h1 className="text-3xl font-black text-[#2C2825] tracking-tight font-serif">Clientes</h1>
+          <p className="text-[#6A645C] mt-1 font-semibold text-sm uppercase tracking-widest">
             Gerencie e encante seus pacientes
           </p>
         </div>

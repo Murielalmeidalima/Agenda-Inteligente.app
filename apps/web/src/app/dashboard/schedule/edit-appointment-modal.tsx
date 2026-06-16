@@ -87,9 +87,13 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointment_id: appointment.id })
       });
-      const data = await res.json();
+      
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch (_) {}
 
-      if (!res.ok) throw new Error(data.error || 'Erro ao enviar');
+      if (!res.ok) throw new Error(data.error || `Erro do servidor (${res.status})`);
 
       toast.success('Link enviado!', {
         description: 'Prévia: ' + data.message_preview,
@@ -113,7 +117,13 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
            headers: { 'Content-Type': 'application/json' },
            body: JSON.stringify({ appointment_id: appointment.id })
         });
-        const data = await res.json();
+        
+        let data: any = {};
+        try {
+          data = await res.json();
+        } catch (_) {}
+
+        if (!res.ok) throw new Error(data.error || `Erro do servidor (${res.status})`);
 
         if (data.allow === false) { 
           toast.error('Bloqueado: Anamnese Obrigatória Pendente', {
@@ -126,9 +136,9 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
           });
           return;
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Erro ao verificar anamnese:', error);
-        toast.error('Erro ao verificar requisitos de anamnese');
+        toast.error('Erro ao verificar requisitos de anamnese: ' + error.message);
         return;
       } finally {
         setCheckingAnamnese(false);
