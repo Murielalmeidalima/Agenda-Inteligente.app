@@ -3,36 +3,130 @@
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@/lib/supabase-browser';
-import { Button, Input, Badge } from '@projeto/ui';
+import { Button, Input } from '@projeto/ui';
 import Link from 'next/link';
-import { AlertCircle, CheckCircle2, ArrowRight, Building, User, Mail, Lock, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ArrowRight, Building, User, Mail, Lock, Loader2, CreditCard, ShieldCheck, MapPin, Phone, FileText } from 'lucide-react';
 import { LogoImage } from '@/components/ui/Logo';
 import { AnimatedBackground } from '@/components/auth/AnimatedBackground';
+
+// Auxiliares de formatação de máscara
+const formatCPF = (val: string) => {
+  return val
+    .replace(/\D/g, '')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+};
+
+const formatPhone = (val: string) => {
+  return val
+    .replace(/\D/g, '')
+    .replace(/(\d{2})(\d)/, '($1) $2')
+    .replace(/(\d{5})(\d)/, '$1-$2')
+    .replace(/(-\d{4})\d+?$/, '$1');
+};
+
+const formatCNPJ = (val: string) => {
+  return val
+    .replace(/\D/g, '')
+    .replace(/(\d{2})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+};
+
+const formatCEP = (val: string) => {
+  return val
+    .replace(/\D/g, '')
+    .replace(/(\d{5})(\d)/, '$1-$2')
+    .replace(/(-\d{3})\d+?$/, '$1');
+};
+
+const formatCardNumber = (val: string) => {
+  return val
+    .replace(/\D/g, '')
+    .replace(/(\d{4})(\d)/, '$1 $2')
+    .replace(/(\d{4})(\d)/, '$1 $2')
+    .replace(/(\d{4})(\d)/, '$1 $2')
+    .replace(/(\d{4})\d+?$/, '$1');
+};
+
+const formatCardExpiry = (val: string) => {
+  return val
+    .replace(/\D/g, '')
+    .replace(/(\d{2})(\d)/, '$1/$2')
+    .replace(/(\/\d{2})\d+?$/, '$1');
+};
 
 function RegisterFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedPlan = searchParams.get('plan') || 'profissional';
   
+  const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
+    // Step 1: Cadastro & Clínica
     email: '',
     password: '',
     confirmPassword: '',
     fullName: '',
     companyName: '',
+    cnpj: '',
+    cpf: '',
+    phone: '',
+    lgpdConsent: false,
+    
+    // Step 2: Faturamento
+    cardHolderName: '',
+    cardNumber: '',
+    cardExpiry: '',
+    cardCvv: '',
+    cardPostalCode: '',
+    cardAddressNumber: '',
   });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [trialAllowed, setTrialAllowed] = useState(true);
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
+  // Coleta dados anônimos para o fingerprint
+  const getDeviceDetails = () => {
+    if (typeof window === 'undefined') return { fingerprint: '', browser: 'Unknown', os: 'Unknown' };
+    
+    const ua = navigator.userAgent;
+    let browser = 'Outro';
+    let os = 'Outro';
+    
+    if (ua.includes('Firefox')) browser = 'Firefox';
+    else if (ua.includes('Chrome')) browser = 'Chrome';
+    else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari';
+    else if (ua.includes('Edge')) browser = 'Edge';
+    
+    if (ua.includes('Windows')) os = 'Windows';
+    else if (ua.includes('Macintosh')) os = 'MacOS';
+    else if (ua.includes('Linux')) os = 'Linux';
+    else if (ua.includes('Android')) os = 'Android';
+    else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+
+    const fingerprint = [
+      navigator.userAgent,
+      navigator.language,
+      window.screen.width,
+      window.screen.height,
+      new Date().getTimezoneOffset()
+    ].join('|');
+
+    return { fingerprint, browser, os };
+  };
+
+  const handleNextStep = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+    setLoading(true);
 
     if (formData.password !== formData.confirmPassword) {
       setError('As senhas não coincidem');
@@ -46,6 +140,48 @@ function RegisterFormContent() {
       return;
     }
 
+    if (!formData.lgpdConsent) {
+      setError('Você deve autorizar a utilização dos dados para prevenção de fraudes e cobrança.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Executar pré-validação antifraude no servidor
+      const { fingerprint } = getDeviceDetails();
+      const res = await fetch('/api/auth/validate-signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          cpf: formData.cpf.replace(/\D/g, ''),
+          phone: formData.phone.replace(/\D/g, ''),
+          cnpj: formData.cnpj ? formData.cnpj.replace(/\D/g, '') : null,
+          deviceFingerprint: fingerprint
+        })
+      });
+
+      const check = await res.json();
+      if (!res.ok) {
+        throw new Error(check.error || 'Erro ao validar dados.');
+      }
+
+      setTrialAllowed(check.trialAllowed);
+      
+      // Prossegue para a etapa do cartão
+      setStep(2);
+    } catch (err: any) {
+      setError(err.message || 'Ocorreu um erro ao validar seus dados de cadastro.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
     try {
       const supabase = createBrowserClient();
       let userId: string;
@@ -58,7 +194,7 @@ function RegisterFormContent() {
 
       if (signUpError) {
         if (signUpError.message?.includes('already registered') || signUpError.message?.includes('already been registered')) {
-          console.log('[REGISTER] Usuário já existe, tentando completar cadastro...');
+          console.log('[REGISTER] Usuário já existe, tentando autenticar...');
           const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email: formData.email,
             password: formData.password,
@@ -70,28 +206,22 @@ function RegisterFormContent() {
           }
           userId = signInData.user!.id;
         } else {
-          setError('Erro ao criar conta: ' + signUpError.message);
+          setError('Erro ao criar conta de autenticação: ' + signUpError.message);
           setLoading(false);
           return;
         }
       } else {
         if (!authData.user) {
-          setError('Erro ao criar usuário. Tente novamente.');
+          setError('Erro ao criar usuário de autenticação. Tente novamente.');
           setLoading(false);
           return;
         }
         userId = authData.user.id;
-
-        // --- Etapa 1.1: Salvar Logs de Consentimento (LGPD) ---
-        await supabase.from('consent_logs').insert([
-          { user_id: userId, document_type: 'TERMS_OF_USE', version: '1.0' },
-          { user_id: userId, document_type: 'PRIVACY_POLICY', version: '1.0' }
-        ]);
       }
 
+      // ─── Etapa 2: Configurar o Tenant, Asaas e Antifraude ─────────────────
+      const { fingerprint, browser, os } = getDeviceDetails();
 
-
-      // ─── Etapa 5: Setup SaaS (Trial & Auto-Approve & Asaas) ──────────────────────
       const setupRes = await fetch('/api/auth/setup-tenant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -99,32 +229,39 @@ function RegisterFormContent() {
           companyName: formData.companyName,
           fullName: formData.fullName,
           email: formData.email,
-          plan: selectedPlan
+          plan: selectedPlan,
+          cnpj: formData.cnpj || null,
+          cpf: formData.cpf,
+          phone: formData.phone,
+          deviceFingerprint: fingerprint,
+          deviceBrowser: browser,
+          deviceOs: os,
+          cardHolderName: formData.cardHolderName,
+          cardNumber: formData.cardNumber,
+          cardExpiry: formData.cardExpiry,
+          cardCvv: formData.cardCvv,
+          cardPostalCode: formData.cardPostalCode,
+          cardAddressNumber: formData.cardAddressNumber
         })
       });
 
+      const setupData = await setupRes.json();
       if (!setupRes.ok) {
-        console.warn('[REGISTER] Falha parcial no setup do tenant (Asaas).', await setupRes.text());
-        // Mesmo falhando, cai pro dashboard
-        router.push('/dashboard');
+        setError(setupData.error || 'Falha ao registrar cartão no gateway de pagamentos. Verifique os dados do cartão.');
+        setLoading(false);
         return;
       }
 
-      const setupData = await setupRes.json();
+      console.log('[REGISTER] ✅ Cadastro completo com cartão de crédito!');
       
-      console.log('[REGISTER] ✅ Cadastro completo!');
-      
-      // Se houver Link do Asaas, redirecionar para pagar
-      if (setupData.invoiceUrl) {
+      // Se não tiver trial e houver fatura pendente, ou fallback
+      if (setupData.invoiceUrl && !setupData.trialAllowed) {
         window.location.href = setupData.invoiceUrl;
         return;
       }
 
-      // Fallback
       router.refresh();
-      setTimeout(() => {
-        router.push('/dashboard');
-      }, 1000);
+      router.push('/dashboard');
 
     } catch (err: any) {
       console.error('[REGISTER] Exceção:', err.message);
@@ -133,76 +270,49 @@ function RegisterFormContent() {
     }
   };
 
-  if (success) {
-    return (
-      <AnimatedBackground>
-        <div className="bg-white/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-white/40 overflow-hidden relative max-w-md w-full p-10 text-center">
-             <div className="absolute top-0 right-0 w-32 h-32 bg-[#D4AF37]/10 rounded-bl-[100px] pointer-events-none" />
-             <div className="absolute bottom-0 left-0 w-32 h-32 bg-[#D4AF37]/5 rounded-tr-[100px] pointer-events-none" />
-             
-             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 shadow-inner mb-6 relative z-10">
-               <CheckCircle2 className="h-10 w-10 animate-bounce" />
-             </div>
-             
-             <h1 className="text-2xl font-bold font-serif mb-4 text-[#2C2825]">Solicitação enviada</h1>
-             <p className="text-[#5C5855] leading-relaxed mb-8 text-sm">
-               Sua conta foi criada e está <strong>pendente de aprovação</strong> pelo administrador.
-               <br/><br/>
-               Você receberá um e-mail com instruções assim que seu acesso for liberado.
-             </p>
-             
-             <Button 
-               onClick={() => router.push('/auth/login')}
-               className="w-full h-12 bg-gradient-to-r from-[#2C2825] to-[#403c39] hover:from-black hover:to-[#2C2825] text-white font-bold rounded-xl shadow-lg transform hover:-translate-y-0.5 transition-all relative z-10"
-             >
-               Voltar ao Login
-             </Button>
-        </div>
-      </AnimatedBackground>
-    );
-  }
-
   return (
     <AnimatedBackground>
-       {/* Glassmorphism Card */}
        <div className="bg-white/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-white/40 overflow-hidden relative w-full max-w-xl mx-4">
-          
-          {/* Decorative Elements */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-[#D4AF37]/10 rounded-bl-[100px] pointer-events-none" />
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-[#D4AF37]/5 rounded-tr-[100px] pointer-events-none" />
 
           <div className="px-8 sm:px-12 py-10 relative z-10">
-            <div className="mb-8 text-center">
-              <div className="flex justify-center mb-6">
+            <div className="mb-6 text-center">
+              <div className="flex justify-center mb-4">
                  <div className="bg-white p-3 rounded-2xl shadow-lg border border-[#F0EBE0]/50">
                     <LogoImage size={56} />
                  </div>
               </div>
               
-              <h1 className="text-2xl font-bold tracking-tight text-[#2C2825] mb-2 font-serif">Crie sua conta</h1>
-              <p className="text-[#5C5855] text-sm leading-relaxed">
-                Faça seu primeiro acesso para gerenciar sua clínica.
+              <h1 className="text-2xl font-bold tracking-tight text-[#2C2825] mb-2 font-serif">
+                {step === 1 ? 'Crie sua conta' : 'Método de Pagamento'}
+              </h1>
+              <p className="text-[#5C5855] text-xs leading-relaxed max-w-xs mx-auto">
+                {step === 1 
+                  ? 'Preencha os dados profissionais para iniciar seu teste gratuito.' 
+                  : 'Insira as informações do cartão para ativar sua assinatura.'}
               </p>
             </div>
 
-            <form className="space-y-4" onSubmit={handleRegister}>
-              {error && (
-                <div className="flex items-center gap-3 rounded-xl bg-red-50/90 border border-red-100 p-3 text-xs text-red-600 animate-shake shadow-sm">
-                  <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
-                  <span className="font-medium">{error}</span>
-                </div>
-              )}
-              
-              <div className="space-y-3">
-                 {/* Nome e Empresa */}
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {error && (
+              <div className="mb-4 flex items-center gap-3 rounded-xl bg-red-50/90 border border-red-100 p-3 text-xs text-red-600 animate-shake shadow-sm">
+                <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+                <span className="font-medium">{error}</span>
+              </div>
+            )}
+
+            {/* ─── PASSO 1: DADOS CADASTRAIS ─────────────────────────────────── */}
+            {step === 1 && (
+              <form className="space-y-4" onSubmit={handleNextStep}>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1 group">
                       <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1 group-focus-within:text-[#D4AF37] transition-colors">Nome da Clínica</label>
                       <div className="relative">
                         <Building className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8A49D] group-focus-within:text-[#D4AF37] transition-colors duration-300" />
                         <Input
-                          placeholder="Ex: Clínica Saúde"
-                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300 shadow-sm hover:bg-white/80"
+                          placeholder="Ex: Clínica Odonto"
+                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300"
                           required
                           value={formData.companyName}
                           onChange={(e) => handleChange('companyName', e.target.value)}
@@ -210,14 +320,30 @@ function RegisterFormContent() {
                         />
                       </div>
                     </div>
-                    
+
                     <div className="space-y-1 group">
-                      <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1 group-focus-within:text-[#D4AF37] transition-colors">Seu Nome</label>
+                      <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1 group-focus-within:text-[#D4AF37] transition-colors">CNPJ (Opcional)</label>
+                      <div className="relative">
+                        <FileText className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8A49D] group-focus-within:text-[#D4AF37] transition-colors duration-300" />
+                        <Input
+                          placeholder="00.000.000/0000-00"
+                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300"
+                          value={formData.cnpj}
+                          onChange={(e) => handleChange('cnpj', formatCNPJ(e.target.value))}
+                          disabled={loading}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1 group">
+                      <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1 group-focus-within:text-[#D4AF37] transition-colors">Nome Completo</label>
                       <div className="relative">
                         <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8A49D] group-focus-within:text-[#D4AF37] transition-colors duration-300" />
                         <Input
-                          placeholder="Ex: Dr. Silva"
-                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300 shadow-sm hover:bg-white/80"
+                          placeholder="Seu nome"
+                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300"
                           required
                           value={formData.fullName}
                           onChange={(e) => handleChange('fullName', e.target.value)}
@@ -225,27 +351,57 @@ function RegisterFormContent() {
                         />
                       </div>
                     </div>
-                 </div>
 
-                 {/* Email */}
-                 <div className="space-y-1 group">
-                   <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1 group-focus-within:text-[#D4AF37] transition-colors">E-mail Corporativo</label>
-                   <div className="relative">
-                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8A49D] group-focus-within:text-[#D4AF37] transition-colors duration-300" />
-                     <Input
-                       type="email"
-                       placeholder="seu@email.com"
-                       className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300 shadow-sm hover:bg-white/80"
-                       required
-                       value={formData.email}
-                       onChange={(e) => handleChange('email', e.target.value)}
-                       disabled={loading}
-                     />
-                   </div>
-                 </div>
+                    <div className="space-y-1 group">
+                      <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1 group-focus-within:text-[#D4AF37] transition-colors">CPF</label>
+                      <div className="relative">
+                        <FileText className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8A49D] group-focus-within:text-[#D4AF37] transition-colors duration-300" />
+                        <Input
+                          placeholder="000.000.000-00"
+                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300"
+                          required
+                          value={formData.cpf}
+                          onChange={(e) => handleChange('cpf', formatCPF(e.target.value))}
+                          disabled={loading}
+                        />
+                      </div>
+                    </div>
+                  </div>
 
-                 {/* Senhas */}
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1 group">
+                      <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1 group-focus-within:text-[#D4AF37] transition-colors">E-mail</label>
+                      <div className="relative">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8A49D] group-focus-within:text-[#D4AF37] transition-colors duration-300" />
+                        <Input
+                          type="email"
+                          placeholder="seu@email.com"
+                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300"
+                          required
+                          value={formData.email}
+                          onChange={(e) => handleChange('email', e.target.value)}
+                          disabled={loading}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 group">
+                      <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1 group-focus-within:text-[#D4AF37] transition-colors">Telefone</label>
+                      <div className="relative">
+                        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8A49D] group-focus-within:text-[#D4AF37] transition-colors duration-300" />
+                        <Input
+                          placeholder="(00) 00000-0000"
+                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300"
+                          required
+                          value={formData.phone}
+                          onChange={(e) => handleChange('phone', formatPhone(e.target.value))}
+                          disabled={loading}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1 group">
                       <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1 group-focus-within:text-[#D4AF37] transition-colors">Senha</label>
                       <div className="relative">
@@ -253,7 +409,7 @@ function RegisterFormContent() {
                         <Input
                           type="password"
                           placeholder="••••••"
-                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300 shadow-sm hover:bg-white/80"
+                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300"
                           required
                           value={formData.password}
                           onChange={(e) => handleChange('password', e.target.value)}
@@ -261,15 +417,15 @@ function RegisterFormContent() {
                         />
                       </div>
                     </div>
-                    
+
                     <div className="space-y-1 group">
-                      <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1 group-focus-within:text-[#D4AF37] transition-colors">Confirmar</label>
+                      <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1 group-focus-within:text-[#D4AF37] transition-colors">Confirmar Senha</label>
                       <div className="relative">
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8A49D] group-focus-within:text-[#D4AF37] transition-colors duration-300" />
                         <Input
                           type="password"
                           placeholder="••••••"
-                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300 shadow-sm hover:bg-white/80"
+                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10 h-11 pl-10 text-sm text-[#2C2825] placeholder:text-[#A8A49D] rounded-xl transition-all duration-300"
                           required
                           value={formData.confirmPassword}
                           onChange={(e) => handleChange('confirmPassword', e.target.value)}
@@ -277,56 +433,187 @@ function RegisterFormContent() {
                         />
                       </div>
                     </div>
-                 </div>
-              </div>
+                  </div>
+                </div>
 
-              {/* Checkboxes LGPD */}
-              <div className="space-y-3 pt-2">
-                 <label className="flex items-start gap-3 p-3 rounded-xl border border-[#E5E0D8] bg-[#FAF9F6] cursor-pointer hover:border-[#D4AF37]/50 transition-colors">
-                    <div className="flex items-center h-5">
-                       <input 
-                         type="checkbox" 
-                         required 
-                         className="w-4 h-4 rounded border-gray-300 text-[#D4AF37] focus:ring-[#D4AF37]" 
-                       />
-                    </div>
-                    <div className="text-xs text-[#5C5855] leading-relaxed">
-                       Eu li e concordo com os <Link href="/termos-de-uso" target="_blank" className="font-bold text-[#D4AF37] hover:underline">Termos de Uso</Link> da plataforma Agenda Inteligente.
-                    </div>
-                 </label>
+                {/* Aceite LGPD */}
+                <div className="pt-2">
+                  <label className="flex items-start gap-3 p-3 rounded-xl border border-[#E5E0D8] bg-[#FAF9F6] cursor-pointer hover:border-[#D4AF37]/50 transition-colors">
+                     <div className="flex items-center h-5">
+                        <input 
+                          type="checkbox" 
+                          required 
+                          checked={formData.lgpdConsent}
+                          onChange={(e) => handleChange('lgpdConsent', e.target.checked)}
+                          className="w-4 h-4 rounded border-gray-300 text-[#D4AF37] focus:ring-[#D4AF37]" 
+                        />
+                     </div>
+                     <div className="text-xs text-[#5C5855] leading-relaxed">
+                       Autorizo a utilização dos meus dados para criação da conta, prevenção de fraude e cobrança da assinatura. Concedo este aceite sob os termos da <Link href="/politica-de-privacidade" target="_blank" className="font-bold text-[#D4AF37] hover:underline">Política de Privacidade</Link>.
+                     </div>
+                  </label>
+                </div>
 
-                 <label className="flex items-start gap-3 p-3 rounded-xl border border-[#E5E0D8] bg-[#FAF9F6] cursor-pointer hover:border-[#D4AF37]/50 transition-colors">
-                    <div className="flex items-center h-5">
-                       <input 
-                         type="checkbox" 
-                         required 
-                         className="w-4 h-4 rounded border-gray-300 text-[#D4AF37] focus:ring-[#D4AF37]" 
-                       />
-                    </div>
-                    <div className="text-xs text-[#5C5855] leading-relaxed">
-                       Eu li e concordo com a <Link href="/politica-de-privacidade" target="_blank" className="font-bold text-[#D4AF37] hover:underline">Política de Privacidade</Link> e autorizo o tratamento dos meus dados.
-                    </div>
-                 </label>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full h-12 mt-4 bg-gradient-to-r from-[#2C2825] to-[#403c39] hover:from-black hover:to-[#2C2825] text-white font-bold text-base rounded-xl shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
-                loading={loading}
-                disabled={loading}
-              >
-                {loading ? (
-                   <span className="flex items-center gap-2">
+                <Button
+                  type="submit"
+                  className="w-full h-12 mt-4 bg-gradient-to-r from-[#2C2825] to-[#403c39] hover:from-black hover:to-[#2C2825] text-white font-bold text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 group"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Criando conta...
-                   </span>
+                      Validando cadastro...
+                    </>
+                  ) : (
+                    <>
+                      Avançar para Pagamento
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
+                </Button>
+              </form>
+            )}
+
+            {/* ─── PASSO 2: MÉTODO DE PAGAMENTO ──────────────────────────────── */}
+            {step === 2 && (
+              <form className="space-y-4" onSubmit={handleRegister}>
+                
+                {/* Alerta de Trial Liberado ou Bloqueado */}
+                {trialAllowed ? (
+                  <div className="flex items-start gap-3 rounded-xl bg-amber-50 border border-amber-200 p-4 text-xs text-amber-900 shadow-sm leading-relaxed">
+                    <ShieldCheck className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
+                    <div>
+                      <strong className="block font-bold mb-0.5">Teste Grátis por 7 dias Ativado!</strong>
+                      Nenhum valor será debitado hoje. Seu cartão será verificado pelo Asaas e a cobrança automática iniciará após o período de teste de 7 dias caso decida continuar.
+                    </div>
+                  </div>
                 ) : (
-                   <span className="flex items-center gap-2">
-                      Criar minha conta profissional
-                   </span>
+                  <div className="flex items-start gap-3 rounded-xl bg-red-50 border border-red-100 p-4 text-xs text-red-950 shadow-sm leading-relaxed">
+                    <AlertCircle className="h-5 w-5 shrink-0 text-red-600 mt-0.5" />
+                    <div>
+                      <strong className="block font-bold mb-0.5">Teste Gratuito Indisponível</strong>
+                      Identificamos que estes dados (CPF/Dispositivo/IP) já utilizaram o período de testes grátis anteriormente. Você pode prosseguir normalmente contratando a assinatura paga hoje.
+                    </div>
+                  </div>
                 )}
-              </Button>
-            </form>
+
+                <div className="space-y-3">
+                  {/* Cartão de Crédito */}
+                  <div className="space-y-1 group">
+                    <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1">Nome no Cartão</label>
+                    <div className="relative">
+                      <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8A49D]" />
+                      <Input
+                        placeholder="NOME DO TITULAR"
+                        className="bg-white/60 border-white/50 focus:border-[#D4AF37] h-11 pl-10 text-sm text-[#2C2825] uppercase"
+                        required
+                        value={formData.cardHolderName}
+                        onChange={(e) => handleChange('cardHolderName', e.target.value.toUpperCase())}
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 group">
+                    <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1">Número do Cartão</label>
+                    <div className="relative">
+                      <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8A49D]" />
+                      <Input
+                        placeholder="0000 0000 0000 0000"
+                        className="bg-white/60 border-white/50 focus:border-[#D4AF37] h-11 pl-10 text-sm text-[#2C2825]"
+                        required
+                        value={formData.cardNumber}
+                        onChange={(e) => handleChange('cardNumber', formatCardNumber(e.target.value))}
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1 group">
+                      <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1">Validade</label>
+                      <Input
+                        placeholder="MM/AA"
+                        className="bg-white/60 border-white/50 focus:border-[#D4AF37] h-11 text-sm text-[#2C2825] text-center"
+                        required
+                        value={formData.cardExpiry}
+                        onChange={(e) => handleChange('cardExpiry', formatCardExpiry(e.target.value))}
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div className="space-y-1 group">
+                      <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1">CVV</label>
+                      <Input
+                        placeholder="123"
+                        maxLength={4}
+                        className="bg-white/60 border-white/50 focus:border-[#D4AF37] h-11 text-sm text-[#2C2825] text-center"
+                        required
+                        value={formData.cardCvv}
+                        onChange={(e) => handleChange('cardCvv', e.target.value.replace(/\D/g, ''))}
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1 group">
+                      <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1">CEP de Cobrança</label>
+                      <div className="relative">
+                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8A49D]" />
+                        <Input
+                          placeholder="00000-000"
+                          className="bg-white/60 border-white/50 focus:border-[#D4AF37] h-11 pl-10 text-sm text-[#2C2825]"
+                          required
+                          value={formData.cardPostalCode}
+                          onChange={(e) => handleChange('cardPostalCode', formatCEP(e.target.value))}
+                          disabled={loading}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 group">
+                      <label className="text-[10px] font-bold text-[#8A847C] uppercase tracking-widest pl-1">Nº do Endereço</label>
+                      <Input
+                        placeholder="Ex: 123"
+                        className="bg-white/60 border-white/50 focus:border-[#D4AF37] h-11 text-sm text-[#2C2825] text-center"
+                        required
+                        value={formData.cardAddressNumber}
+                        onChange={(e) => handleChange('cardAddressNumber', e.target.value)}
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="w-1/3 h-12 border border-[#E5E0D8] text-[#5C5855] font-bold text-xs rounded-xl hover:bg-gray-50 transition-all"
+                    disabled={loading}
+                  >
+                    Voltar
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="w-2/3 h-12 bg-gradient-to-r from-[#2C2825] to-[#403c39] hover:from-black hover:to-[#2C2825] text-white font-bold text-sm rounded-xl shadow-lg flex items-center justify-center gap-2"
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Finalizando cadastro...
+                      </>
+                    ) : (
+                      <>
+                        Finalizar e Acessar
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            )}
             
             <div className="mt-8 pt-6 border-t border-[#E5E0D8]/50 flex flex-col items-center gap-4">
                <p className="text-[#8A847C] text-xs">

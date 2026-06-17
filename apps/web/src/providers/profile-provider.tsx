@@ -23,11 +23,14 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<any | null>(null);
   const supabase = createBrowserClient();
 
-  const fetchProfile = async () => {
+  const fetchProfile = async (silent = false) => {
     let userId: string | undefined;
 
     try {
-      setLoading(true);
+      // Só exibe o estado de loading se ainda não tivermos os dados ou se não for um carregamento silencioso
+      if (!silent && !profile) {
+        setLoading(true);
+      }
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
@@ -75,14 +78,12 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Handle AbortError (network cancellation)
-      // Check for strictly standard AbortError OR specific Supabase/Fetch abort messages
       const isAbort = 
         (err instanceof Error && err.name === 'AbortError') ||
         (err instanceof Error && err.message?.includes('AbortError')) ||
         (typeof err === 'object' && err !== null && 'message' in err && (err as any).message?.includes('AbortError'));
 
       if (isAbort) {
-        // Request was aborted (component unmount or fast navigation), ignore.
         return;
       }
 
@@ -90,7 +91,6 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       if (pgError?.code === '42P01') {
         console.error('CRITICAL: Missing table "profiles". Run database setup scripts.');
       } else {
-        // Log other unexpected errors
         const errorMessage = err instanceof Error ? err.message : JSON.stringify(err, null, 2);
         console.error('Error fetching profile for user:', userId || 'unknown', errorMessage);
       }
@@ -102,11 +102,11 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    fetchProfile();
+    fetchProfile(false); // Primeiro carregamento mostra loading
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      fetchProfile();
+      fetchProfile(true); // Atualizações de token de auth no background são silenciosas
     });
 
     return () => {
@@ -135,7 +135,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
         subscription,
         loading, 
         error, 
-        refreshProfile: fetchProfile,
+        refreshProfile: () => fetchProfile(true),
         hasPermission
       }}
     >

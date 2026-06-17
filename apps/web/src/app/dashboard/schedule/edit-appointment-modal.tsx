@@ -53,7 +53,8 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
       setStatus(appointment.status);
       setNotes(appointment.notes || '');
       
-      const procedurePrice = appointment.price_override || appointment.procedures?.price || 0;
+      const procObj = Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures;
+      const procedurePrice = appointment.price_override || procObj?.price || 0;
       setPaymentAmount(procedurePrice.toString());
 
       const fetchMedicalRecord = async () => {
@@ -241,7 +242,8 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
 
           // Lógica Financeira (Apenas na PRIMEIRA vez que é concluído)
           if (!isOriginallyCompleted && paymentStatus !== 'unpaid') {
-            const procedurePrice = Number(appointment.price_override || appointment.procedures?.price || 0);
+            const procObj = Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures;
+            const procedurePrice = Number(appointment.price_override || procObj?.price || 0);
             const paidAmount = paymentStatus === 'paid' ? procedurePrice : Number(paymentAmount.replace(',', '.'));
             
             if (paidAmount > 0) {
@@ -370,9 +372,9 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
               </div>
               <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800">
                  <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest block mb-1">Procedimento</Label>
-                 <p className="font-bold text-sm truncate text-white">{appointment.procedures?.name}</p>
+                 <p className="font-bold text-sm truncate text-white">{(Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures)?.name}</p>
                  <p className="text-emerald-400 text-xs font-black mt-1">
-                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(appointment.price_override || appointment.procedures?.price || 0)}
+                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(appointment.price_override || (Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures)?.price || 0)}
                  </p>
               </div>
            </div>

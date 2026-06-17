@@ -21,6 +21,21 @@ export interface AsaasSubscription {
   nextDueDate: string;
   cycle: 'MONTHLY' | 'YEARLY';
   description?: string;
+  creditCard?: {
+    holderName: string;
+    number: string;
+    expiryMonth: string;
+    expiryYear: string;
+    ccv: string;
+  };
+  creditCardHolderInfo?: {
+    name: string;
+    email: string;
+    cpfCnpj: string;
+    postalCode: string;
+    addressNumber: string;
+    phone: string;
+  };
 }
 
 const headers = {
