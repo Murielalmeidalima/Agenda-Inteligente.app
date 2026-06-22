@@ -18,7 +18,8 @@ import {
   ChevronRight, 
   Plus, 
   Calendar as CalendarIcon,
-  Settings2
+  Settings2,
+  Filter
 } from 'lucide-react';
 import { 
   Button, 
@@ -50,6 +51,8 @@ interface ScheduleCalendarProps {
   scheduleBlocks: any[];
   onOpenBlocks: () => void;
   blockHolidays: boolean;
+  professionals?: any[];
+  procedures?: any[];
 }
 
 // ----------------------------------------------------------------------
@@ -62,10 +65,27 @@ export default function ScheduleCalendarComponent({
   onSlotIntervalChange,
   scheduleBlocks,
   onOpenBlocks,
-  blockHolidays
+  blockHolidays,
+  professionals = [],
+  procedures = []
 }: ScheduleCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<CalendarViewType>('week');
+
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState<string>('all');
+  const [filterProfessional, setFilterProfessional] = useState<string>('all');
+  const [filterProcedure, setFilterProcedure] = useState<string>('all');
+  const [filterPaymentMethod, setFilterPaymentMethod] = useState<string>('all');
+
+  const filteredAppointments = useMemo(() => {
+    return appointments.filter((apt: any) => {
+      if (filterPaymentStatus !== 'all' && apt.paymentStatus !== filterPaymentStatus) return false;
+      if (filterProfessional !== 'all' && apt.professional_id !== filterProfessional) return false;
+      if (filterProcedure !== 'all' && apt.procedure_id !== filterProcedure) return false;
+      if (filterPaymentMethod !== 'all' && apt.paymentMethod !== filterPaymentMethod) return false;
+      return true;
+    });
+  }, [appointments, filterPaymentStatus, filterProfessional, filterProcedure, filterPaymentMethod]);
 
   const visibleDays = useMemo(() => {
     if (view === 'day') {
@@ -104,7 +124,7 @@ export default function ScheduleCalendarComponent({
         <MonthView 
           visibleDays={visibleDays} 
           currentDate={currentDate} 
-          appointments={appointments} 
+          appointments={filteredAppointments} 
           onDayClick={handleDayClick} 
           scheduleBlocks={scheduleBlocks}
           blockHolidays={blockHolidays}
@@ -116,7 +136,7 @@ export default function ScheduleCalendarComponent({
       <DayWeekView 
         view={view}
         visibleDays={visibleDays}
-        appointments={appointments}
+        appointments={filteredAppointments}
         onNewAppointment={onNewAppointment}
         onViewAppointment={onViewAppointment} 
         slotInterval={slotInterval}
@@ -130,7 +150,7 @@ export default function ScheduleCalendarComponent({
     <div className="flex flex-col h-full space-y-6 animate-fade-in group/calendar">
       {/* Calendar Header */}
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-6 text-slate-800">
            <div className="p-3 bg-[#D4AF37]/10 rounded-2xl">
               <CalendarIcon className="h-8 w-8 text-[#D4AF37]" />
            </div>
@@ -212,6 +232,107 @@ export default function ScheduleCalendarComponent({
                Novo Agendamento
             </Button>
           </div>
+        </div>
+      </div>
+
+      {/* Visual Legend & Filter Row */}
+      <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+        {/* Legend */}
+        <div className="flex flex-wrap items-center gap-3.5 bg-[#FAF9F6] border border-[#E5E0D8]/60 px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-wider text-[#5C5855] shadow-sm">
+          <span className="text-[#8A847C]">Legenda:</span>
+          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500" /> <span>Pago</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-orange-500" /> <span>Parcial</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-500" /> <span>Pendente</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500" /> <span>Antecipado</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-yellow-500" /> <span>Futuro</span></div>
+        </div>
+
+        {/* Quick Filter Bar */}
+        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          <div className="text-[9px] font-black text-[#8A847C] uppercase tracking-widest flex items-center gap-1 mr-1">
+            <Filter className="h-3.5 w-3.5 text-[#D4AF37]" />
+            Filtrar:
+          </div>
+
+          {/* Status Selection */}
+          <div className="w-[120px] bg-white rounded-xl border border-[#E5E0D8] px-2 h-9 flex items-center shadow-sm">
+            <Select value={filterPaymentStatus} onValueChange={setFilterPaymentStatus}>
+              <SelectTrigger className="border-none h-7 p-0 px-1 bg-transparent focus:ring-0 text-[10px] font-black text-[#5C5855] w-full uppercase tracking-wider">
+                <SelectValue placeholder="Pagamento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-[10px] font-bold">Todos Status</SelectItem>
+                <SelectItem value="paid" className="text-[10px] font-bold">🟢 Pago</SelectItem>
+                <SelectItem value="partial" className="text-[10px] font-bold">🟠 Parcial</SelectItem>
+                <SelectItem value="overdue" className="text-[10px] font-bold">🔴 Pendente</SelectItem>
+                <SelectItem value="advance_payment" className="text-[10px] font-bold">🔵 Antecipado</SelectItem>
+                <SelectItem value="pending" className="text-[10px] font-bold">🟡 Futuro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Professional Selection */}
+          <div className="w-[140px] bg-white rounded-xl border border-[#E5E0D8] px-2 h-9 flex items-center shadow-sm">
+            <Select value={filterProfessional} onValueChange={setFilterProfessional}>
+              <SelectTrigger className="border-none h-7 p-0 px-1 bg-transparent focus:ring-0 text-[10px] font-black text-[#5C5855] w-full uppercase tracking-wider">
+                <SelectValue placeholder="Profissional" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-[10px] font-bold">Todos Profissionais</SelectItem>
+                {professionals?.map((p: any) => (
+                  <SelectItem key={p.id} value={p.id} className="text-[10px] font-bold">{p.full_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Procedure Selection */}
+          <div className="w-[140px] bg-white rounded-xl border border-[#E5E0D8] px-2 h-9 flex items-center shadow-sm">
+            <Select value={filterProcedure} onValueChange={setFilterProcedure}>
+              <SelectTrigger className="border-none h-7 p-0 px-1 bg-transparent focus:ring-0 text-[10px] font-black text-[#5C5855] w-full uppercase tracking-wider">
+                <SelectValue placeholder="Procedimento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-[10px] font-bold">Todos Procedimentos</SelectItem>
+                {procedures?.map((p: any) => (
+                  <SelectItem key={p.id} value={p.id} className="text-[10px] font-bold">{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Payment Method Selection */}
+          <div className="w-[120px] bg-white rounded-xl border border-[#E5E0D8] px-2 h-9 flex items-center shadow-sm">
+            <Select value={filterPaymentMethod} onValueChange={setFilterPaymentMethod}>
+              <SelectTrigger className="border-none h-7 p-0 px-1 bg-transparent focus:ring-0 text-[10px] font-black text-[#5C5855] w-full uppercase tracking-wider">
+                <SelectValue placeholder="Forma" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-[10px] font-bold">Todas Formas</SelectItem>
+                <SelectItem value="pix" className="text-[10px] font-bold">📱 PIX</SelectItem>
+                <SelectItem value="credit_card" className="text-[10px] font-bold">💳 Cartão Crédito</SelectItem>
+                <SelectItem value="debit_card" className="text-[10px] font-bold">💳 Cartão Débito</SelectItem>
+                <SelectItem value="cash" className="text-[10px] font-bold">💵 Dinheiro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Clear Filters Button */}
+          {(filterPaymentStatus !== 'all' || filterProfessional !== 'all' || filterProcedure !== 'all' || filterPaymentMethod !== 'all') && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => {
+                setFilterPaymentStatus('all');
+                setFilterProfessional('all');
+                setFilterProcedure('all');
+                setFilterPaymentMethod('all');
+              }}
+              className="text-[10px] font-black uppercase text-rose-500 hover:text-rose-700 h-9 px-3 hover:bg-rose-50 rounded-xl"
+            >
+              Limpar
+            </Button>
+          )}
         </div>
       </div>
 

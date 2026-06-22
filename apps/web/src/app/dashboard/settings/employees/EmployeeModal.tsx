@@ -28,7 +28,9 @@ import {
   CheckCircle2, 
   AlertCircle,
   Loader2,
-  ChevronRight
+  ChevronRight,
+  Phone,
+  FileText
 } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { showToast } from '@/lib/toast-helpers';
@@ -50,7 +52,9 @@ const SCREENS = [
   { id: 'marketing', label: 'Marketing' },
   { id: 'inventory', label: 'Estoque' },
   { id: 'reports', label: 'Relatórios' },
-  { id: 'settings', label: 'Configurações' }
+  { id: 'settings', label: 'Configurações' },
+  { id: 'anamnese', label: 'Anamnese' },
+  { id: 'team', label: 'Equipe' }
 ];
 
 const DEFAULT_PERMISSIONS: ProfilePermissions = SCREENS.reduce((acc, screen) => {
@@ -65,35 +69,77 @@ export function EmployeeModal({ isOpen, onClose, employee, companyId, onRefresh 
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
+    phone: '',
     role: 'funcionario' as UserRole,
     cargo: '',
     status: 'active' as 'active' | 'inactive',
+    observations: '',
     permissions: DEFAULT_PERMISSIONS
   });
 
   useEffect(() => {
     if (employee) {
+      const employeePerms = employee.permissions || DEFAULT_PERMISSIONS;
+      const obs = employee.observations || (employeePerms as any).observations || '';
+      
       setFormData({
         full_name: employee.full_name || '',
         email: employee.email || '',
+        phone: employee.phone || '',
         role: employee.role,
         cargo: employee.cargo || '',
         status: employee.status || 'active',
-        permissions: employee.permissions || DEFAULT_PERMISSIONS
+        observations: obs,
+        permissions: employeePerms
       });
     } else {
       setFormData({
         full_name: '',
         email: '',
+        phone: '',
         role: 'funcionario',
         cargo: '',
         status: 'active',
+        observations: '',
         permissions: DEFAULT_PERMISSIONS
       });
     }
   }, [employee, isOpen]);
 
-  const supabase = createBrowserClient();
+  const handleRoleChange = (newRole: UserRole) => {
+    const newPermissions = { ...formData.permissions };
+    
+    // Reset all
+    SCREENS.forEach(screen => {
+      newPermissions[screen.id] = { view: false, create: false, edit: false, delete: false };
+    });
+
+    if (newRole === 'admin' || newRole === 'chefe') {
+      SCREENS.forEach(screen => {
+        newPermissions[screen.id] = { view: true, create: true, edit: true, delete: true };
+      });
+    } else if (newRole === 'recepcao' || newRole === 'receptionist') {
+      newPermissions['agenda'] = { view: true, create: true, edit: true, delete: false };
+      newPermissions['clients'] = { view: true, create: true, edit: true, delete: false };
+      newPermissions['anamnese'] = { view: true, create: true, edit: true, delete: false };
+    } else if (newRole === 'professional') {
+      newPermissions['agenda'] = { view: true, create: true, edit: true, delete: false };
+      newPermissions['clients'] = { view: true, create: true, edit: true, delete: false };
+      newPermissions['anamnese'] = { view: true, create: true, edit: true, delete: false };
+    } else if (newRole === 'financeiro') {
+      newPermissions['finance'] = { view: true, create: true, edit: true, delete: false };
+      newPermissions['reports'] = { view: true, create: false, edit: false, delete: false };
+    } else {
+      newPermissions['agenda'] = { view: true, create: false, edit: false, delete: false };
+      newPermissions['clients'] = { view: true, create: false, edit: false, delete: false };
+    }
+
+    setFormData({
+      ...formData,
+      role: newRole,
+      permissions: newPermissions
+    });
+  };
 
   const handleSave = async () => {
     try {
@@ -104,29 +150,32 @@ export function EmployeeModal({ isOpen, onClose, employee, companyId, onRefresh 
         return;
       }
 
-      if (employee) {
-        // UPDATE Profile
-        const { error } = await supabase
-          .from('profiles')
-          .update({
-            full_name: formData.full_name,
-            role: formData.role,
-            cargo: formData.cargo,
-            status: formData.status,
-            permissions: formData.permissions,
-            authorized_by_name: currentProfile?.full_name
-          })
-          .eq('id', employee.id);
+      const url = employee 
+        ? `/api/admin/employees/${employee.id}` 
+        : `/api/admin/employees`;
 
-        if (error) throw error;
-        showToast.success('Funcionário atualizado com sucesso');
-      } else {
-        // CREATE - In a real app, you'd call an Edge Function to create Auth user
-        // For now, we'll suggest using an existing email or show a message.
-        showToast.info('A criação de novos acessos deve ser feita via convite (Funcionalidade em desenvolvimento). Por enquanto, você pode editar perfis existentes.');
-        return;
+      const response = await fetch(url, {
+        method: employee ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: formData.full_name,
+          email: formData.email,
+          phone: formData.phone,
+          cargo: formData.cargo,
+          role: formData.role,
+          status: formData.status,
+          observations: formData.observations,
+          permissions: formData.permissions
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao processar requisição');
       }
 
+      showToast.success(employee ? 'Funcionário atualizado com sucesso' : 'Convite enviado com sucesso');
       onRefresh();
       onClose();
     } catch (err: any) {
@@ -214,6 +263,19 @@ export function EmployeeModal({ isOpen, onClose, employee, companyId, onRefresh 
               </div>
 
               <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Telefone</Label>
+                <div className="relative">
+                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
+                  <Input 
+                    placeholder="(99) 99999-9999" 
+                    className="pl-11 h-12 rounded-2xl border-slate-100 focus:ring-slate-900/5 transition-all"
+                    value={formData.phone}
+                    onChange={e => setFormData({...formData, phone: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Cargo / Especialidade</Label>
                 <div className="relative">
                   <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
@@ -226,20 +288,34 @@ export function EmployeeModal({ isOpen, onClose, employee, companyId, onRefresh 
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Nível de Acesso</Label>
-                <Select value={formData.role} onValueChange={(v: any) => setFormData({...formData, role: v})}>
+                <Select value={formData.role} onValueChange={(v: any) => handleRoleChange(v)}>
                   <SelectTrigger className="h-12 rounded-2xl border-slate-100 focus:ring-slate-900/5">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-2xl border-slate-100 shadow-xl">
-                    <SelectItem value="admin">Administrador</SelectItem>
-                    <SelectItem value="chefe">Chefe / Sócio</SelectItem>
+                    <SelectItem value="admin">Administrador (Acesso Total)</SelectItem>
+                    <SelectItem value="chefe">Chefe / Sócio (Acesso Total)</SelectItem>
                     <SelectItem value="funcionario">Funcionário Comum</SelectItem>
-                    <SelectItem value="recepcao">Recepção</SelectItem>
+                    <SelectItem value="recepcao">Recepção / Recepcionista</SelectItem>
                     <SelectItem value="financeiro">Financeiro</SelectItem>
+                    <SelectItem value="professional">Profissional de Saúde</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Observações</Label>
+                <div className="relative">
+                  <FileText className="absolute left-4 top-3.5 h-4 w-4 text-slate-300" />
+                  <textarea 
+                    placeholder="Notas administrativas adicionais..." 
+                    className="pl-11 pt-3 w-full min-h-[80px] rounded-2xl border border-slate-100 focus:ring-2 focus:ring-slate-900/5 transition-all text-sm outline-none resize-y"
+                    value={formData.observations}
+                    onChange={e => setFormData({...formData, observations: e.target.value})}
+                  />
+                </div>
               </div>
             </div>
           </div>

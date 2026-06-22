@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { 
   Button, 
@@ -27,6 +28,7 @@ import { useProfile } from '@/providers/profile-provider';
 
 export default function InventoryPage() {
   const { profile, loading: profileLoading } = useProfile();
+  const router = useRouter();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<'all' | 'critical' | 'ok'>('all');
@@ -39,6 +41,18 @@ export default function InventoryPage() {
     unit: 'un',
     sale_price: 0
   });
+
+  // Guard screen access
+  useEffect(() => {
+    if (profile) {
+      if (profile.role !== 'admin' && profile.role !== 'chefe') {
+        const hasAccess = profile.permissions?.inventory?.view;
+        if (!hasAccess) {
+          router.push('/dashboard');
+        }
+      }
+    }
+  }, [profile, router]);
 
   // Optimize: Fetch on mount, trust RLS to filter by company
   useEffect(() => {
@@ -330,12 +344,22 @@ export default function InventoryPage() {
 
             <div className="space-y-2">
               <Label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-1">Unidade</Label>
-              <Input 
-                placeholder="Ex: un, ml, cx" 
-                value={newProduct.unit}
-                onChange={(e) => setNewProduct({...newProduct, unit: e.target.value})}
-                className="bg-white border-neutral-200 h-12 rounded-xl text-slate-900 font-medium" 
-              />
+              <Select 
+                value={newProduct.unit} 
+                onValueChange={(val) => setNewProduct({...newProduct, unit: val})}
+              >
+                <SelectTrigger className="bg-white border-neutral-200 h-12 rounded-xl text-slate-900 font-medium">
+                  <SelectValue placeholder="Selecione a unidade" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-neutral-200 text-slate-900">
+                  <SelectItem value="un">un (Unidade)</SelectItem>
+                  <SelectItem value="ml">ml (Mililitro)</SelectItem>
+                  <SelectItem value="cx">cx (Caixa)</SelectItem>
+                  <SelectItem value="pct">pct (Pacote)</SelectItem>
+                  <SelectItem value="g">g (Grama)</SelectItem>
+                  <SelectItem value="kg">kg (Quilograma)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

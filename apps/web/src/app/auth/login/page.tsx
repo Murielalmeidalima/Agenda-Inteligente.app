@@ -164,11 +164,6 @@ function LoginForm() {
     }
   };
 
-  const fillAdminCredentials = () => {
-    setEmail('admin@agendainteligente.com');
-    setPassword('senha_mestre123');
-  };
-
   return (
     <div className="bg-white/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-white/40 overflow-hidden relative">
       <div className="absolute top-0 right-0 w-32 h-32 bg-[#D4AF37]/10 rounded-bl-[100px] pointer-events-none" />
@@ -177,12 +172,7 @@ function LoginForm() {
       <div className="px-8 sm:px-12 py-12 relative z-10">
         <div className="mb-8 text-center">
           <div className="flex justify-center mb-6">
-            <div className="bg-white p-3 rounded-2xl shadow-lg border border-[#F0EBE0]/50 relative group cursor-pointer" onClick={fillAdminCredentials}>
-              <LogoImage size={64} />
-              <div className="absolute -top-2 -right-2 bg-[#D4AF37] text-white text-[9px] font-bold px-2 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                Admin
-              </div>
-            </div>
+            <LogoImage size={80} />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-[#2C2825] mb-2 font-serif">Bem-vindo de volta</h1>
           <p className="text-[#5C5855] text-sm leading-relaxed">Acesse seu painel para gerenciar sua clínica.</p>

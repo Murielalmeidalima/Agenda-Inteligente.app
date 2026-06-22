@@ -66,7 +66,7 @@ export function EmployeeManagementClient({ companyId }: EmployeeManagementClient
         .eq('company_id', companyId)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
       
       if (subData?.plan) {
         const planData = Array.isArray(subData.plan) ? subData.plan[0] : subData.plan;
@@ -86,22 +86,23 @@ export function EmployeeManagementClient({ companyId }: EmployeeManagementClient
   }, [companyId]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este funcionário? O acesso será revogado imediatamente.')) return;
+    if (!confirm('Tem certeza que deseja desativar este funcionário? O acesso ao sistema será revogado imediatamente.')) return;
 
     try {
-      // Nota: Em um sistema real, a exclusão de auth.users deve ser feita via Admin API ou Edge Function.
-      // Aqui vamos apenas inativar o perfil ou excluir se permitido.
-      const { error } = await supabase
-        .from('profiles')
-        .update({ status: 'inactive' })
-        .eq('id', id);
+      const response = await fetch(`/api/admin/employees/${id}`, {
+        method: 'DELETE'
+      });
 
-      if (error) throw error;
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao desativar funcionário');
+      }
       
-      showToast.success('Funcionário inativado com sucesso');
+      showToast.success('Funcionário desativado com sucesso (histórico preservado)');
       fetchEmployees();
     } catch (err: any) {
-      showToast.error('Erro ao excluir', err.message);
+      showToast.error('Erro ao desativar', err.message);
     }
   };
 
@@ -118,13 +119,19 @@ export function EmployeeManagementClient({ companyId }: EmployeeManagementClient
       funcionario: { label: 'Funcionário', color: 'bg-blue-100 text-blue-700' },
       recepcao: { label: 'Recepção', color: 'bg-emerald-100 text-emerald-700' },
       financeiro: { label: 'Financeiro', color: 'bg-amber-100 text-amber-700' },
-      professional: { label: 'Profissional', color: 'bg-slate-100 text-slate-700' },
+      professional: { label: 'Profissional', color: 'bg-indigo-100 text-indigo-700' },
       receptionist: { label: 'Recepcionista', color: 'bg-emerald-100 text-emerald-700' }
     };
 
     const r = roles[role] || { label: role, color: 'bg-slate-100 text-slate-700' };
     return <Badge className={cn("rounded-lg px-2 py-0.5 font-bold uppercase text-[9px] tracking-widest", r.color)}>{r.label}</Badge>;
   };
+
+  // Calculate Metrics Indicators
+  const totalUsers = employees.length;
+  const activeUsers = employees.filter(e => e.status === 'active').length;
+  const inactiveUsers = employees.filter(e => e.status !== 'active').length;
+  const availableUsers = Math.max(0, maxUsers - activeUsers);
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
@@ -151,8 +158,8 @@ export function EmployeeManagementClient({ companyId }: EmployeeManagementClient
         <div className="flex flex-col items-end gap-1">
           <Button 
             onClick={() => {
-              if (employees.length >= maxUsers) {
-                showToast.error('Limite atingido', `Seu plano permite até ${maxUsers} funcionários. Faça um upgrade.`);
+              if (activeUsers >= maxUsers) {
+                showToast.error('Limite atingido', `Seu plano permite até ${maxUsers} funcionários ativos simultaneamente. Faça um upgrade.`);
                 router.push('/dashboard/settings/billing');
                 return;
               }
@@ -165,8 +172,32 @@ export function EmployeeManagementClient({ companyId }: EmployeeManagementClient
             Novo Funcionário
           </Button>
           <span className="text-[10px] font-bold text-slate-400">
-            {employees.length} / {maxUsers} usuários no plano
+            {activeUsers} / {maxUsers} usuários ativos no plano
           </span>
+        </div>
+      </div>
+
+      {/* Team Indicators Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total de Contas</p>
+          <p className="text-3xl font-black text-slate-900 mt-2 tracking-tight">{totalUsers}</p>
+        </div>
+        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Usuários Ativos</p>
+          <p className="text-3xl font-black text-emerald-600 mt-2 tracking-tight">{activeUsers}</p>
+        </div>
+        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Usuários Inativos</p>
+          <p className="text-3xl font-black text-slate-500 mt-2 tracking-tight">{inactiveUsers}</p>
+        </div>
+        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Limite do Plano</p>
+          <p className="text-3xl font-black text-slate-900 mt-2 tracking-tight">{maxUsers}</p>
+        </div>
+        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm col-span-2 md:col-span-1">
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Vagas Disponíveis</p>
+          <p className="text-3xl font-black text-blue-600 mt-2 tracking-tight">{availableUsers}</p>
         </div>
       </div>
 
@@ -256,7 +287,7 @@ export function EmployeeManagementClient({ companyId }: EmployeeManagementClient
                     <Calendar className="h-3 w-3 text-slate-300" />
                     <span className="text-xs font-bold">
                       {employee.last_access 
-                        ? format(new Date(employee.last_access), 'dd/MM HH:mm') 
+                        ? format(new Date(employee.last_access), 'dd/MM HH:mm', { locale: ptBR }) 
                         : 'Nunca'}
                     </span>
                   </div>

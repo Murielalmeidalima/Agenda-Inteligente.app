@@ -42,7 +42,7 @@ export default async function DashboardPage() {
   // Get User Profile & Company ID
   const { data: profile } = await supabase
     .from('profiles')
-    .select('company_id, role, approved')
+    .select('company_id, role, approved, permissions')
     .eq('id', user.id)
     .single();
 
@@ -73,6 +73,13 @@ export default async function DashboardPage() {
   }
 
   const COMPANY_ID = profile.company_id;
+
+  const getInitials = (name: string | null | undefined): string => {
+    if (!name) return '?';
+    const parts = name.trim().split(' ');
+    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  };
 
   // Dates for querying
   const today = new Date();
@@ -192,11 +199,12 @@ export default async function DashboardPage() {
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/40 rounded-full blur-[60px] -ml-32 -mb-32" />
         
         <div className="flex items-center gap-8 relative z-10">
-          <div className="relative z-10 flex items-center justify-center p-1 bg-white/40 rounded-[2rem] backdrop-blur-md border border-white/60 shadow-sm">
+          <div className="relative z-10 flex items-center justify-center p-1 bg-white/40 rounded-[2.2rem] backdrop-blur-md border border-white/60 shadow-sm">
             <LogoImage 
-              size={64} 
+              size={96} 
               src={companyData?.logo_url} 
-              className="bg-white rounded-3xl overflow-hidden shadow-inner w-20 h-20 md:w-24 md:h-24"
+              fallbackText={getInitials(companyData?.name)}
+              className="bg-white rounded-[2rem] overflow-hidden shadow-inner w-24 h-24 md:w-28 md:h-28"
             />
           </div>
           <div>

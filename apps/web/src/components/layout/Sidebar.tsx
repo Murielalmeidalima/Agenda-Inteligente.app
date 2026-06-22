@@ -78,8 +78,8 @@ export function Sidebar() {
       {/* Subtle Background Glow */}
       <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-full blur-[100px] pointer-events-none opacity-50" />
       
-      <div className="mb-10 flex items-center justify-center relative z-10 px-4">
-        <LogoImage size={80} />
+      <div className="mb-10 flex items-center justify-start relative z-10 px-4">
+        <Logo size={44} />
       </div>
       
       <nav className="flex-1 space-y-2 relative z-10">

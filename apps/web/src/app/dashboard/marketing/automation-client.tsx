@@ -37,6 +37,7 @@ import { createBrowserClient } from '@/lib/supabase-browser';
 import { useProfile } from '@/providers/profile-provider';
 import { ReviewsWidget } from '@/components/marketing/ReviewsWidget';
 import { WhatsAppConnectionTab } from '@/components/marketing/WhatsAppConnectionTab';
+import { useRouter } from 'next/navigation';
 
 type Rule = {
   id: string;
@@ -287,7 +288,20 @@ function ReviewSettingsForm() {
 
 export default function AutomationClient() {
   const { profile } = useProfile();
+  const router = useRouter();
   const [rules, setRules] = useState<Rule[]>([]);
+  
+  useEffect(() => {
+    if (profile) {
+      if (profile.role !== 'admin' && profile.role !== 'chefe') {
+        const hasAccess = profile.permissions?.marketing?.view;
+        if (!hasAccess) {
+          router.push('/dashboard');
+        }
+      }
+    }
+  }, [profile, router]);
+
   const [logs, setLogs] = useState<AutomationLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);

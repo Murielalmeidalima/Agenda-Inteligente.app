@@ -7,11 +7,25 @@ import { createBrowserClient } from '@/lib/supabase-browser';
 import { useProfile } from '@/providers/profile-provider';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
 export default function AnamneseTemplatesPage() {
   const { profile } = useProfile();
+  const router = useRouter();
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Guard screen access
+  useEffect(() => {
+    if (profile) {
+      if (profile.role !== 'admin' && profile.role !== 'chefe') {
+        const hasAccess = profile.permissions?.anamnese?.view;
+        if (!hasAccess) {
+          router.push('/dashboard');
+        }
+      }
+    }
+  }, [profile, router]);
 
   useEffect(() => {
     if (profile?.company_id) fetchTemplates();

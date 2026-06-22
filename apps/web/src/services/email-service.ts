@@ -38,7 +38,7 @@ async function logEmail(appointmentId: string | undefined, companyId: string, re
     });
 }
 
-export async function sendEmail({ to, subject, html, appointmentId, companyId, type }: { to: string; subject: string; html: string; appointmentId?: string, companyId: string, type: 'confirmation' | 'reminder' | 'review' | 'cancellation' }) {
+export async function sendEmail({ to, subject, html, appointmentId, companyId, type }: { to: string; subject: string; html: string; appointmentId?: string, companyId: string, type: 'confirmation' | 'reminder' | 'review' | 'cancellation' | 'invite' }) {
   try {
     const info = await transporter.sendMail({
       from: process.env.EMAIL_FROM || '"Agenda Inteligente" <noreply@agendainteligente.com>',
@@ -86,6 +86,18 @@ export const emailTemplates = {
       <div style="text-align: center; margin: 30px 0;">
         <a href="${link}" style="display: inline-block; padding: 12px 24px; background-color: #D4AF37; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">Avaliar Atendimento</a>
       </div>
+    </div>
+  `,
+  invite: (companyName: string, inviterName: string, roleName: string, link: string) => `
+    <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; padding: 20px; border-radius: 8px;">
+      <h2 style="color: #D4AF37; margin-top: 0;">Você foi convidado para a equipe ${companyName}!</h2>
+      <p>Olá,</p>
+      <p><strong>${inviterName}</strong> convidou você para fazer parte do sistema <strong>Agenda Inteligente</strong> no cargo de <strong>${roleName}</strong>.</p>
+      <p>Para ativar seu acesso e definir sua senha, clique no botão abaixo:</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${link}" style="display: inline-block; padding: 12px 24px; background-color: #D4AF37; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; text-transform: uppercase; font-size: 13px;">Definir Senha e Acessar</a>
+      </div>
+      <p style="font-size: 11px; color: #777;">Se você não esperava este convite, por favor desconsidere este e-mail.</p>
     </div>
   `
 };

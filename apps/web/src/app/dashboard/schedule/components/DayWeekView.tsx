@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { 
   format, 
   startOfDay, 
@@ -40,6 +41,27 @@ export const DayWeekView = ({
   scheduleBlocks,
   blockHolidays = false
 }: DayWeekViewProps) => {
+  const [hoveredAptId, setHoveredAptId] = useState<string | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+
+  const handleMouseEnter = (e: React.MouseEvent, aptId: string) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const tooltipWidth = 256;
+    let x = rect.right + 8;
+    if (x + tooltipWidth > window.innerWidth) {
+      x = rect.left - tooltipWidth - 8;
+    }
+    setTooltipPos({
+      x: Math.max(8, x),
+      y: rect.top
+    });
+    setHoveredAptId(aptId);
+  };
+
+  const handleMouseLeave = () => {
+    setHoveredAptId(null);
+  };
+
   const checkIsBlocked = (date: Date) => {
     const dayOfWeek = date.getDay();
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -244,28 +266,18 @@ export const DayWeekView = ({
                   // Lógica de Cores Inteligente
                   let cardColors = "bg-[#F0EBE0] ring-[#E5E0D8] text-[#5C5855]";
                   
-                  if (apt.status === 'completed') {
-                    if (apt.paymentStatus === 'paid') {
-                      // 🟢 Verde — Concluído e Pago
-                      cardColors = "bg-emerald-50 ring-emerald-200 text-emerald-800";
-                    } else {
-                      // 🔴 Vermelho — Concluído e Não Pago (Pendente/Parcial)
-                      cardColors = "bg-red-50 ring-red-200 text-red-800";
-                    }
-                  } else {
-                    if (apt.paymentStatus === 'paid') {
-                      // 🟢 Verde — Pago antecipadamente (ainda não concluído)
-                      cardColors = "bg-emerald-50 ring-emerald-200 text-emerald-800";
-                    } else if (now < startDate) {
-                      // 🟡 Amarelo — Futuro (ainda não aconteceu e não pago)
-                      cardColors = "bg-yellow-50 ring-yellow-200 text-yellow-800";
-                    } else if (isSameDay(now, startDate)) {
-                      // 🟠 Laranja — Hoje (não concluído e não pago)
-                      cardColors = "bg-orange-50 ring-orange-200 text-orange-800";
-                    } else {
-                      // 🔴 Vermelho — Atrasado (dias anteriores, não pago e não concluído)
-                      cardColors = "bg-red-50 ring-red-200 text-red-800";
-                    }
+                  if (apt.paymentStatus === 'cancelled') {
+                    cardColors = "bg-neutral-50 ring-neutral-200 text-neutral-400 line-through";
+                  } else if (apt.paymentStatus === 'paid') {
+                    cardColors = "bg-emerald-50 ring-emerald-200 text-emerald-800";
+                  } else if (apt.paymentStatus === 'advance_payment') {
+                    cardColors = "bg-blue-50 ring-blue-200 text-blue-800";
+                  } else if (apt.paymentStatus === 'partial') {
+                    cardColors = "bg-orange-50 ring-orange-200 text-orange-800";
+                  } else if (apt.paymentStatus === 'overdue') {
+                    cardColors = "bg-red-50 ring-red-200 text-red-800";
+                  } else if (apt.paymentStatus === 'pending') {
+                    cardColors = "bg-yellow-50 ring-yellow-200 text-yellow-800";
                   }
 
                   // Handle out-of-bounds start times implicitly visually to avoid completely missing them
@@ -279,7 +291,7 @@ export const DayWeekView = ({
                     <div
                       key={apt.id}
                       className={cn(
-                        "absolute left-1.5 right-1.5 rounded-xl p-2 text-[10px] overflow-hidden cursor-pointer shadow-sm transition-all hover:shadow-md hover:scale-[1.02] z-20 group/apt ring-1 ring-inset",
+                        "absolute left-1.5 right-1.5 rounded-xl p-2 text-[10px] overflow-hidden cursor-pointer shadow-sm transition-all hover:shadow-md hover:scale-[1.02] z-20 group/apt ring-1 ring-inset flex flex-col justify-between",
                         cardColors
                       )}
                       style={{ top: `${top}px`, height: `${height}px`, minHeight: '24px', ...(procedureColor ? { borderLeft: `6px solid ${procedureColor}` } : {}) }}
@@ -287,51 +299,82 @@ export const DayWeekView = ({
                         e.stopPropagation();
                         onViewAppointment(apt.id);
                       }}
+                      onMouseEnter={(e) => handleMouseEnter(e, apt.id)}
+                      onMouseLeave={handleMouseLeave}
                     >
-                      <div className="flex flex-col h-full">
-                         <div className="flex justify-between items-start mb-0.5">
-                           <p className="font-black text-[11px] leading-tight truncate group-hover/apt:text-[#2C2825] transition-colors pr-1">
-                             {apt.clients?.full_name || 'Individual'}
-                           </p>
-                           {apt.status === 'completed' && (
-                             <div 
-                               className={cn(
-                                 "text-[8px] font-black uppercase px-1.5 py-0.5 rounded-sm shrink-0 shadow-sm ml-1",
-                                 apt.paymentStatus === 'paid' ? "bg-emerald-500 text-white" :
-                                 apt.paymentStatus === 'partial' ? "bg-amber-500 text-white" :
-                                 "bg-rose-500 text-white"
-                               )}
-                             >
-                               {apt.paymentStatus === 'paid' ? 'Pago' : apt.paymentStatus === 'partial' ? 'Parcial' : 'Pendente'}
-                             </div>
-                           )}
-                         </div>
-                         {height > 35 && ( // só mostra se tiver espaço suficiente
-                           <div className="flex flex-col gap-0.5 mb-1">
-                             <p className="opacity-80 font-semibold truncate lowercase tracking-tight">
-                               {apt.procedures?.name || 'Procedimento'}
-                             </p>
-                             {apt.is_maintenance && (
-                               <span className="text-[8px] uppercase font-black bg-[#D4AF37] text-white px-1.5 py-0.5 rounded-sm w-fit flex items-center gap-1 shadow-sm">
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
-                                  Manutenção
-                               </span>
-                             )}
-                           </div>
-                         )}
-                         {(height > 45) && (
-                            <div className="flex items-center gap-1.5 opacity-70 font-bold mt-auto max-w-full overflow-hidden">
-                               <div className="flex items-center gap-1 shrink-0">
-                                 <Clock className="h-3 w-3" />
-                                 <span>{format(startDate, 'HH:mm')}</span>
-                               </div>
-                               {apt.status === 'completed' && apt.paymentMethod && (
-                                 <span className="text-[8px] uppercase font-black truncate shrink-0 ml-1">
-                                    • {apt.paymentMethod.replace('_', ' ')}
-                                 </span>
-                               )}
+                      <div className="flex flex-col h-full justify-between">
+                        <div>
+                          {/* Cliente e Badge de Status Financeiro */}
+                          <div className="flex justify-between items-start gap-1">
+                            <p className="font-black text-[11px] leading-tight truncate group-hover/apt:text-[#2C2825] transition-colors pr-1">
+                              {apt.clients?.full_name || 'Individual'}
+                            </p>
+                            <div 
+                              className={cn(
+                                "text-[8px] font-black uppercase px-1.5 py-0.5 rounded-sm shrink-0 shadow-sm",
+                                apt.paymentStatus === 'paid' ? "bg-emerald-500 text-white" :
+                                apt.paymentStatus === 'advance_payment' ? "bg-blue-500 text-white" :
+                                apt.paymentStatus === 'partial' ? "bg-amber-500 text-white" :
+                                apt.paymentStatus === 'overdue' ? "bg-rose-500 text-white" :
+                                apt.paymentStatus === 'pending' ? "bg-yellow-500 text-neutral-800" :
+                                "bg-neutral-500 text-white"
+                              )}
+                            >
+                              {apt.paymentStatus === 'paid' ? 'Pago' : 
+                               apt.paymentStatus === 'advance_payment' ? 'Antecipado' : 
+                               apt.paymentStatus === 'partial' ? 'Parcial' : 
+                               apt.paymentStatus === 'overdue' ? 'Pendente' : 
+                               apt.paymentStatus === 'pending' ? 'Futuro' : 
+                               'Cancelado'}
                             </div>
-                         )}
+                          </div>
+
+                          {/* Procedimento e Valor */}
+                          <div className="flex flex-wrap items-center justify-between gap-1 mt-0.5 opacity-90">
+                            <p className="font-bold truncate text-[10px]">
+                              {apt.procedures?.name || 'Procedimento'}
+                            </p>
+                            <p className="font-black text-[10px] text-inherit shrink-0">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(apt.price_override || apt.procedures?.price || 0)}
+                            </p>
+                          </div>
+
+                          {/* Profissional e Observações Rápidas (Desktop and high cards only) */}
+                          {height > 55 && (
+                            <div className="hidden md:flex flex-col gap-0.5 mt-1 border-t border-current/10 pt-1">
+                              {apt.profiles?.full_name && (
+                                <p className="text-[9px] font-bold opacity-75 truncate">
+                                  👤 {apt.profiles.full_name}
+                                </p>
+                              )}
+                              {apt.notes && (
+                                <p className="text-[9px] font-medium opacity-75 truncate italic">
+                                  💬 {apt.notes}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Horário e Forma de Pagamento */}
+                        {height > 35 && (
+                          <div className="flex items-center justify-between opacity-70 text-[9px] font-bold mt-1">
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-2.5 w-2.5" />
+                              <span>{format(startDate, 'HH:mm')}</span>
+                            </div>
+                            
+                            {apt.paymentMethod && (
+                              <span className="text-[8px] font-black truncate uppercase">
+                                {apt.paymentMethod === 'pix' ? '📱 PIX' :
+                                 apt.paymentMethod === 'credit_card' ? '💳 CARTÃO' :
+                                 apt.paymentMethod === 'debit_card' ? '💳 CARTÃO' :
+                                 apt.paymentMethod === 'cash' ? '💵 DINHEIRO' :
+                                 `🏦 ${apt.paymentMethod.toUpperCase().replace('_', ' ')}`}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -340,6 +383,71 @@ export const DayWeekView = ({
           </div>
         ))}
       </div>
+
+      {hoveredAptId && (() => {
+        const apt = appointments.find(a => a.id === hoveredAptId);
+        if (!apt) return null;
+        const procedure = Array.isArray(apt.procedures) ? apt.procedures[0] : apt.procedures;
+        
+        return (
+          <div 
+            className="fixed z-[100] bg-slate-950 text-white rounded-2xl p-4 shadow-2xl border border-neutral-800 w-64 pointer-events-none text-xs space-y-2 animate-in fade-in zoom-in-95 duration-150"
+            style={{ 
+              left: `${tooltipPos.x}px`, 
+              top: `${tooltipPos.y}px` 
+            }}
+          >
+            <div className="font-black text-sm border-b border-neutral-800 pb-1.5 mb-1.5 flex items-center justify-between">
+              <span>{apt.clients?.full_name}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-neutral-400 block uppercase font-black tracking-wider">Procedimento</span>
+              <span className="font-bold text-white">{procedure?.name || '-'}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <span className="text-[10px] text-neutral-400 block uppercase font-black tracking-wider">Valor</span>
+                <span className="font-bold text-emerald-400">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(apt.price_override || procedure?.price || 0)}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-neutral-400 block uppercase font-black tracking-wider">Forma</span>
+                <span className="font-bold text-white">
+                  {apt.paymentMethod === 'pix' ? '📱 PIX' :
+                   apt.paymentMethod === 'credit_card' ? '💳 Cartão' :
+                   apt.paymentMethod === 'debit_card' ? '💳 Cartão' :
+                   apt.paymentMethod === 'cash' ? '💵 Dinheiro' :
+                   apt.paymentMethod ? `🏦 ${apt.paymentMethod.toUpperCase()}` : '-'}
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <span className="text-[10px] text-neutral-400 block uppercase font-black tracking-wider">Status</span>
+                <span className="font-bold text-white">
+                  {apt.paymentStatus === 'paid' ? '🟢 Pago' :
+                   apt.paymentStatus === 'partial' ? '🟠 Parcial' :
+                   apt.paymentStatus === 'overdue' ? '🔴 Pendente' :
+                   apt.paymentStatus === 'advance_payment' ? '🔵 Antecipado' : '🟡 Futuro'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-neutral-400 block uppercase font-black tracking-wider">Profissional</span>
+                <span className="font-bold text-white truncate block">
+                  {apt.profiles?.full_name || '-'}
+                </span>
+              </div>
+            </div>
+            {apt.notes && (
+              <div className="border-t border-neutral-800 pt-1.5 mt-1.5">
+                <span className="text-[10px] text-neutral-400 block uppercase font-black tracking-wider">Observações</span>
+                <p className="text-neutral-300 italic font-medium leading-relaxed break-words">{apt.notes}</p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 };

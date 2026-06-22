@@ -279,9 +279,7 @@ function RegisterFormContent() {
           <div className="px-8 sm:px-12 py-10 relative z-10">
             <div className="mb-6 text-center">
               <div className="flex justify-center mb-4">
-                 <div className="bg-white p-3 rounded-2xl shadow-lg border border-[#F0EBE0]/50">
-                    <LogoImage size={56} />
-                 </div>
+                 <LogoImage size={80} />
               </div>
               
               <h1 className="text-2xl font-bold tracking-tight text-[#2C2825] mb-2 font-serif">

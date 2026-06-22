@@ -85,6 +85,83 @@ export default function ScheduleCalendarClient({
     }
   };
 
+  const fetchLatestAppointments = async () => {
+    try {
+      const supabase = createBrowserClient();
+      const { data: appData, error: appError } = await supabase
+        .from('appointments')
+        .select(`
+          *,
+          clients!inner(full_name, birth_date),
+          procedures!inner(name, color, duration_minutes, price, maintenance_required, maintenance_days_limit, maintenance_period_unit, maintenance_duration_minutes),
+          profiles:professional_id(full_name)
+        `)
+        .eq('company_id', companyId);
+
+      if (appError) throw appError;
+
+      const appIds = appData?.map(a => a.id) || [];
+      let transactions: any[] = [];
+      
+      if (appIds.length > 0) {
+        const { data: trans } = await supabase
+          .from('transactions')
+          .select('appointment_id, amount, status, type, payment_method')
+          .in('appointment_id', appIds)
+          .eq('type', 'income');
+          
+        transactions = trans || [];
+      }
+
+      const hydrated = appData?.map(app => {
+        const linkedTrans = transactions.filter(t => t.appointment_id === app.id);
+        const paidConfirmed = linkedTrans
+          .filter(t => t.status === 'completed' || !t.status)
+          .reduce((sum, t) => sum + Number(t.amount), 0);
+          
+        const procedure = Array.isArray(app.procedures) ? app.procedures[0] : app.procedures;
+        const totalPrice = Number(app.price_override || procedure?.price || 0);
+        
+        const now = new Date();
+        const startDate = new Date(app.start_time);
+        
+        let paymentStatus = 'pending';
+        
+        if (app.status === 'cancelled') {
+          paymentStatus = 'cancelled';
+        } else if (paidConfirmed >= totalPrice && totalPrice > 0) {
+          if (startDate > now && app.status !== 'completed') {
+            paymentStatus = 'advance_payment';
+          } else {
+            paymentStatus = 'paid';
+          }
+        } else if (paidConfirmed > 0) {
+          paymentStatus = 'partial';
+        } else {
+          if (startDate < now || app.status === 'completed') {
+            paymentStatus = 'overdue';
+          } else {
+            paymentStatus = 'pending';
+          }
+        }
+        
+        const paymentMethod = linkedTrans[0]?.payment_method || null;
+        
+        return {
+          ...app,
+          paymentStatus,
+          paymentMethod,
+          paidConfirmed,
+          totalPrice
+        };
+      }) || [];
+
+      setAppointments(hydrated);
+    } catch (err) {
+      console.error('Error fetching latest appointments:', err);
+    }
+  };
+
   const fetchHolidays = async () => {
     try {
       const currentYear = new Date().getFullYear();
@@ -269,6 +346,7 @@ export default function ScheduleCalendarClient({
 
       // Refresh the page data from server to get all hydrated properties properly
       router.refresh();
+      fetchLatestAppointments();
       
       setIsModalOpen(false);
       setFormData({
@@ -307,6 +385,8 @@ export default function ScheduleCalendarClient({
         scheduleBlocks={[...scheduleBlocks, ...(showHolidays ? holidays : [])]}
         onOpenBlocks={() => setIsBlockModalOpen(true)}
         blockHolidays={blockHolidays}
+        professionals={professionals}
+        procedures={procedures}
       />
 
       <BlockDaysModal 
@@ -323,8 +403,10 @@ export default function ScheduleCalendarClient({
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         appointment={selectedAppointment}
+        professionals={professionals}
         onUpdate={() => {
            router.refresh();
+           fetchLatestAppointments();
         }}
       />
 

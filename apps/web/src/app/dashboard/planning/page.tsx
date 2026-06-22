@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { 
   Button, 
@@ -48,6 +49,7 @@ type GoalPeriod = 'daily' | 'monthly' | 'yearly';
 
 export default function PlanningPage() {
   const { profile } = useProfile();
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -61,6 +63,18 @@ export default function PlanningPage() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [editingGoals, setEditingGoals] = useState<any[]>([]);
+
+  // Guard screen access
+  useEffect(() => {
+    if (profile) {
+      if (profile.role !== 'admin' && profile.role !== 'chefe') {
+        const hasAccess = profile.permissions?.reports?.view;
+        if (!hasAccess) {
+          router.push('/dashboard');
+        }
+      }
+    }
+  }, [profile, router]);
 
   useEffect(() => {
     setMounted(true);

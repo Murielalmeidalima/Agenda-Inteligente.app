@@ -87,7 +87,16 @@ export default function FinancePage() {
       avgExpense: 0,
       avgProfit: 0,
       paidTotal: 0,
-      pendingTotal: 0
+      pendingTotal: 0,
+      receivedToday: 0,
+      receivedMonth: 0,
+      receivedYear: 0,
+      pendingPayments: 0,
+      overduePayments: 0,
+      partialPayments: 0,
+      futureForecast: 0,
+      totalReceivable: 0,
+      inadimplencia: 0
     },
     flowData: [] as any[],
     categoryData: [] as any[]
@@ -126,7 +135,7 @@ export default function FinancePage() {
       // Fetch Everything
       const [transRes, appRes, accRes, catsRes] = await Promise.all([
         supabase.from('transactions').select('*, financial_categories(name, color)').eq('company_id', profile?.company_id).order('date', { ascending: false }),
-        supabase.from('appointments').select('*, procedures(price)').eq('company_id', profile?.company_id).eq('status', 'scheduled'),
+        supabase.from('appointments').select('*, procedures(price)').eq('company_id', profile?.company_id).neq('status', 'cancelled'),
         supabase.from('financial_accounts').select('*').eq('company_id', profile?.company_id),
         supabase.from('financial_categories').select('*').eq('company_id', profile?.company_id)
       ]);
@@ -169,10 +178,10 @@ export default function FinancePage() {
       const nextWeekEnd = addDays(now, 7);
       const nextMonthEnd = addMonths(now, 1);
       
-      const forecastWeek = appointments.filter(a => isWithinInterval(new Date(a.start_time), { start: now, end: nextWeekEnd }))
+      const forecastWeek = appointments.filter(a => a.status === 'scheduled' && isWithinInterval(new Date(a.start_time), { start: now, end: nextWeekEnd }))
         .reduce((acc, a) => acc + (a.price_override || a.procedures?.price || 0), 0);
         
-      const forecastMonth = appointments.filter(a => isWithinInterval(new Date(a.start_time), { start: now, end: nextMonthEnd }))
+      const forecastMonth = appointments.filter(a => a.status === 'scheduled' && isWithinInterval(new Date(a.start_time), { start: now, end: nextMonthEnd }))
         .reduce((acc, a) => acc + (a.price_override || a.procedures?.price || 0), 0);
 
       // 7. Chart Data (Flow)
@@ -195,23 +204,87 @@ export default function FinancePage() {
       });
       const categoryData = Object.entries(catMap).map(([name, data]) => ({ name, value: data.val, color: data.color }));
 
-      // 9. Receivables Logic
-      const { data: compApps } = await supabase.from('appointments').select('id, procedures(price)').eq('company_id', profile?.company_id).eq('status', 'completed');
-      const appIds = compApps?.map(a => a.id) || [];
-      const { data: incomeTx } = await supabase.from('transactions').select('amount, appointment_id').in('appointment_id', appIds).eq('type', 'income');
+      // 9. Overhaul Indicators
+      const startOfToday = startOfDay(now);
+      const endOfToday = endOfDay(now);
+      const startOfMeso = startOfMonth(now);
+      const endOfMeso = endOfMonth(now);
+      const startOfAno = startOfYear(now);
+      const endOfAno = endOfYear(now);
 
-      let receivablesTotal = 0;
-      let pendingCount = 0;
-      
-      compApps?.forEach(app => {
-        const appIncome = incomeTx?.filter(t => (t as any).appointment_id === app.id).reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+      const receivedToday = allTransactions
+        .filter(t => t.type === 'income' && (t.status === 'completed' || !t.status) && isWithinInterval(new Date(t.transaction_date || t.date || t.created_at), { start: startOfToday, end: endOfToday }))
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+
+      const receivedMonth = allTransactions
+        .filter(t => t.type === 'income' && (t.status === 'completed' || !t.status) && isWithinInterval(new Date(t.transaction_date || t.date || t.created_at), { start: startOfMeso, end: endOfMeso }))
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+
+      const receivedYear = allTransactions
+        .filter(t => t.type === 'income' && (t.status === 'completed' || !t.status) && isWithinInterval(new Date(t.transaction_date || t.date || t.created_at), { start: startOfAno, end: endOfAno }))
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+
+      const mappedApps = appointments.map(app => {
+        const linkedTrans = allTransactions.filter(t => t.appointment_id === app.id);
+        const paidConfirmed = linkedTrans
+          .filter(t => t.status === 'completed' || !t.status)
+          .reduce((sum, t) => sum + Number(t.amount), 0);
+          
         const procedure = Array.isArray(app.procedures) ? app.procedures[0] : app.procedures;
-        const total = Number((procedure as any)?.price || 0);
-        if (appIncome < total) {
-          receivablesTotal += (total - appIncome);
-          pendingCount++;
+        const totalPrice = Number(app.price_override || procedure?.price || 0);
+        const pendingValue = Math.max(0, totalPrice - paidConfirmed);
+        
+        const appointmentDate = new Date(app.start_time);
+        const isFuture = appointmentDate > now;
+        const isPast = appointmentDate <= now;
+        
+        let status = 'pending';
+        if (paidConfirmed >= totalPrice && totalPrice > 0) {
+          status = isFuture ? 'advance_payment' : 'paid';
+        } else if (paidConfirmed > 0) {
+          status = isPast ? 'overdue' : 'partial';
+        } else {
+          status = isPast ? 'overdue' : 'pending';
         }
+        
+        return {
+          totalPrice,
+          paidConfirmed,
+          pendingValue,
+          isFuture,
+          isPast,
+          status
+        };
       });
+
+      const pendingPayments = mappedApps
+        .filter(app => app.status === 'pending')
+        .reduce((sum, app) => sum + app.pendingValue, 0);
+
+      const overduePayments = mappedApps
+        .filter(app => app.status === 'overdue')
+        .reduce((sum, app) => sum + app.pendingValue, 0);
+
+      const partialPayments = mappedApps
+        .filter(app => app.status === 'partial')
+        .reduce((sum, app) => sum + app.pendingValue, 0);
+
+      const futureForecast = mappedApps
+        .filter(app => app.isFuture)
+        .reduce((sum, app) => sum + app.totalPrice, 0);
+
+      const totalReceivable = mappedApps
+        .reduce((sum, app) => sum + app.pendingValue, 0);
+
+      const pastCompletedTotalValue = mappedApps
+        .filter(app => app.isPast)
+        .reduce((sum, app) => sum + app.totalPrice, 0);
+
+      const inadimplencia = pastCompletedTotalValue > 0
+        ? Math.round((overduePayments / pastCompletedTotalValue) * 100)
+        : 0;
+
+      const pendingCount = mappedApps.filter(app => app.pendingValue > 0).length;
 
       setData({
         transactions: periodTransactions.slice(0, 5),
@@ -223,14 +296,23 @@ export default function FinancePage() {
           profit,
           forecastWeek, 
           forecastMonth, 
-          receivablesTotal, 
+          receivablesTotal: totalReceivable, 
           payablesPending,
           pendingCount,
           avgIncome,
           avgExpense,
           avgProfit,
           paidTotal: income,
-          pendingTotal: receivablesTotal + payablesPending
+          pendingTotal: totalReceivable + payablesPending,
+          receivedToday,
+          receivedMonth,
+          receivedYear,
+          pendingPayments,
+          overduePayments,
+          partialPayments,
+          futureForecast,
+          totalReceivable,
+          inadimplencia
         },
         flowData,
         categoryData
@@ -317,12 +399,50 @@ export default function FinancePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-        <FinanceCard label={`Entradas`} value={data.stats.income} loading={loading} icon={TrendingUp} color="emerald" subtitle="Total recebido" />
-        <FinanceCard label={`Saídas`} value={data.stats.expense} loading={loading} icon={TrendingDown} color="red" subtitle="Total pago" />
-        <FinanceCard label="Lucro Líquido" value={data.stats.profit} loading={loading} icon={ArrowUpRight} color="blue" subtitle="Entradas - Saídas" />
-        <FinanceCard label="Pendente Receber" value={data.stats.receivablesTotal} loading={loading} icon={ClockIcon} color="amber" subtitle={`${data.stats.pendingCount} pendências`} onClick={() => setActiveTab('receivables')} />
-        <FinanceCard label="Pendente Pagar" value={data.stats.payablesPending} loading={loading} icon={AlertCircle} color="rose" subtitle="Contas a pagar" />
+      {/* Sub-seção 1: Desempenho de Caixa (Realizado) */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-emerald-500" />
+          <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Desempenho de Caixa (Realizado)</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <FinanceCard label="Recebido Hoje" value={data.stats.receivedToday} loading={loading} icon={Banknote} color="emerald" subtitle="Hoje" />
+          <FinanceCard label="Recebido Mês" value={data.stats.receivedMonth} loading={loading} icon={Calendar} color="emerald" subtitle="Este mês" />
+          <FinanceCard label="Recebido Ano" value={data.stats.receivedYear} loading={loading} icon={TrendingUp} color="emerald" subtitle="Este ano" />
+          <FinanceCard label="Lucro Líquido" value={data.stats.profit} loading={loading} icon={ArrowUpRight} color="blue" subtitle="No período selecionado" />
+        </div>
+      </div>
+
+      {/* Sub-seção 2: Cobrança e Previsões (A Receber) */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <ClockIcon className="h-4 w-4 text-amber-500" />
+          <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Cobrança e Previsões (A Receber)</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
+          <FinanceCard label="Pagamentos Pendentes" value={data.stats.pendingPayments} loading={loading} icon={ClockIcon} color="amber" subtitle="Futuros pendentes" />
+          <FinanceCard label="Pagamentos Parciais" value={data.stats.partialPayments} loading={loading} icon={TrendingUp} color="amber" subtitle="Saldos de parciais" />
+          <FinanceCard label="Pagamentos em Atraso" value={data.stats.overduePayments} loading={loading} icon={AlertCircle} color="red" subtitle="Vencidos e não pagos" onClick={() => setActiveTab('receivables')} />
+          <FinanceCard label="Futuros Previstos" value={data.stats.futureForecast} loading={loading} icon={Calendar} color="blue" subtitle="Total de futuros" />
+          <FinanceCard label="Total a Receber" value={data.stats.totalReceivable} loading={loading} icon={Wallet} color="rose" subtitle="Soma de pendências" />
+          
+          <Card className="border rounded-[2rem] p-8 relative overflow-hidden group shadow-xl shadow-slate-200/40 border-slate-100 hover:-translate-y-1 hover:shadow-2xl bg-white/80">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Inadimplência</span>
+              <div className="p-2 rounded-xl bg-red-600 text-white shadow-lg">
+                <AlertCircle className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="text-3xl font-black italic tracking-tighter text-red-600">
+              {loading ? (
+                <div className="h-9 w-20 bg-slate-100/80 animate-pulse rounded-xl" />
+              ) : (
+                `${data.stats.inadimplencia}%`
+              )}
+            </div>
+            <span className="text-[9px] font-bold text-slate-400 uppercase block mt-1">Saldos atrasados / Realizados</span>
+          </Card>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-100">

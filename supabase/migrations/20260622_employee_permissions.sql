@@ -32,9 +32,11 @@ CREATE TABLE IF NOT EXISTS employee_access_logs (
 -- 3. RLS POLICIES for Access Logs
 ALTER TABLE employee_access_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own company access logs" ON employee_access_logs;
 CREATE POLICY "Users can view own company access logs" ON employee_access_logs
   FOR SELECT USING (company_id = (SELECT company_id FROM profiles WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Users can insert own access logs" ON employee_access_logs;
 CREATE POLICY "Users can insert own access logs" ON employee_access_logs
   FOR INSERT WITH CHECK (profile_id = auth.uid());
 

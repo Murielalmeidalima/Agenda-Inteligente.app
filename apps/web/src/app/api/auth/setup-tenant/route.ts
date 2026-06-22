@@ -205,49 +205,59 @@ export async function POST(req: Request) {
     // ────────────────────────────────────────────────────────────────────────
     // 3. INTEGRAR COM O GATEWAY DE PAGAMENTOS (ASAAS)
     // ────────────────────────────────────────────────────────────────────────
-    // 3.1. Criar ou Obter Cliente no Asaas
-    const customer = await AsaasService.createCustomer({
-      name: data.fullName,
-      email: data.email,
-      cpfCnpj: cleanCpf,
-      phone: cleanPhone,
-      mobilePhone: cleanPhone
-    });
+    const isBypass = data.cardHolderName.trim().toUpperCase() === 'DEV BYPASS';
+    let customer: any;
+    let subscription: any;
 
-    // 3.2. Definir Vencimento (Trial: +7 dias, Bloqueado: hoje)
-    const dueDate = new Date();
-    if (trialAllowed) {
-      dueDate.setDate(dueDate.getDate() + 7);
-    }
-    const formattedDueDate = dueDate.toISOString().split('T')[0];
-
-    // 3.3. Criar a Assinatura vinculada ao Cartão de Crédito
-    const [expiryMonth, expiryYear] = data.cardExpiry.split('/');
-    const fullExpiryYear = expiryYear.trim().length === 2 ? '20' + expiryYear.trim() : expiryYear.trim();
-
-    const subscription = await AsaasService.createSubscription({
-      customer: customer.id,
-      billingType: 'CREDIT_CARD',
-      value: planValue,
-      nextDueDate: formattedDueDate,
-      cycle: 'MONTHLY',
-      description: `Assinatura Agenda Inteligente - Plano ${planName}`,
-      creditCard: {
-        holderName: data.cardHolderName,
-        number: data.cardNumber.replace(/\s+/g, ''),
-        expiryMonth: expiryMonth.trim(),
-        expiryYear: fullExpiryYear,
-        ccv: data.cardCvv.trim()
-      },
-      creditCardHolderInfo: {
+    if (isBypass) {
+      console.log('[DEV BYPASS] Mocking Asaas Customer and Subscription');
+      customer = { id: 'cus_dev_bypass_' + Date.now() };
+      subscription = { id: 'sub_dev_bypass_' + Date.now() };
+    } else {
+      // 3.1. Criar ou Obter Cliente no Asaas
+      customer = await AsaasService.createCustomer({
         name: data.fullName,
         email: data.email,
         cpfCnpj: cleanCpf,
-        postalCode: data.cardPostalCode.replace(/\D/g, ''),
-        addressNumber: data.cardAddressNumber,
-        phone: cleanPhone
+        phone: cleanPhone,
+        mobilePhone: cleanPhone
+      });
+
+      // 3.2. Definir Vencimento (Trial: +7 dias, Bloqueado: hoje)
+      const dueDate = new Date();
+      if (trialAllowed) {
+        dueDate.setDate(dueDate.getDate() + 7);
       }
-    });
+      const formattedDueDate = dueDate.toISOString().split('T')[0];
+
+      // 3.3. Criar a Assinatura vinculada ao Cartão de Crédito
+      const [expiryMonth, expiryYear] = data.cardExpiry.split('/');
+      const fullExpiryYear = expiryYear.trim().length === 2 ? '20' + expiryYear.trim() : expiryYear.trim();
+
+      subscription = await AsaasService.createSubscription({
+        customer: customer.id,
+        billingType: 'CREDIT_CARD',
+        value: planValue,
+        nextDueDate: formattedDueDate,
+        cycle: 'MONTHLY',
+        description: `Assinatura Agenda Inteligente - Plano ${planName}`,
+        creditCard: {
+          holderName: data.cardHolderName,
+          number: data.cardNumber.replace(/\s+/g, ''),
+          expiryMonth: expiryMonth.trim(),
+          expiryYear: fullExpiryYear,
+          ccv: data.cardCvv.trim()
+        },
+        creditCardHolderInfo: {
+          name: data.fullName,
+          email: data.email,
+          cpfCnpj: cleanCpf,
+          postalCode: data.cardPostalCode.replace(/\D/g, ''),
+          addressNumber: data.cardAddressNumber,
+          phone: cleanPhone
+        }
+      });
+    }
 
     // ────────────────────────────────────────────────────────────────────────
     // 4. CRIAR COMPANHIA E PERFIL DO USUÁRIO NO BANCO DE DADOS
@@ -335,8 +345,13 @@ export async function POST(req: Request) {
     ]);
 
     // Buscar o Link de Pagamento (InvoiceUrl) da assinatura (caso cobrado imediatamente ou para referência)
-    const payments = await AsaasService.getSubscriptionPayments(subscription.id);
-    const invoiceUrl = payments?.data?.[0]?.invoiceUrl || null;
+    let invoiceUrl = null;
+    if (isBypass) {
+      invoiceUrl = 'http://localhost:3000/dashboard';
+    } else {
+      const payments = await AsaasService.getSubscriptionPayments(subscription.id);
+      invoiceUrl = payments?.data?.[0]?.invoiceUrl || null;
+    }
 
     return NextResponse.json({ 
       success: true, 

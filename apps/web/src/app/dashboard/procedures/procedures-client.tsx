@@ -33,8 +33,11 @@ import {
 } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { useProfile } from '@/providers/profile-provider';
+import { useRouter } from 'next/navigation';
 
 export default function ProceduresClient() {
+  const { profile } = useProfile();
+  const router = useRouter();
   const [procedures, setProcedures] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]); 
   const [loading, setLoading] = useState(true);
@@ -56,7 +59,6 @@ export default function ProceduresClient() {
   });
 
   const supabase = createBrowserClient();
-  const { profile } = useProfile();
   const companyId = profile?.company_id;
 
   const fetchProcedures = async () => {
@@ -85,6 +87,18 @@ export default function ProceduresClient() {
       setLoading(false);
     }
   };
+
+  // Guard screen access
+  useEffect(() => {
+    if (profile) {
+      if (profile.role !== 'admin' && profile.role !== 'chefe') {
+        const hasAccess = profile.permissions?.settings?.view;
+        if (!hasAccess) {
+          router.push('/dashboard');
+        }
+      }
+    }
+  }, [profile, router]);
 
   useEffect(() => {
     if (companyId) {

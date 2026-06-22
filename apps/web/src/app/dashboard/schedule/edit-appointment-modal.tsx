@@ -27,9 +27,10 @@ interface EditAppointmentModalProps {
   onClose: () => void;
   appointment: any;
   onUpdate: () => void;
+  professionals?: any[];
 }
 
-export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }: EditAppointmentModalProps) {
+export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, professionals }: EditAppointmentModalProps) {
   const [status, setStatus] = useState(appointment?.status || 'scheduled');
   const [notes, setNotes] = useState(appointment?.notes || '');
   const [loading, setLoading] = useState(false);
@@ -47,6 +48,36 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
   const [paymentStatus, setPaymentStatus] = useState<'paid'|'partial'|'unpaid'>('paid');
   const [paymentMethod, setPaymentMethod] = useState('pix');
   const [paymentAmount, setPaymentAmount] = useState<string>('');
+
+  // Adições para o Histórico Financeiro
+  const [transactionsList, setTransactionsList] = useState<any[]>([]);
+  const [newPayAmount, setNewPayAmount] = useState<string>('');
+  const [newPayMethod, setNewPayMethod] = useState<string>('pix');
+  const [loadingTx, setLoadingTx] = useState(false);
+
+  const fetchTransactions = async () => {
+    if (!appointment?.id) return;
+    const supabase = createBrowserClient();
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('appointment_id', appointment.id)
+      .eq('type', 'income')
+      .order('transaction_date', { ascending: false });
+    if (error) {
+      console.error('Error fetching transactions:', error);
+    } else {
+      setTransactionsList(data || []);
+      // Calculate pending balance to autofill
+      const paid = (data || [])
+        .filter((t: any) => t.status === 'completed' || !t.status)
+        .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
+      const proc = Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures;
+      const total = Number(appointment.price_override || proc?.price || 0);
+      const pending = Math.max(0, total - paid);
+      setNewPayAmount(pending.toString());
+    }
+  };
 
   useEffect(() => {
     if (appointment) {
@@ -77,8 +108,81 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
         }
       }
       fetchMedicalRecord();
+      fetchTransactions();
     }
   }, [appointment]);
+
+  const handleRegisterPaymentDirect = async (e: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newPayAmount || Number(newPayAmount) <= 0) {
+      toast.error('Informe um valor de pagamento válido.');
+      return;
+    }
+    
+    setLoadingTx(true);
+    const supabase = createBrowserClient();
+    try {
+      let { data: catData } = await supabase.from('financial_categories')
+        .select('id')
+        .eq('company_id', appointment.company_id)
+        .eq('name', 'Procedimentos')
+        .maybeSingle();
+        
+      if (!catData) {
+        const { data: fallbackCat } = await supabase.from('financial_categories')
+          .select('id')
+          .eq('company_id', appointment.company_id)
+          .eq('type', 'income')
+          .limit(1)
+          .maybeSingle();
+        catData = fallbackCat;
+      }
+        
+      const { data: accData } = await supabase.from('financial_accounts')
+        .select('id')
+        .eq('company_id', appointment.company_id)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      const paymentVal = Number(newPayAmount.replace(',', '.'));
+      
+      const transactionValues = {
+        company_id: appointment.company_id,
+        appointment_id: appointment.id,
+        category_id: catData?.id,
+        account_id: accData?.id,
+        amount: paymentVal,
+        type: 'income',
+        status: 'completed',
+        payment_method: newPayMethod,
+        description: `Atendimento (Avulso): ${appointment.clients?.full_name}`,
+        date: new Date().toISOString(),
+        transaction_date: new Date().toISOString()
+      };
+      
+      const { error: txError } = await supabase.from('transactions').insert(transactionValues);
+      if (txError) throw txError;
+
+      if (accData?.id) {
+        const { error: rpcError } = await supabase.rpc('update_account_balance', { 
+          target_account_id: accData.id, 
+          amount_diff: paymentVal 
+        });
+        if (rpcError) throw rpcError;
+      }
+      
+      toast.success('Pagamento registrado com sucesso!');
+      
+      await fetchTransactions();
+      onUpdate();
+    } catch (err: any) {
+      console.error('Error registering payment:', err);
+      toast.error('Erro ao registrar pagamento: ' + err.message);
+    } finally {
+      setLoadingTx(false);
+    }
+  };
 
   const handleSendAnamnese = async () => {
     setSendingLink(true);
@@ -344,6 +448,13 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
     }
   };
 
+  const procObj = Array.isArray(appointment?.procedures) ? appointment.procedures[0] : appointment?.procedures;
+  const totalPrice = Number(appointment?.price_override || procObj?.price || 0);
+  const paidConfirmed = transactionsList
+    .filter(t => t.status === 'completed' || !t.status)
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+  const pendingBalance = Math.max(0, totalPrice - paidConfirmed);
+
   if (!appointment) return null;
 
   return (
@@ -526,6 +637,108 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate }:
                      </div>
                   </div>
                </div>
+            )}
+
+            {/* Histórico Financeiro */}
+            {status !== 'cancelled' && (
+              <div className="bg-[#FAF9F6] p-4 rounded-2xl border border-[#E5E0D8] space-y-4 my-4">
+                <h3 className="text-sm font-black text-[#2C2825] uppercase tracking-widest flex items-center gap-2">
+                  <Banknote className="w-4 h-4 text-primary-500" />
+                  Histórico Financeiro
+                </h3>
+
+                {/* Resumo Financeiro */}
+                <div className="grid grid-cols-3 gap-2 text-center bg-white p-3 rounded-xl border border-[#E5E0D8]/60">
+                  <div>
+                    <span className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider block">Total</span>
+                    <span className="text-xs font-bold text-[#2C2825]">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalPrice)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider block">Pago</span>
+                    <span className="text-xs font-bold text-emerald-600">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(paidConfirmed)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider block">Pendente</span>
+                    <span className={`text-xs font-bold ${pendingBalance > 0 ? 'text-amber-600' : 'text-neutral-500'}`}>
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pendingBalance)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Histórico de Transações */}
+                {transactionsList.length > 0 ? (
+                  <div className="space-y-1.5 max-h-[120px] overflow-y-auto pr-1">
+                    {transactionsList.map((tx) => (
+                      <div key={tx.id} className="flex justify-between items-center bg-white px-3 py-1.5 rounded-lg border border-[#E5E0D8]/40 text-xs">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-[#2C2825]">
+                            {tx.payment_method === 'pix' ? 'PIX' :
+                             tx.payment_method === 'credit_card' ? 'Cartão de Crédito' :
+                             tx.payment_method === 'debit_card' ? 'Cartão de Débito' :
+                             tx.payment_method === 'cash' ? 'Dinheiro' : tx.payment_method || 'Outro'}
+                          </span>
+                          <span className="text-[9px] text-[#8A847C]">
+                            {format(new Date(tx.transaction_date || tx.date || tx.created_at), 'dd/MM/yyyy HH:mm')}
+                          </span>
+                        </div>
+                        <span className="font-black text-emerald-600">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(tx.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-neutral-600 italic text-center py-2">
+                    Nenhum pagamento registrado ainda.
+                  </p>
+                )}
+
+                {/* Formulário de Novo Pagamento (apenas se houver saldo pendente) */}
+                {pendingBalance > 0 && (
+                  <div className="space-y-3 pt-2 border-t border-[#E5E0D8]/50">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-bold text-[#5C5855]">Valor (R$)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          required
+                          className="bg-white border-[#E5E0D8] h-9 rounded-lg text-xs"
+                          value={newPayAmount}
+                          onChange={(e) => setNewPayAmount(e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-bold text-[#5C5855]">Forma</Label>
+                        <Select value={newPayMethod} onValueChange={setNewPayMethod}>
+                          <SelectTrigger className="bg-white border-[#E5E0D8] h-9 rounded-lg text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pix">PIX</SelectItem>
+                            <SelectItem value="credit_card">Cartão Crédito</SelectItem>
+                            <SelectItem value="debit_card">Cartão Débito</SelectItem>
+                            <SelectItem value="cash">Dinheiro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={(e) => handleRegisterPaymentDirect(e)}
+                      disabled={loadingTx}
+                      className="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm"
+                    >
+                      {loadingTx ? 'Registrando...' : 'Registrar Pagamento'}
+                    </Button>
+                  </div>
+                )}
+              </div>
             )}
 
            <Button 

@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Inter } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "@projeto/ui";
+import { ClientToaster } from "@/components/ui/ClientToaster";
 
 const playfairDisplay = Playfair_Display({
   variable: "--font-playfair-display",
@@ -67,12 +67,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className="scroll-smooth">
+    <html lang="pt-BR" className="scroll-smooth" suppressHydrationWarning>
       <body
         className={`${playfairDisplay.variable} ${inter.variable} font-sans antialiased`}
       >
         {children}
-        <Toaster position="top-right" />
+        <ClientToaster />
       </body>
     </html>
   );

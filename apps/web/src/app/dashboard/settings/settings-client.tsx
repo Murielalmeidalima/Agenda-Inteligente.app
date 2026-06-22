@@ -71,7 +71,7 @@ export default function SettingsClient() {
 
 
   const supabase = createBrowserClient();
-  const { profile, loading: profileLoading } = useProfile();
+  const { profile, loading: profileLoading, refreshProfile } = useProfile();
   const router = useRouter();
   
   // Use company_id from profile, fallback to empty string if loading
@@ -80,36 +80,111 @@ export default function SettingsClient() {
   // File Upload Logic
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [newLogoPreview, setNewLogoPreview] = useState<string | null>(null);
+  const [newLogoFile, setNewLogoFile] = useState<File | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const getInitials = (name: string | null | undefined): string => {
+    if (!name) return '?';
+    const parts = name.trim().split(' ');
+    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  };
+
+  const resizeImage = (file: File, maxWidth = 400, maxHeight = 400): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = document.createElement('img');
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error("Canvas context could not be created"));
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob((blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error("Canvas toBlob failed"));
+            }
+          }, 'image/jpeg', 0.85);
+        };
+        img.onerror = () => reject(new Error("Failed to load image"));
+        img.src = img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleLogoSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert("O arquivo é muito grande. Máximo de 2MB.");
+    // Strict validation
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      alert("Formato não permitido. Selecione uma imagem PNG, JPG, JPEG ou WEBP.");
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
-    // 1. Optimistic Preview
-    const objectUrl = URL.createObjectURL(file);
-    setLogoPreview(objectUrl);
-    setUploadingLogo(true);
+    if (file.size > 5 * 1024 * 1024) {
+      alert("O tamanho da imagem excede o limite permitido de 5MB.");
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
 
+    // Set preview immediately
+    const objectUrl = URL.createObjectURL(file);
+    setNewLogoPreview(objectUrl);
+    setNewLogoFile(file);
+  };
+
+  const handleSaveLogo = async () => {
+    if (!newLogoFile) return;
     try {
+      setUploadingLogo(true);
+
+      // 1. Optimize image client-side via canvas
+      const optimizedBlob = await resizeImage(newLogoFile);
+
       // 2. Upload to Supabase Storage
-      const fileExt = file.name.split('.').pop();
+      const fileExt = 'jpg';
       const fileName = `${companyId}-${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('logos') // Making an educated guess on bucket name
-        .upload(filePath, file);
+        .from('logos')
+        .upload(filePath, optimizedBlob, {
+          contentType: 'image/jpeg',
+          upsert: true
+        });
 
       if (uploadError) {
-        // Handle missing bucket specifically
         if (uploadError.message.includes('Bucket not found')) {
-           alert("Erro: O bucket 'logos' não existe no Supabase. Crie-o no painel do Supabase com acesso público.");
+           alert("Erro: O bucket 'logos' não existe no Supabase. Crie o bucket com permissões públicas no painel.");
            throw uploadError;
         }
         throw uploadError;
@@ -128,13 +203,51 @@ export default function SettingsClient() {
 
       if (dbError) throw dbError;
 
+      // Reset selection state
+      setNewLogoFile(null);
+      setNewLogoPreview(null);
+      setLogoPreview(publicUrl);
+      
+      // Global Profile sync
+      await refreshProfile();
+      router.refresh();
       alert("Logotipo atualizado com sucesso!");
 
     } catch (error: any) {
-      console.error('Error uploading logo:', error);
-      alert(`Falha no upload: ${error.message}`);
-      // Revert preview on error
+      console.error('Error saving logo:', error);
+      alert(`Falha ao salvar logo: ${error.message}`);
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    if (!confirm("Tem certeza que deseja remover o logotipo da clínica? O sistema voltará ao padrão de iniciais.")) return;
+    try {
+      setUploadingLogo(true);
+
+      // Update Company DB setting to null
+      const { error: dbError } = await supabase
+        .from('companies')
+        .update({ logo_url: null })
+        .eq('id', companyId);
+
+      if (dbError) throw dbError;
+
+      // Clean states
       setLogoPreview(null);
+      setNewLogoPreview(null);
+      setNewLogoFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+
+      // Global sync
+      await refreshProfile();
+      router.refresh();
+      alert("Logotipo removido com sucesso!");
+
+    } catch (error: any) {
+      console.error('Error removing logo:', error);
+      alert(`Falha ao remover logo: ${error.message}`);
     } finally {
       setUploadingLogo(false);
     }
@@ -348,56 +461,104 @@ export default function SettingsClient() {
                           !isEditingCompany && "opacity-60 cursor-not-allowed border-transparent bg-transparent"
                         )} 
                       />
-                   </div>
-                   
-                   {/* Branding Area */}
-                    <div className="col-span-full space-y-6 pt-8 border-t border-[#E5E0D8]">
-                      <div className="flex items-center gap-2 mb-2">
-                         <Building2 className="h-4 w-4 text-[#D4AF37]" />
-                         <h4 className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest">Branding da Clínica</h4>
-                      </div>
-                      <div className="p-8 bg-[#FDFBF7] rounded-3xl border border-[#E5E0D8] border-dashed flex flex-col items-center gap-6">
-                         <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center border border-[#E5E0D8] overflow-hidden relative group/preview shadow-sm">
-                           {logoPreview ? (
-                             <>
-                               <Image 
-                                 src={logoPreview} 
-                                 alt="Logo Preview" 
-                                 fill
-                                 className="object-cover"
-                                 unoptimized
-                               />
-                               {uploadingLogo && (
-                                 <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
-                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#D4AF37]"></div>
+                    </div>
+                                     {/* Branding Area */}
+                     <div className="col-span-full space-y-6 pt-8 border-t border-[#E5E0D8]">
+                       <div className="flex items-center gap-2 mb-2">
+                          <Building2 className="h-4 w-4 text-[#D4AF37]" />
+                          <h4 className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest">Branding da Clínica</h4>
+                       </div>
+                       
+                       <div className="p-8 bg-[#FDFBF7] rounded-3xl border border-[#E5E0D8] border-dashed flex flex-col md:flex-row items-center justify-around gap-8">
+                          
+                          {/* 1. Logo Atual */}
+                          <div className="flex flex-col items-center gap-3">
+                             <span className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest">Logo Atual</span>
+                             <div className="w-28 h-28 bg-white rounded-3xl flex items-center justify-center border border-[#E5E0D8] overflow-hidden relative shadow-sm">
+                               {logoPreview ? (
+                                 <Image 
+                                   src={logoPreview} 
+                                   alt="Logo Atual" 
+                                   fill
+                                   className="object-cover"
+                                   unoptimized
+                                 />
+                               ) : (
+                                 <div className="flex items-center justify-center w-full h-full bg-gradient-to-br from-[#D4AF37] to-[#B5952F] text-white font-serif font-black text-3xl shadow-inner">
+                                   {getInitials(profile?.companies?.name)}
                                  </div>
                                )}
-                             </>
-                           ) : (
-                             <Plus className="h-8 w-8 text-[#E5E0D8]" />
-                           )}
-                         </div>
-                         <div className="text-center space-y-1">
-                            <p className="text-sm font-bold text-[#2C2825]">Carregar Logotipo</p>
-                            <p className="text-xs text-[#8A847C] italic">Formatos suportados: SVG, PNG ou JPG (Máx 2MB)</p>
-                         </div>
-                         <input
-                             type="file"
-                             accept="image/*"
-                             className="hidden"
-                             ref={fileInputRef}
-                             onChange={handleLogoUpload}
-                         />
-                         <Button 
-                           variant="outline" 
-                           className="border-[#E5E0D8] text-[#5C5855] h-10 px-6 font-bold hover:bg-[#FAF6E9] hover:text-[#2C2825]"
-                           onClick={() => fileInputRef.current?.click()}
-                         >
-                           Selecionar Arquivo
-                         </Button>
-                      </div>
-                   </div>
-                </CardContent>
+                             </div>
+                          </div>
+
+                          {/* 2. Nova Logo Selecionada (se houver) */}
+                          {newLogoPreview && (
+                            <div className="flex flex-col items-center gap-3 animate-in zoom-in-50 duration-300">
+                               <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1.5">
+                                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                                 Nova Logo Selecionada
+                               </span>
+                               <div className="w-28 h-28 bg-white rounded-3xl flex items-center justify-center border-2 border-dashed border-amber-500 overflow-hidden relative shadow-md">
+                                 <Image 
+                                   src={newLogoPreview} 
+                                   alt="Nova Logo Preview" 
+                                   fill
+                                   className="object-cover"
+                                   unoptimized
+                                 />
+                               </div>
+                            </div>
+                          )}
+
+                          {/* 3. Ações de Upload */}
+                          <div className="flex flex-col items-center md:items-start gap-4">
+                             <div className="text-center md:text-left space-y-1">
+                                <p className="text-sm font-bold text-[#2C2825]">Carregar Logotipo</p>
+                                <p className="text-xs text-[#8A847C] italic">Formatos suportados: PNG, JPG, JPEG, WEBP (Máx 5MB)</p>
+                             </div>
+                             
+                             <input
+                                 type="file"
+                                 accept="image/png, image/jpeg, image/jpg, image/webp"
+                                 className="hidden"
+                                 ref={fileInputRef}
+                                 onChange={handleLogoSelection}
+                             />
+
+                             <div className="flex flex-wrap gap-3 justify-center md:justify-start">
+                                <Button 
+                                  variant="outline" 
+                                  className="border-[#E5E0D8] text-[#5C5855] h-10 px-6 font-bold hover:bg-[#FAF6E9] hover:text-[#2C2825]"
+                                  onClick={() => fileInputRef.current?.click()}
+                                >
+                                  Selecionar Imagem
+                                </Button>
+
+                                {newLogoFile && (
+                                  <Button 
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-6"
+                                    onClick={handleSaveLogo}
+                                    disabled={uploadingLogo}
+                                  >
+                                    {uploadingLogo ? "Salvando..." : "Salvar Nova Logo"}
+                                  </Button>
+                                )}
+
+                                {logoPreview && (
+                                  <Button 
+                                    variant="ghost"
+                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 font-bold h-10 px-6"
+                                    onClick={handleRemoveLogo}
+                                    disabled={uploadingLogo}
+                                  >
+                                    Remover Logo
+                                  </Button>
+                                )}
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+                 </CardContent>
               </Card>
 
             </>

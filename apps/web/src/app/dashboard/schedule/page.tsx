@@ -17,7 +17,7 @@ export default async function SchedulePage() {
   // Fetch User Profile
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, company_id, role, approved')
+    .select('id, company_id, role, approved, permissions')
     .eq('id', user.id)
     .single();
 
@@ -38,14 +38,23 @@ export default async function SchedulePage() {
     redirect('/auth/pending'); // página dedicada — não causa loop com middleware
   }
 
+  // Check RBAC Permissions
+  if (profile.role !== 'admin' && profile.role !== 'chefe') {
+    const permissions = (profile.permissions as any) || {};
+    if (!permissions.agenda?.view) {
+      redirect('/dashboard');
+    }
+  }
 
-  // Buscar Agendamentos, Clientes e Procedimentos (Join)
+
+  // Buscar Agendamentos, Clientes, Procedimentos e Profissionais (Join)
   const { data: appointments, error } = await supabase
     .from('appointments')
     .select(`
       *,
       clients!inner(full_name, birth_date),
-      procedures!inner(name, color, duration_minutes, price, maintenance_required, maintenance_days_limit, maintenance_period_unit, maintenance_duration_minutes)
+      procedures!inner(name, color, duration_minutes, price, maintenance_required, maintenance_days_limit, maintenance_period_unit, maintenance_duration_minutes),
+      profiles:professional_id(full_name)
     `)
     .eq('company_id', profile.company_id);
 
@@ -71,15 +80,34 @@ export default async function SchedulePage() {
   const hydratedAppointments = appointments?.map(app => {
     const linkedTrans = transactions.filter(t => t.appointment_id === app.id);
     const paidConfirmed = linkedTrans
-      .filter(t => t.status === 'completed')
+      .filter(t => t.status === 'completed' || !t.status)
       .reduce((sum, t) => sum + Number(t.amount), 0);
       
     const procedure = Array.isArray(app.procedures) ? app.procedures[0] : app.procedures;
     const totalPrice = Number(app.price_override || procedure?.price || 0);
     
-    let paymentStatus = 'unpaid';
-    if (paidConfirmed >= totalPrice && totalPrice > 0) paymentStatus = 'paid';
-    else if (paidConfirmed > 0) paymentStatus = 'partial';
+    const now = new Date();
+    const startDate = new Date(app.start_time);
+    
+    let paymentStatus = 'pending';
+    
+    if (app.status === 'cancelled') {
+      paymentStatus = 'cancelled';
+    } else if (paidConfirmed >= totalPrice && totalPrice > 0) {
+      if (startDate > now && app.status !== 'completed') {
+        paymentStatus = 'advance_payment';
+      } else {
+        paymentStatus = 'paid';
+      }
+    } else if (paidConfirmed > 0) {
+      paymentStatus = 'partial';
+    } else { // paidConfirmed === 0
+      if (startDate < now || app.status === 'completed') {
+        paymentStatus = 'overdue';
+      } else {
+        paymentStatus = 'pending';
+      }
+    }
     
     // Pegar o method da transação mais recente ou primeira
     const paymentMethod = linkedTrans[0]?.payment_method || null;

@@ -11,18 +11,12 @@ import {
   TableCell,
   Badge,
   Button,
-  Input,
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem
+  Input
 } from '@projeto/ui';
 import { 
   Search, 
   Filter, 
   CheckCircle2, 
-  Clock as ClockIcon,
   ArrowRight
 } from 'lucide-react';
 import Link from 'next/link';
@@ -33,10 +27,33 @@ interface AccountsReceivableListProps {
   companyId: string;
 }
 
+function TabButton({ active, onClick, label, count, color }: { active: boolean, onClick: () => void, label: string, count: number, color?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "px-4 py-2.5 rounded-2xl border text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2",
+        active 
+          ? (color ? `${color} shadow-sm border-current` : "bg-slate-950 border-slate-950 text-white shadow-lg shadow-slate-900/10")
+          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+      )}
+    >
+      {label}
+      <span className={cn(
+        "text-[10px] px-2 py-0.5 rounded-lg font-black",
+        active ? "bg-white/20 text-current" : "bg-slate-200 text-slate-700"
+      )}>
+        {count}
+      </span>
+    </button>
+  );
+}
+
 export function AccountsReceivableList({ companyId }: AccountsReceivableListProps) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any[]>([]);
-  const [filterStatus, setFilterStatus] = useState('pending'); // all, unpaid, partial, confirmed_pending, paid
+  const [filterStatus, setFilterStatus] = useState('all'); // all, pending, partial, overdue, paid
   const [searchTerm, setSearchTerm] = useState('');
   const [errorHeader, setErrorHeader] = useState<string | null>(null);
 
@@ -44,105 +61,130 @@ export function AccountsReceivableList({ companyId }: AccountsReceivableListProp
     if (companyId) fetchReceivables();
   }, [companyId]);
 
-    async function fetchReceivables() {
-      if (!companyId || companyId === '') {
-        setData([]);
-        setLoading(false);
-        return;
+  async function fetchReceivables() {
+    if (!companyId || companyId === '') {
+      setData([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const supabase = createBrowserClient();
+      
+      const { data: appointments, error: appError } = await supabase
+        .from('appointments')
+        .select(`
+          *,
+          clients (id, full_name),
+          procedures (id, name, price)
+        `)
+        .eq('company_id', companyId)
+        .neq('status', 'cancelled')
+        .order('start_time', { ascending: false });
+
+      if (appError) throw appError;
+
+      const appIds = appointments?.map(a => a.id) || [];
+      let transactions: any[] = [];
+
+      if (appIds.length > 0) {
+        const { data: transData, error: transError } = await supabase
+          .from('transactions')
+          .select('id, appointment_id, amount, type, payment_method, status, transaction_date')
+          .in('appointment_id', appIds)
+          .eq('type', 'income');
+
+        if (transError) throw transError;
+        transactions = transData || [];
       }
 
-      setLoading(true);
-      try {
-        const supabase = createBrowserClient();
+      const processed = (appointments || []).map(app => {
+        const linkedTrans = transactions.filter(t => t.appointment_id === app.id);
+        const paidConfirmed = linkedTrans
+          .filter(t => t.status === 'completed' || !t.status)
+          .reduce((sum, t) => sum + Number(t.amount), 0);
         
-        const { data: appointments, error: appError } = await supabase
-          .from('appointments')
-          .select(`
-            *,
-            clients (id, full_name),
-            procedures (id, name, price)
-          `)
-          .eq('company_id', companyId)
-          .eq('status', 'completed')
-          .order('start_time', { ascending: false });
-
-        if (appError) throw appError;
-
-        const appIds = appointments?.map(a => a.id) || [];
-        let transactions: any[] = [];
-
-        if (appIds.length > 0) {
-          const { data: transData, error: transError } = await supabase
-            .from('transactions')
-            .select('id, appointment_id, amount, type')
-            .in('appointment_id', appIds)
-            .eq('type', 'income');
-
-          if (transError) throw transError;
-          transactions = transData || [];
+        const hasPendingConfirmation = linkedTrans.some(t => t.status === 'pending');
+        const procedure = Array.isArray(app.procedures) ? app.procedures[0] : app.procedures;
+        const totalPrice = Number(app.price_override || (procedure as any)?.price || 0);
+        const pendingValue = Math.max(0, totalPrice - paidConfirmed);
+        
+        const now = new Date();
+        const appointmentDate = new Date(app.start_time);
+        const isPast = appointmentDate < now;
+        
+        // Determine logical status
+        let status = 'pending';
+        if (paidConfirmed >= totalPrice && totalPrice > 0) {
+          status = isPast ? 'paid' : 'advance_payment';
+        } else if (paidConfirmed > 0) {
+          status = isPast ? 'overdue' : 'partial';
+        } else {
+          status = isPast ? 'overdue' : 'pending';
         }
 
-        const processed = (appointments || []).map(app => {
-          const linkedTrans = transactions.filter(t => t.appointment_id === app.id);
-          const paidConfirmed = linkedTrans
-            .filter(t => (t as any).status === 'completed' || !(t as any).status)
-            .reduce((sum, t) => sum + Number(t.amount), 0);
-          
-          const hasPendingConfirmation = linkedTrans.some(t => t.status === 'pending');
-          const procedure = Array.isArray(app.procedures) ? app.procedures[0] : app.procedures;
-          const totalPrice = Number(app.price_override || (procedure as any)?.price || 0);
-          const pendingValue = totalPrice - paidConfirmed;
-          
-          // Determine logical status
-          let status = 'unpaid';
-          if (paidConfirmed >= totalPrice && totalPrice > 0) status = 'paid';
-          else if (paidConfirmed > 0) status = 'partial';
+        // Days in Arrears
+        let daysInArrears = 0;
+        if (status === 'overdue' && pendingValue > 0) {
+          const diffTime = Math.abs(now.getTime() - appointmentDate.getTime());
+          daysInArrears = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        }
 
-          // Flatten identifiers for easy filtering/searching
-          // Flatten identifiers for easy filtering/searching
-          const client = Array.isArray(app.clients) ? app.clients[0] : app.clients;
-          
-          const clientName = (client as any)?.full_name || 'Cliente não identificado';
-          const procedureName = (procedure as any)?.name || 'Procedimento não identificado';
+        // Payment Methods
+        const paymentMethods = Array.from(new Set(
+          linkedTrans
+            .map(t => {
+              if (t.payment_method === 'pix') return 'PIX';
+              if (t.payment_method === 'credit_card') return 'C. Crédito';
+              if (t.payment_method === 'debit_card') return 'C. Débito';
+              if (t.payment_method === 'cash') return 'Dinheiro';
+              return t.payment_method;
+            })
+            .filter(Boolean)
+        )).join(', ') || '-';
 
-          return {
-            id: app.id,
-            start_time: app.start_time,
-            clientName,
-            procedureName,
-            totalPrice,
-            paidConfirmed,
-            pendingValue,
-            status,
-            hasPendingConfirmation,
-            displayStatus: hasPendingConfirmation ? 'awaiting_confirmation' : status
-          };
-        });
+        const client = Array.isArray(app.clients) ? app.clients[0] : app.clients;
+        const clientName = (client as any)?.full_name || 'Cliente não identificado';
+        const procedureName = (procedure as any)?.name || 'Procedimento não identificado';
 
-        setData(processed);
-        setErrorHeader(null);
-      } catch (err: any) {
-        console.error('Fetch error full object:', err);
-        if (err.message) console.error('Error Message:', err.message);
-        setErrorHeader(err.message || 'Erro ao carregar dados financeiros.');
-      } finally {
-        setLoading(false);
-      }
+        return {
+          id: app.id,
+          start_time: app.start_time,
+          clientName,
+          procedureName,
+          totalPrice,
+          paidConfirmed,
+          pendingValue,
+          status,
+          daysInArrears,
+          paymentMethods,
+          hasPendingConfirmation
+        };
+      });
+
+      setData(processed);
+      setErrorHeader(null);
+    } catch (err: any) {
+      console.error('Fetch error full object:', err);
+      setErrorHeader(err.message || 'Erro ao carregar dados financeiros.');
+    } finally {
+      setLoading(false);
     }
+  }
 
   const filteredData = data.filter(item => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = item.clientName.toLowerCase().includes(searchLower) ||
-                         item.procedureName.toLowerCase().includes(searchLower);
+                          item.procedureName.toLowerCase().includes(searchLower);
     
     if (!matchesSearch) return false;
     
     switch (filterStatus) {
       case 'all': return true;
-      case 'pending': return item.pendingValue > 0;
-      case 'unpaid': return item.status === 'unpaid';
+      case 'pending': return item.status === 'pending' || item.status === 'advance_payment';
       case 'partial': return item.status === 'partial';
-      case 'awaiting_confirmation': return item.hasPendingConfirmation;
+      case 'overdue': return item.status === 'overdue';
       case 'paid': return item.status === 'paid';
       default: return true;
     }
@@ -177,42 +219,34 @@ export function AccountsReceivableList({ companyId }: AccountsReceivableListProp
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-        <div className="relative w-full md:w-96">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input 
-            placeholder="Buscar por cliente ou procedimento..." 
-            className="pl-11 bg-slate-50 border-slate-200 rounded-2xl text-slate-900 h-12 focus:ring-2 focus:ring-rose-500/10 focus:border-rose-500/50 transition-all font-medium placeholder:text-slate-400"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
+      <div className="flex flex-col gap-4">
+        {/* Search and Tabs Row */}
+        <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
+          <div className="relative w-full lg:w-96">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Input 
+              placeholder="Buscar por cliente ou procedimento..." 
+              className="pl-11 bg-slate-50 border-slate-200 rounded-2xl text-slate-900 h-12 focus:ring-2 focus:ring-rose-500/10 focus:border-rose-500/50 transition-all font-medium placeholder:text-slate-400"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
 
-        <div className="flex gap-3 w-full md:w-auto">
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-full md:w-64 bg-slate-50 border-slate-200 rounded-2xl text-slate-700 h-12 font-bold focus:ring-rose-500/10">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-rose-500" />
-                <SelectValue placeholder="Filtrar por Status" />
-              </div>
-            </SelectTrigger>
-            <SelectContent className="bg-white border-slate-200 text-slate-700 rounded-2xl shadow-2xl">
-              <SelectItem value="pending" className="font-bold py-3 uppercase text-[10px] tracking-widest text-slate-500">Todas as Pendências</SelectItem>
-              <SelectItem value="all" className="font-bold py-3 uppercase text-[10px] tracking-widest text-slate-500">Ver Todos</SelectItem>
-              <SelectItem value="unpaid" className="font-bold py-3 uppercase text-[10px] tracking-widest text-red-600">❌ Não Pagos</SelectItem>
-              <SelectItem value="partial" className="font-bold py-3 uppercase text-[10px] tracking-widest text-amber-600">🕒 Pagos Parcialmente</SelectItem>
-              <SelectItem value="awaiting_confirmation" className="font-bold py-3 uppercase text-[10px] tracking-widest text-blue-600">⏳ Confirmando</SelectItem>
-              <SelectItem value="paid" className="font-bold py-3 uppercase text-[10px] tracking-widest text-emerald-600">✅ Pagos</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Button 
-            variant="outline" 
-            className="border-slate-200 bg-white text-slate-500 hover:bg-slate-50 rounded-2xl h-12 px-6 font-black uppercase text-[10px] tracking-widest transition-all"
-            onClick={fetchReceivables}
-          >
-            Atualizar
-          </Button>
+          <div className="flex flex-wrap gap-2 w-full lg:w-auto">
+            <TabButton active={filterStatus === 'all'} onClick={() => setFilterStatus('all')} label="Todos" count={data.length} />
+            <TabButton active={filterStatus === 'pending'} onClick={() => setFilterStatus('pending')} label="Pendentes" count={data.filter(d => d.status === 'pending' || d.status === 'advance_payment').length} color="border-yellow-200 text-yellow-700 bg-yellow-50/50" />
+            <TabButton active={filterStatus === 'partial'} onClick={() => setFilterStatus('partial')} label="Parciais" count={data.filter(d => d.status === 'partial').length} color="border-orange-200 text-orange-600 bg-orange-50/50" />
+            <TabButton active={filterStatus === 'overdue'} onClick={() => setFilterStatus('overdue')} label="Atrasados" count={data.filter(d => d.status === 'overdue').length} color="border-red-200 text-red-600 bg-red-50/50" />
+            <TabButton active={filterStatus === 'paid'} onClick={() => setFilterStatus('paid')} label="Quitados" count={data.filter(d => d.status === 'paid').length} color="border-emerald-200 text-emerald-600 bg-emerald-50/50" />
+            
+            <Button 
+              variant="outline" 
+              className="border-slate-200 bg-white text-slate-500 hover:bg-slate-50 rounded-2xl h-11 px-5 font-black uppercase text-[10px] tracking-widest transition-all ml-auto lg:ml-2"
+              onClick={fetchReceivables}
+            >
+              Atualizar
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -223,6 +257,8 @@ export function AccountsReceivableList({ companyId }: AccountsReceivableListProp
               <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest py-5 pl-8">Data</TableHead>
               <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest py-5">Cliente / Procedimento</TableHead>
               <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest py-5">Status</TableHead>
+              <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest py-5">Método</TableHead>
+              <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest py-5">Atraso</TableHead>
               <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest py-5">Valores (R$)</TableHead>
               <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest py-5">Saldo</TableHead>
               <TableHead className="text-right py-5 pr-8"></TableHead>
@@ -231,7 +267,7 @@ export function AccountsReceivableList({ companyId }: AccountsReceivableListProp
           <TableBody>
             {filteredData.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-64 text-center">
+                <TableCell colSpan={8} className="h-64 text-center">
                    <div className="flex flex-col items-center gap-4 opacity-40">
                       <div className="p-4 bg-slate-50 rounded-3xl">
                          <Search className="h-10 w-10 text-slate-300" />
@@ -261,7 +297,19 @@ export function AccountsReceivableList({ companyId }: AccountsReceivableListProp
                     </div>
                   </TableCell>
                   <TableCell className="py-6">
-                    <StatusBadge status={item.displayStatus} />
+                    <StatusBadge status={item.status} />
+                  </TableCell>
+                  <TableCell className="py-6">
+                    <span className="text-xs font-bold text-slate-600">{item.paymentMethods}</span>
+                  </TableCell>
+                  <TableCell className="py-6">
+                    {item.daysInArrears > 0 ? (
+                      <Badge variant="outline" className="bg-red-50 text-red-600 border-red-100 text-[10px] font-black px-2 py-0.5 rounded-lg">
+                        {item.daysInArrears} {item.daysInArrears === 1 ? 'dia' : 'dias'}
+                      </Badge>
+                    ) : (
+                      <span className="text-xs font-bold text-slate-400">-</span>
+                    )}
                   </TableCell>
                   <TableCell className="py-6">
                     <div className="space-y-1">
@@ -315,30 +363,37 @@ export function AccountsReceivableList({ companyId }: AccountsReceivableListProp
 
 function StatusBadge({ status }: { status: string }) {
   switch (status) {
-    case 'unpaid':
+    case 'overdue':
       return (
-        <Badge variant="outline" className="bg-rose-50/50 text-rose-600 border-rose-100 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl flex items-center gap-2 w-fit">
-          <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-          Não Pago
+        <Badge variant="outline" className="bg-red-50 text-red-600 border-red-100 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl flex items-center gap-2 w-fit">
+          <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+          Atrasado
         </Badge>
       );
     case 'partial':
       return (
-        <Badge variant="outline" className="bg-amber-50/50 text-amber-600 border-amber-100 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl flex items-center gap-2 w-fit">
-          <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+        <Badge variant="outline" className="bg-orange-50 text-orange-600 border-orange-100 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl flex items-center gap-2 w-fit">
+          <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
           Parcial
         </Badge>
       );
-    case 'awaiting_confirmation':
+    case 'pending':
       return (
-        <Badge variant="outline" className="bg-blue-50/50 text-blue-600 border-blue-100 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl flex items-center gap-2 w-fit">
-          <ClockIcon className="h-3.5 w-3.5" />
-          Confirmando
+        <Badge variant="outline" className="bg-yellow-50 text-yellow-600 border-yellow-100 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl flex items-center gap-2 w-fit">
+          <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
+          Pendente
+        </Badge>
+      );
+    case 'advance_payment':
+      return (
+        <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-100 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl flex items-center gap-2 w-fit">
+          <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+          Adiantado
         </Badge>
       );
     case 'paid':
       return (
-        <Badge variant="outline" className="bg-emerald-50/50 text-emerald-600 border-emerald-100 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl flex items-center gap-2 w-fit">
+        <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-100 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl flex items-center gap-2 w-fit">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           Pago
         </Badge>

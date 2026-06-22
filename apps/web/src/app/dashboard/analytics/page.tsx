@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { 
   Button, 
@@ -42,7 +43,20 @@ type Period = 'today' | 'month' | 'year';
 
 export default function AnalyticsPage() {
   const { profile } = useProfile();
+  const router = useRouter();
   const [period, setPeriod] = useState<Period>('month');
+
+  // Guard screen access
+  useEffect(() => {
+    if (profile) {
+      if (profile.role !== 'admin' && profile.role !== 'chefe') {
+        const hasAccess = profile.permissions?.reports?.view;
+        if (!hasAccess) {
+          router.push('/dashboard');
+        }
+      }
+    }
+  }, [profile, router]);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<{
     productRanking: any[];
