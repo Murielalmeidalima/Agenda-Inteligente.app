@@ -355,17 +355,32 @@ export default function FinancePage() {
 
   async function handleDelete(table: string, id: string) {
     if (!confirm('Tem certeza que deseja excluir este item?')) return;
-    const supabase = createBrowserClient();
-    await supabase.from(table).delete().eq('id', id);
-    fetchData();
+    try {
+      let entity: string = 'transaction';
+      if (table === 'financial_categories') entity = 'financial_category';
+      else if (table === 'financial_accounts') entity = 'financial_account';
+
+      const res = await fetch('/api/entity/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity, id })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao excluir item.');
+      fetchData();
+    } catch (err: any) {
+      console.error('Error deleting finance item:', err);
+      alert(err.message || 'Erro ao excluir item.');
+    }
   }
 
   return (
     <div className="space-y-8 animate-fade-in pb-20">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-amber-950 rounded-2xl shadow-lg border border-amber-900/50">
-            <Wallet className="h-8 w-8 text-amber-500" />
+          <div className="p-3 bg-[#D4AF37]/10 rounded-2xl border border-[#D4AF37]/20 shadow-sm">
+            <Wallet className="h-8 w-8 text-[#D4AF37]" />
           </div>
           <div>
             <h1 className="text-3xl font-black text-slate-900 tracking-tight">Gestão Financeira</h1>

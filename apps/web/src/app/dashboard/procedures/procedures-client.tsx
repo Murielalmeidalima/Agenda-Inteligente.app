@@ -171,15 +171,20 @@ export default function ProceduresClient() {
   };
 
   const handleDeleteService = async (id: string) => {
-    if (!companyId) return;
-    const { error } = await supabase
-      .from('procedures')
-      .delete()
-      .eq('id', id)
-      .eq('company_id', companyId); 
-
-    if (!error) {
+    if (!confirm('Tem certeza que deseja excluir este procedimento?')) return;
+    try {
+      const res = await fetch('/api/entity/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity: 'procedure', id })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao excluir procedimento.');
+      setProcedures(prev => prev.filter(p => p.id !== id));
       fetchProcedures();
+    } catch (err: any) {
+      console.error('Error deleting procedure:', err);
+      alert(err.message || 'Erro ao excluir procedimento.');
     }
   };
 

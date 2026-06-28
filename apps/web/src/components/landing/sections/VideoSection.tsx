@@ -5,7 +5,7 @@ import { Play } from 'lucide-react';
 
 export function VideoSection() {
   return (
-    <section id="video" className="bg-[#eae0e1] py-24">
+    <section id="video" className="bg-[#fbf1f2] py-24">
       <div className="max-w-4xl mx-auto px-4 animate-fade-in-up">
         <div className="text-center mb-12">
           <h2 className="font-playfair-display text-3xl md:text-[32px] font-bold text-[#7d525f] leading-[1.3]">

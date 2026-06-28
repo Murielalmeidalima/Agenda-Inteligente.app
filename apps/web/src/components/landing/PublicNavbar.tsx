@@ -16,7 +16,7 @@ export function PublicNavbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-[#d4c2c5]/30 shadow-sm transition-all duration-300">
+    <nav className="fixed top-0 left-0 right-0 w-full z-50 bg-[#fbf1f2]/80 backdrop-blur-md border-b border-[#d4c2c5]/30 shadow-sm transition-all duration-300">
       <div className="flex justify-between items-center h-20 px-4 md:px-10 max-w-7xl mx-auto">
         <Link href="/" className="cursor-pointer flex items-center">
           <Logo size={32} showText={true} />
@@ -44,7 +44,7 @@ export function PublicNavbar() {
           </Link>
           <Link href="/auth/register">
             <button className="bg-[#7d525f] text-white px-6 py-3 rounded-full font-semibold hover:scale-[1.02] active:scale-[0.98] transition-transform shadow-md cursor-pointer">
-              Teste Grátis
+              Começar Agora
             </button>
           </Link>
         </div>
@@ -61,7 +61,7 @@ export function PublicNavbar() {
 
       {/* Mobile Menu */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-[#d4c2c5]/20 px-4 pb-4 pt-2 bg-white/95 backdrop-blur-xl animate-fade-in-up">
+        <div className="md:hidden border-t border-[#d4c2c5]/20 px-4 pb-4 pt-2 bg-[#fbf1f2]/95 backdrop-blur-xl animate-fade-in-up">
           <div className="flex flex-col gap-1">
             {navLinks.map((link) => (
               <Link
@@ -81,7 +81,7 @@ export function PublicNavbar() {
               </Link>
               <Link href="/auth/register" onClick={() => setMobileOpen(false)}>
                 <Button className="w-full bg-[#7d525f] text-white font-bold cursor-pointer">
-                  Teste Grátis
+                  Começar Agora
                 </Button>
               </Link>
             </div>

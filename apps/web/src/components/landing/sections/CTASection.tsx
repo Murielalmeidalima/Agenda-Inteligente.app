@@ -25,7 +25,7 @@ export function CTASection() {
           </Link>
         </div>
         <p className="mt-6 text-sm opacity-70 font-sans">
-          Sem cartão de crédito necessário nos primeiros 14 dias.
+          Sem cartão de crédito necessário nos primeiros 7 dias.
         </p>
       </div>
     </section>

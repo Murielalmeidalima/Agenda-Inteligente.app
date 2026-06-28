@@ -208,6 +208,11 @@ export async function POST(req: Request) {
     const isBypass = data.cardHolderName.trim().toUpperCase() === 'DEV BYPASS';
     let customer: any;
     let subscription: any;
+    let dueDate = new Date();
+    if (trialAllowed) {
+      dueDate.setDate(dueDate.getDate() + 7);
+    }
+    const formattedDueDate = dueDate.toISOString().split('T')[0];
 
     if (isBypass) {
       console.log('[DEV BYPASS] Mocking Asaas Customer and Subscription');
@@ -222,13 +227,6 @@ export async function POST(req: Request) {
         phone: cleanPhone,
         mobilePhone: cleanPhone
       });
-
-      // 3.2. Definir Vencimento (Trial: +7 dias, Bloqueado: hoje)
-      const dueDate = new Date();
-      if (trialAllowed) {
-        dueDate.setDate(dueDate.getDate() + 7);
-      }
-      const formattedDueDate = dueDate.toISOString().split('T')[0];
 
       // 3.3. Criar a Assinatura vinculada ao Cartão de Crédito
       const [expiryMonth, expiryYear] = data.cardExpiry.split('/');

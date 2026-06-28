@@ -14,7 +14,7 @@ const tabs = [
       'Bloqueio inteligente de horários e feriados',
       'Confirmação automática direto na agenda',
     ],
-    image: '/images/dashboard_mockup.png',
+    image: '/images/system_agenda_dashboard.png',
     alt: 'Agenda Inteligente Mockup',
   },
   {
@@ -27,7 +27,7 @@ const tabs = [
       'Relatórios de faturamento por profissional',
       'Alerta de cobranças pendentes e atrasadas',
     ],
-    image: '/images/finance_dashboard.png',
+    image: '/images/system_finance_dashboard.png',
     alt: 'Financeiro Completo Mockup',
   },
   {
@@ -63,7 +63,8 @@ export function GallerySection() {
   const activeTabItem = tabs.find((t) => t.id === activeTab) || tabs[0];
 
   return (
-    <section className="py-24 px-4 md:px-10 max-w-7xl mx-auto bg-[#fff8f8] relative overflow-hidden" id="funcionalidades">
+    <section className="py-24 px-4 md:px-10 w-full bg-[#fbf1f2] relative overflow-hidden" id="funcionalidades">
+      <div className="max-w-7xl mx-auto">
       <div className="absolute top-1/3 left-0 w-96 h-96 bg-[#d9a5b3]/5 rounded-full blur-3xl -z-10" />
       
       <div className="text-center mb-16 animate-fade-in-up">
@@ -158,6 +159,7 @@ export function GallerySection() {
           </div>
         </div>
       </div>
+    </div>
     </section>
   );
 }

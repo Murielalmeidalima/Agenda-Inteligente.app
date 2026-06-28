@@ -5,7 +5,8 @@ import { Check } from 'lucide-react';
 
 export function PricingSection() {
   return (
-    <section className="py-24 px-4 md:px-10 max-w-7xl mx-auto" id="planos">
+    <section className="py-24 px-4 md:px-10 w-full bg-[#fbf1f2]" id="planos">
+      <div className="max-w-7xl mx-auto">
       <div className="text-center mb-16 animate-fade-in-up">
         <h2 className="font-playfair-display text-3xl md:text-[32px] font-bold text-[#7d525f] leading-[1.3]">
           Investimento Justo
@@ -132,6 +133,7 @@ export function PricingSection() {
           </Link>
         </div>
       </div>
+    </div>
     </section>
   );
 }

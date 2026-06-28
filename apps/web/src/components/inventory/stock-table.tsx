@@ -29,7 +29,8 @@ import {
   Package,
   History,
   MoreVertical,
-  Filter
+  Filter,
+  Trash2
 } from 'lucide-react';
 
 interface Product {
@@ -46,6 +47,7 @@ interface StockTableProps {
   products: Product[];
   onTransaction: (productId: string, type: 'in' | 'out', quantity: number, reason: string) => Promise<void>;
   onAddProduct: () => void;
+  onDeleteProduct?: (id: string) => Promise<void>;
   isLoading?: boolean;
   filterStatus: 'all' | 'critical' | 'ok';
   setFilterStatus: (val: 'all' | 'critical' | 'ok') => void;
@@ -54,7 +56,8 @@ interface StockTableProps {
 export default function StockTable({ 
   products, 
   onTransaction, 
-  onAddProduct, 
+  onAddProduct,
+  onDeleteProduct,
   isLoading = false,
   filterStatus,
   setFilterStatus
@@ -221,6 +224,17 @@ export default function StockTable({
                           <ArrowDownRight className="h-4 w-4 mr-1" />
                           Saída
                         </Button>
+                        {onDeleteProduct && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => onDeleteProduct(product.id)}
+                            title="Excluir Produto"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

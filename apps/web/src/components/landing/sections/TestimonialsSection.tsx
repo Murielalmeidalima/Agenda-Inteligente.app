@@ -21,7 +21,7 @@ export function TestimonialsSection() {
   ];
 
   return (
-    <section className="py-20 md:py-28 px-4 bg-[#fff8f8] relative overflow-hidden">
+    <section className="py-20 md:py-28 px-4 bg-[#fbf1f2] relative overflow-hidden">
       <div className="absolute top-1/4 left-0 w-80 h-80 bg-[#d9a5b3]/5 rounded-full blur-3xl -z-10" />
 
       <div className="max-w-7xl mx-auto font-sans">

@@ -43,7 +43,7 @@ export default function SupportPage() {
               <div>
                 <h3 className="text-xl font-bold mb-2">Atendimento via WhatsApp</h3>
                 <p className="text-[#5C5855] mb-4">Para suporte rápido, faturamento ou dúvidas operacionais urgentes.</p>
-                <a href="#" className="font-bold text-emerald-600 hover:underline">Iniciar conversa no WhatsApp &rarr;</a>
+                <a href="https://wa.me/5518996676710" target="_blank" rel="noopener noreferrer" className="font-bold text-emerald-600 hover:underline">Entrar em contato no WhatsApp &rarr;</a>
               </div>
             </Card>
 
@@ -54,7 +54,7 @@ export default function SupportPage() {
               <div>
                 <h3 className="text-xl font-bold mb-2">Atendimento por E-mail</h3>
                 <p className="text-[#5C5855] mb-4">Para envio de comprovantes, solicitações formais de privacidade ou exclusão de conta.</p>
-                <a href="mailto:suporte@agendainteligente.com.br" className="font-bold text-[#D4AF37] hover:underline">suporte@agendainteligente.com.br</a>
+                <a href="mailto:jamilyguimaraes02@gmail.com" className="font-bold text-[#D4AF37] hover:underline">Enviar mensagem por e-mail &rarr;</a>
               </div>
             </Card>
 
@@ -127,14 +127,6 @@ export default function SupportPage() {
           </div>
         </div>
 
-        {/* System Status (Future Proof) */}
-        <div className="max-w-3xl mx-auto bg-slate-50 border border-slate-200 rounded-3xl p-8 text-center">
-           <div className="inline-flex items-center gap-2 bg-emerald-100 text-emerald-800 px-4 py-2 rounded-full text-sm font-bold mb-4">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Sistemas Operacionais
-           </div>
-           <p className="text-slate-500 text-sm">Todos os servidores, disparo de WhatsApp e Gateway de pagamento estão operando normalmente.</p>
-        </div>
       </main>
       
       <FooterSection />

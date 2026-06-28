@@ -136,14 +136,18 @@ export default function EditTemplatePage() {
   }
 
   async function handleDelete() {
-    if (!confirm('Tem certeza? Isso apagará todas as respostas vinculadas.')) return;
+    if (!confirm('Tem certeza? Isso apagará este modelo de anamnese.')) return;
     
     setSaving(true);
     try {
-        const supabase = createBrowserClient();
-        const { error } = await supabase.from('anamnese_templates').delete().eq('id', params.id);
-        if (error) throw error;
-        toast.success('Modelo excluído');
+        const res = await fetch('/api/entity/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity: 'anamnese_template', id: params.id })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erro ao excluir modelo.');
+        toast.success('Modelo excluído com sucesso');
         router.push('/dashboard/anamnese/templates');
     } catch(err: any) {
         toast.error('Erro ao excluir: ' + err.message);

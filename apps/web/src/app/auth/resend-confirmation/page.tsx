@@ -146,10 +146,7 @@ function ResendConfirmationContent() {
                 disabled={loading}
               >
                 {loading ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Enviando...
-                  </span>
+                  <span>Enviando...</span>
                 ) : (
                   <span className="flex items-center gap-2">
                     <MailCheck className="h-4 w-4" />

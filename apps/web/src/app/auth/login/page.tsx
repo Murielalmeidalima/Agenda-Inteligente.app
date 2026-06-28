@@ -79,6 +79,8 @@ function LoginForm() {
     }
   };
 
+
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -241,13 +243,17 @@ function LoginForm() {
             <Link href="/auth/forgot-password" className="font-bold text-[#D4AF37] hover:text-[#B5952F] transition-colors hover:underline">Recuperar senha</Link>
           </div>
 
-          <Button type="submit"
-            className="w-full h-12 bg-gradient-to-r from-[#2C2825] to-[#403c39] hover:from-black hover:to-[#2C2825] text-white font-bold text-base rounded-xl shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
-            loading={loading} disabled={loading || !!success}>
-            {loading ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Autenticando...</span>
-              : success ? <span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" />Sucesso</span>
-                : <span className="flex items-center gap-2">Entrar na Plataforma<ArrowRight className="h-4 w-4 opacity-90" /></span>}
-          </Button>
+          <div className="space-y-3 pt-1">
+            <Button type="submit"
+              className="w-full h-12 bg-gradient-to-r from-[#2C2825] to-[#403c39] hover:from-black hover:to-[#2C2825] text-white font-bold text-base rounded-xl shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
+              loading={loading} disabled={loading || !!success}>
+              {loading ? <span>Autenticando...</span>
+                : success ? <span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" />Sucesso</span>
+                  : <span className="flex items-center gap-2">Entrar na Plataforma<ArrowRight className="h-4 w-4 opacity-90" /></span>}
+            </Button>
+
+
+          </div>
         </form>
 
         <div className="mt-8 pt-6 border-t border-[#E5E0D8]/50 flex flex-col items-center gap-4">

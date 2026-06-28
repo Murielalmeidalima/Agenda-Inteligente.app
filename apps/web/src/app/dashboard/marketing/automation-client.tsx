@@ -382,17 +382,20 @@ export default function AutomationClient() {
   const handleDeleteRule = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir esta regra?')) return;
 
-    setRules(rules.filter(r => r.id !== id));
-
-    const { error } = await supabase
-      .from('automation_rules')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error deleting rule:', error);
-      fetchRules(); // Revert
-      alert('Erro ao excluir regra');
+    try {
+      const res = await fetch('/api/entity/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity: 'automation_rule', id })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao excluir regra.');
+      setRules(prev => prev.filter(r => r.id !== id));
+      fetchRules();
+    } catch (err: any) {
+      console.error('Error deleting rule:', err);
+      fetchRules();
+      alert(err.message || 'Erro ao excluir regra');
     }
   };
 

@@ -80,7 +80,7 @@ export function EmployeeModal({ isOpen, onClose, employee, companyId, onRefresh 
   useEffect(() => {
     if (employee) {
       const employeePerms = employee.permissions || DEFAULT_PERMISSIONS;
-      const obs = employee.observations || (employeePerms as any).observations || '';
+      const obs = (employee as any).observations || (employeePerms as any).observations || '';
       
       setFormData({
         full_name: employee.full_name || '',

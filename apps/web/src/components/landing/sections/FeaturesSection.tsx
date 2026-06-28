@@ -16,7 +16,7 @@ export function FeaturesSection() {
   ];
 
   return (
-    <section id="features" className="py-20 md:py-28 px-4 bg-[#fff8f8] relative">
+    <section id="features" className="py-20 md:py-28 px-4 bg-[#fbf1f2] relative">
       <div className="absolute top-0 right-0 w-1/3 h-1/2 bg-[#d9a5b3]/10 blur-[100px] -z-10" />
 
       <div className="max-w-7xl mx-auto font-sans">

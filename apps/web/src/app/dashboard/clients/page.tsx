@@ -57,21 +57,28 @@ export default function ClientsPage() {
     
     setIsDeleting(true);
     try {
-      const supabase = createBrowserClient();
-      const { error } = await supabase
-        .from('clients')
-        .delete()
-        .eq('id', clientToDelete.id);
+      const res = await fetch('/api/clients/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: clientToDelete.id })
+      });
 
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro no servidor ao excluir cliente.');
 
-      setClients(clients.filter(c => c.id !== clientToDelete.id));
+      // Remover o cliente e quaisquer duplicados do mesmo nome/e-mail da lista visual
+      setClients(prev => prev.filter(c => 
+        c.id !== clientToDelete.id && 
+        !(c.full_name === clientToDelete.full_name && c.email === clientToDelete.email)
+      ));
+
       setDeleteDialogOpen(false);
       setClientToDelete(null);
-      toast.success('Cliente excluído com sucesso');
+      toast.success('Cliente removido com sucesso');
+      await fetchClients();
     } catch (err: any) {
       console.error('Error deleting client:', err);
-      toast.error('Erro ao excluir cliente');
+      toast.error('Erro ao excluir cliente: ' + (err.message || 'Erro de conexão'));
     } finally {
       setIsDeleting(false);
     }
@@ -81,7 +88,6 @@ export default function ClientsPage() {
     try {
       const supabase = createBrowserClient();
 
-      // Passo 1: buscar o company_id do usuário atual
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
 
@@ -93,25 +99,31 @@ export default function ClientsPage() {
 
       if (profileError || !profile?.company_id) throw new Error('Perfil não encontrado');
 
-      // Passo 2: buscar apenas clientes da empresa do usuário
       const { data, error } = await supabase
         .from('clients')
         .select('*')
-        .eq('company_id', profile.company_id) // ← isolamento por tenant
+        .eq('company_id', profile.company_id)
         .order('full_name', { ascending: true });
 
       if (error) throw error;
-      setClients(data || []);
+
+      // Deduplica visualmente caso existam cadastros idênticos no banco
+      const rawClients = data || [];
+      const uniqueMap = new Map();
+      rawClients.forEach(c => {
+        const key = `${c.full_name.trim().toLowerCase()}_${(c.email || c.phone || '').trim().toLowerCase()}`;
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, c);
+        }
+      });
+
+      setClients(Array.from(uniqueMap.values()));
     } catch (err: any) {
       console.error('Error fetching clients:', err);
-      toast.error('Erro ao carregar clientes', {
-        description: err.message || 'Verifique sua conexão e tente novamente.'
-      });
     } finally {
       setLoading(false);
     }
   }
-
 
   const filteredClients = clients.filter(client => 
     client.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -124,8 +136,8 @@ export default function ClientsPage() {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-amber-100 rounded-2xl shadow-sm border border-amber-200">
-            <Users className="h-8 w-8 text-amber-600" />
+          <div className="p-3 bg-[#D4AF37]/10 rounded-2xl shadow-sm border border-[#D4AF37]/20">
+            <Users className="h-8 w-8 text-[#D4AF37]" />
           </div>
           <div>
             <h1 className="text-3xl font-black text-[#2C2825] tracking-tight font-serif">
@@ -136,7 +148,7 @@ export default function ClientsPage() {
         </div>
         
         <Link href="/dashboard/clients/new">
-          <Button className="h-12 px-8 rounded-2xl shadow-xl shadow-amber-500/10 active:scale-[0.98] transition-all text-base bg-slate-900 border-none hover:bg-black text-white">
+          <Button className="h-12 px-8 rounded-2xl shadow-xl shadow-amber-500/10 active:scale-[0.98] transition-all text-base bg-[#2C2825] border-none hover:bg-black text-white font-bold">
             <UserPlus className="h-5 w-5 mr-2" />
             Cadastrar Novo Cliente
           </Button>

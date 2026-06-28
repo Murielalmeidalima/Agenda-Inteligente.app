@@ -186,15 +186,25 @@ export default function InventoryPage() {
       alert("Produto cadastrado com sucesso!");
     } catch (err: any) {
       console.error('Error creating product:', err.message || err);
-      if (err && typeof err === 'object') {
-        console.error('Error Details:', {
-          message: err.message,
-          code: err.code,
-          details: err.details,
-          hint: err.hint
-        });
-      }
-      alert(`Erro ao cadastrar produto: ${err.message || err.details || 'Verifique o console'}`);
+      alert(`Erro ao cadastrar produto: ${err.message || 'Verifique o console'}`);
+    }
+  }
+
+  async function handleDeleteProduct(id: string) {
+    if (!confirm('Tem certeza que deseja excluir este produto do estoque?')) return;
+    try {
+      const res = await fetch('/api/entity/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity: 'product', id })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao excluir produto.');
+      setProducts(prev => prev.filter(p => p.id !== id));
+      fetchProducts();
+    } catch (err: any) {
+      console.error('Error deleting product:', err);
+      alert(err.message || 'Erro ao excluir produto.');
     }
   }
 
@@ -299,6 +309,7 @@ export default function InventoryPage() {
             })) || []} 
             onTransaction={handleTransaction}
             onAddProduct={() => setIsAddingProduct(true)}
+            onDeleteProduct={handleDeleteProduct}
             filterStatus={filterStatus}
             setFilterStatus={setFilterStatus}
          />

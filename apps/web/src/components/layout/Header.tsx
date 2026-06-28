@@ -24,7 +24,7 @@ export function Header() {
         
         <div className="flex items-center gap-4 pl-2 group cursor-pointer">
           <div className="text-right hidden lg:block">
-            <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">Dra. Jamily</p>
+            <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">Jamily Guimarães</p>
             <p className="text-[10px] text-muted-foreground uppercase tracking-tighter font-bold">Administradora</p>
           </div>
           <div className="relative">

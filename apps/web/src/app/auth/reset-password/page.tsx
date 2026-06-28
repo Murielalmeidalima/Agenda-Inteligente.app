@@ -144,10 +144,7 @@ export default function ResetPasswordPage() {
                   disabled={loading}
                 >
                   {loading ? (
-                     <span className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Atualizando...
-                     </span>
+                     <span>Atualizando...</span>
                   ) : (
                      <span className="flex items-center gap-2">
                         Atualizar Senha
