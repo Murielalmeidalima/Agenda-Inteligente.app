@@ -37,32 +37,48 @@ export default function ClientsListClient({ initialClients, companyId }: Clients
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [futureWarning, setFutureWarning] = useState<{ count: number; message: string } | null>(null);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     router.push(`/dashboard/clients?search=${encodeURIComponent(searchTerm)}`);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (confirmCancelFuture = false) => {
     if (!clientToDelete) return;
     
     setIsDeleting(true);
     try {
-      const supabase = createBrowserClient();
-      const { error } = await supabase
-        .from('clients')
-        .delete()
-        .eq('id', clientToDelete.id);
+      const res = await fetch('/api/clients/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          clientId: clientToDelete.id,
+          confirmCancelFuture 
+        })
+      });
 
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao excluir cliente.');
+
+      if (data.requiresConfirmation) {
+        setFutureWarning({
+          count: data.futureAppointmentsCount,
+          message: data.message
+        });
+        setIsDeleting(false);
+        return;
+      }
 
       // Atualizar lista local
       setClients(clients.filter(c => c.id !== clientToDelete.id));
       setDeleteDialogOpen(false);
       setClientToDelete(null);
-    } catch (error) {
+      setFutureWarning(null);
+      router.refresh();
+    } catch (error: any) {
       console.error('Error deleting client:', error);
-      alert('Erro ao excluir cliente');
+      alert('Erro ao excluir cliente: ' + (error.message || 'Erro de conexão'));
     } finally {
       setIsDeleting(false);
     }
@@ -205,30 +221,45 @@ export default function ClientsListClient({ initialClients, companyId }: Clients
       </Card>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => {
+        setDeleteDialogOpen(open);
+        if (!open) setFutureWarning(null);
+      }}>
+        <DialogContent className="rounded-3xl border-[#E5E0D8] bg-white max-w-md p-6">
           <DialogHeader>
-            <DialogTitle>Confirmar Exclusão</DialogTitle>
-            <DialogDescription>
-              Tem certeza que deseja excluir o cliente{' '}
-              <strong>{clientToDelete?.full_name}</strong>? Esta ação não pode ser desfeita.
+            <DialogTitle className="text-xl font-bold text-[#2C2825]">
+              {futureWarning ? 'Aviso de Agendamentos Futuros' : 'Confirmar Exclusão'}
+            </DialogTitle>
+            <DialogDescription className="text-[#8A847C] text-sm mt-2">
+              {futureWarning ? (
+                <span>
+                  Este cliente possui <strong>{futureWarning.count} agendamento(s) futuro(s)</strong>. Deseja realmente cancelar os agendamentos e excluir o cliente?
+                </span>
+              ) : (
+                <span>
+                  Tem certeza que deseja excluir o cliente <strong>{clientToDelete?.full_name}</strong>? Esta ação removerá o cadastro mantendo o histórico necessário.
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="mt-6 flex flex-col sm:flex-row gap-3">
             <Button
               variant="secondary"
-              onClick={() => setDeleteDialogOpen(false)}
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setFutureWarning(null);
+              }}
               disabled={isDeleting}
             >
               Cancelar
             </Button>
             <Button
               variant="destructive"
-              onClick={handleDelete}
+              onClick={() => handleDelete(!!futureWarning)}
               loading={isDeleting}
               disabled={isDeleting}
             >
-              Excluir
+              {futureWarning ? 'Excluir Cliente e Cancelar Agendamentos' : 'Excluir'}
             </Button>
           </DialogFooter>
         </DialogContent>

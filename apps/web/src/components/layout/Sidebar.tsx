@@ -74,7 +74,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-white min-h-screen p-6 flex flex-col border-r border-slate-100 relative overflow-hidden transition-colors duration-300 shadow-sm z-30">
+    <aside className="w-64 bg-white fixed top-0 left-0 h-screen p-6 flex flex-col border-r border-slate-100 overflow-y-auto transition-colors duration-300 shadow-sm z-40">
       {/* Subtle Background Glow */}
       <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-full blur-[100px] pointer-events-none opacity-50" />
       

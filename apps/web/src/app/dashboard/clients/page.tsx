@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { 
   Button, 
@@ -41,18 +42,20 @@ import {
 } from 'lucide-react';
 
 export default function ClientsPage() {
+  const router = useRouter();
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [futureWarning, setFutureWarning] = useState<{ count: number; message: string } | null>(null);
 
   useEffect(() => {
     fetchClients();
   }, []);
 
-  async function handleDelete() {
+  async function handleDelete(confirmCancelFuture = false) {
     if (!clientToDelete) return;
     
     setIsDeleting(true);
@@ -60,21 +63,37 @@ export default function ClientsPage() {
       const res = await fetch('/api/clients/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: clientToDelete.id })
+        body: JSON.stringify({ 
+          clientId: clientToDelete.id,
+          confirmCancelFuture 
+        })
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro no servidor ao excluir cliente.');
 
-      // Remover o cliente e quaisquer duplicados do mesmo nome/e-mail da lista visual
+      if (data.requiresConfirmation) {
+        setFutureWarning({
+          count: data.futureAppointmentsCount,
+          message: data.message
+        });
+        setIsDeleting(false);
+        return;
+      }
+
+      // Remover o cliente e quaisquer cadastros duplicados da lista visual imediatamente
       setClients(prev => prev.filter(c => 
         c.id !== clientToDelete.id && 
-        !(c.full_name === clientToDelete.full_name && c.email === clientToDelete.email)
+        c.full_name.trim().toLowerCase() !== clientToDelete.full_name.trim().toLowerCase()
       ));
 
       setDeleteDialogOpen(false);
       setClientToDelete(null);
-      toast.success('Cliente removido com sucesso');
+      setFutureWarning(null);
+      toast.success(data.message || 'Cliente removido com sucesso');
+      
+      // Invalidar cache do Next.js e sincronizar com o banco
+      router.refresh();
       await fetchClients();
     } catch (err: any) {
       console.error('Error deleting client:', err);
@@ -153,6 +172,14 @@ export default function ClientsPage() {
             Cadastrar Novo Cliente
           </Button>
         </Link>
+      </div>
+
+      {/* Summary Section (Posicionada no topo) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+         <SummaryItem label="Total de Clientes" value={clients.length} loading={loading} icon={<Users className="text-[#D4AF37]" />} />
+         <SummaryItem label="Ativos este mês" value="0" loading={loading} icon={<Calendar className="text-[#D4AF37]" />} />
+         <SummaryItem label="Novos hoje" value="0" loading={loading} icon={<UserPlus className="text-emerald-500" />} />
+         <SummaryItem label="Com Instagram" value={clients.filter(c => c.instagram).length} loading={loading} icon={<Instagram className="text-purple-500" />} />
       </div>
 
       {/* Control Bar */}
@@ -286,46 +313,54 @@ export default function ClientsPage() {
       </Card>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => {
+        setDeleteDialogOpen(open);
+        if (!open) setFutureWarning(null);
+      }}>
         <DialogContent className="rounded-3xl border-[#E5E0D8] bg-white max-w-md p-8">
           <DialogHeader className="space-y-4">
-            <div className="h-14 w-14 bg-red-50 rounded-2xl flex items-center justify-center border border-red-100">
-               <AlertCircle className="h-7 w-7 text-red-500" />
+            <div className={`h-14 w-14 rounded-2xl flex items-center justify-center border ${futureWarning ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-100'}`}>
+               <AlertCircle className={`h-7 w-7 ${futureWarning ? 'text-amber-600' : 'text-red-500'}`} />
             </div>
-            <DialogTitle className="text-2xl font-bold text-[#2C2825] font-serif">Confirmar Exclusão</DialogTitle>
+            <DialogTitle className="text-2xl font-bold text-[#2C2825] font-serif">
+              {futureWarning ? 'Aviso de Agendamentos Futuros' : 'Confirmar Exclusão'}
+            </DialogTitle>
             <DialogDescription className="text-[#8A847C] text-base leading-relaxed">
-              Tem certeza que deseja excluir o cliente{' '}
-              <strong className="text-[#2C2825]">{clientToDelete?.full_name}</strong>? Esta ação removerá todos os dados do paciente permanentemente.
+              {futureWarning ? (
+                <span>
+                  Este cliente possui <strong>{futureWarning.count} agendamento(s) futuro(s)</strong>. Deseja realmente cancelar os agendamentos e excluir o cliente?
+                </span>
+              ) : (
+                <span>
+                  Tem certeza que deseja excluir o cliente{' '}
+                  <strong className="text-[#2C2825]">{clientToDelete?.full_name}</strong>? Esta ação removerá o cadastro mantendo o histórico necessário.
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="mt-8 flex gap-3">
+          <DialogFooter className="mt-8 flex flex-col sm:flex-row gap-3">
             <Button
               variant="outline"
-              onClick={() => setDeleteDialogOpen(false)}
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setFutureWarning(null);
+              }}
               className="h-12 flex-1 rounded-xl border-[#E5E0D8] text-[#5C5855] hover:bg-[#FAF9F6] font-bold"
               disabled={isDeleting}
             >
               Cancelar
             </Button>
             <Button
-              onClick={handleDelete}
-              className="h-12 flex-1 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold shadow-lg shadow-red-500/20 active:scale-[0.98] transition-all"
+              onClick={() => handleDelete(!!futureWarning)}
+              className={`h-12 flex-1 rounded-xl text-white font-bold shadow-lg active:scale-[0.98] transition-all ${futureWarning ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20' : 'bg-red-500 hover:bg-red-600 shadow-red-500/20'}`}
               loading={isDeleting}
               disabled={isDeleting}
             >
-              Excluir Registro
+              {futureWarning ? 'Excluir Cliente e Cancelar Agendamentos' : 'Excluir Registro'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Summary Section */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-         <SummaryItem label="Total de Clientes" value={clients.length} loading={loading} icon={<Users className="text-[#D4AF37]" />} />
-         <SummaryItem label="Ativos este mês" value="0" loading={loading} icon={<Calendar className="text-[#D4AF37]" />} />
-         <SummaryItem label="Novos hoje" value="0" loading={loading} icon={<UserPlus className="text-emerald-500" />} />
-         <SummaryItem label="Com Instagram" value={clients.filter(c => c.instagram).length} loading={loading} icon={<Instagram className="text-purple-500" />} />
-      </div>
     </div>
   );
 }

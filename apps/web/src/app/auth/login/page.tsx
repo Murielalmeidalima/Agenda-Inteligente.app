@@ -155,10 +155,7 @@ function LoginForm() {
       }
 
       console.log('[AUTH][LOGIN] ✅ Sucesso!');
-      setSuccess('Login realizado com sucesso! Redirecionando...');
-      setTimeout(() => { router.push('/dashboard/schedule'); }, 800);
-
-
+      router.push('/dashboard/schedule');
     } catch (err: any) {
       console.error('[AUTH][LOGIN] ❌', err.message);
       setError(err.message || 'Ocorreu um erro ao fazer login.');
@@ -176,7 +173,7 @@ function LoginForm() {
           <div className="flex justify-center mb-6">
             <LogoImage size={80} />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#2C2825] mb-2 font-serif">Bem-vindo de volta</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-[#2C2825] mb-2 font-serif">Bem-vindo</h1>
           <p className="text-[#5C5855] text-sm leading-relaxed">Acesse seu painel para gerenciar sua clínica.</p>
         </div>
 
@@ -206,12 +203,7 @@ function LoginForm() {
             </div>
           )}
 
-          {success && (
-            <div className="flex items-center gap-3 rounded-xl bg-emerald-50/90 border border-emerald-100 p-3 text-xs text-emerald-600 shadow-sm">
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
-              <span className="font-medium">{success}</span>
-            </div>
-          )}
+
 
           <div className="space-y-4">
             <div className="space-y-1 group">

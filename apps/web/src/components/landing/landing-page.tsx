@@ -4,7 +4,6 @@ import { HeroSection } from './sections/HeroSection';
 import { PainPointsSection } from './sections/PainPointsSection';
 import { FounderSection } from './sections/FounderSection';
 import { VideoSection } from './sections/VideoSection';
-import { SystemShowcaseSection } from './sections/SystemShowcaseSection';
 import { SecuritySection } from './sections/SecuritySection';
 import { PricingSection } from './sections/PricingSection';
 import { FAQSection } from './sections/FAQSection';
@@ -21,9 +20,8 @@ export default function LandingPage() {
       <main>
         <HeroSection />
         <PainPointsSection />
-        <SystemShowcaseSection />
-        <FounderSection />
         <VideoSection />
+        <FounderSection />
         <SecuritySection />
         <PricingSection />
         <FAQSection />

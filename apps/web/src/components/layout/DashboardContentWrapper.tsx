@@ -13,8 +13,7 @@ export function DashboardContentWrapper({ children }: { children: React.ReactNod
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] w-full gap-4">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#7d525f]" />
-        <p className="text-[10px] text-[#504446]/60 font-black uppercase tracking-[0.2em] animate-pulse">Sincronizando assinatura...</p>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#D4AF37]" />
       </div>
     );
   }

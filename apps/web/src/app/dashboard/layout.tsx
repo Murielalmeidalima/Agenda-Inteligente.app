@@ -12,7 +12,7 @@ export default function DashboardLayout({
     <ProfileProvider>
       <div className="flex bg-background min-h-screen transition-colors duration-300">
         <Sidebar />
-        <main className="flex-1 transition-all duration-300 ml-20 md:ml-64 p-4 md:p-8">
+        <main className="flex-1 transition-all duration-300 ml-64 p-4 md:p-8">
           <DashboardContentWrapper>
             {children}
           </DashboardContentWrapper>

@@ -193,20 +193,21 @@ function RegisterFormContent() {
       });
 
       if (signUpError) {
-        if (signUpError.message?.includes('already registered') || signUpError.message?.includes('already been registered')) {
-          console.log('[REGISTER] Usuário já existe, tentando autenticar...');
+        const errStr = signUpError.message?.toLowerCase() || '';
+        if (errStr.includes('already registered') || errStr.includes('already been registered') || errStr.includes('database error') || errStr.includes('saving new user')) {
+          console.log('[REGISTER] Usuário existente ou estado pendente no Supabase Auth, tentando autenticar...');
           const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email: formData.email,
             password: formData.password,
           });
-          if (signInError) {
-            setError('Este e-mail já está cadastrado. Tente fazer login ou use outro e-mail.');
+          if (signInError || !signInData?.user) {
+            setError('Este e-mail já possui uma conta cadastrada no Supabase. Faça login com sua senha ou utilize um novo e-mail (ex: teste.novo@gmail.com).');
             setLoading(false);
             return;
           }
-          userId = signInData.user!.id;
+          userId = signInData.user.id;
         } else {
-          setError('Erro ao criar conta de autenticação: ' + signUpError.message);
+          setError('Erro no cadastro: ' + signUpError.message);
           setLoading(false);
           return;
         }
@@ -482,7 +483,7 @@ function RegisterFormContent() {
                     <ShieldCheck className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
                     <div>
                       <strong className="block font-bold mb-0.5">Teste Grátis por 7 dias Ativado!</strong>
-                      Nenhum valor será debitado hoje. Seu cartão será verificado pelo Asaas e a cobrança automática iniciará após o período de teste de 7 dias caso decida continuar.
+                      Nenhum valor será debitado hoje. Seu cartão será verificado pelo nosso gateway de pagamento e a cobrança automática iniciará após o período de teste de 7 dias caso decida continuar.
                     </div>
                   </div>
                 ) : (

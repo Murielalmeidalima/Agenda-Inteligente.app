@@ -5,9 +5,9 @@ import { createClient } from '@supabase/supabase-js';
 // Inicializar cliente admin para ignorar RLS e consolidar métricas de todo o SaaS
 const getSupabaseAdmin = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
-    throw new Error('Supabase URL and Service Role Key are required for admin operations.');
+    throw new Error('Supabase URL e Chave API são necessários para operações do servidor.');
   }
   return createClient(url, key);
 };
