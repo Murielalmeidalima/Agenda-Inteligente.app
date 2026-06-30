@@ -80,6 +80,12 @@ export async function POST(req: Request) {
       .eq('email', email)
       .limit(1);
 
+    if (emailProfiles && emailProfiles.length > 0) {
+      return NextResponse.json({
+        error: 'Este e-mail já possui uma conta cadastrada no Supabase. Faça login com sua senha ou utilize um novo e-mail (ex: teste.novo@gmail.com).'
+      }, { status: 400 });
+    }
+
     const { data: emailAntifraud } = await supabase
       .from('trial_antifraud_records')
       .select('id')
@@ -87,7 +93,7 @@ export async function POST(req: Request) {
       .eq('is_blocked', false)
       .limit(1);
 
-    if ((emailProfiles && emailProfiles.length > 0) || (emailAntifraud && emailAntifraud.length > 0)) {
+    if (emailAntifraud && emailAntifraud.length > 0) {
       score += 80;
       reasons.push('E-mail associado a cadastro prévio');
     }

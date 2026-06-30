@@ -204,22 +204,27 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     }
     const supabaseAdmin = createClient(url, key);
 
-    // 4. Inactivate Profile (Set status = inactive)
-    const { error: disableError } = await supabaseAdmin
-      .from('profiles')
-      .update({ status: 'inactive' })
-      .eq('id', id);
+    // 4. Delete user from Supabase Auth (which cascades to public.profiles)
+    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(id);
 
-    if (disableError) {
-      return NextResponse.json({ error: 'Erro ao inativar perfil do funcionário: ' + disableError.message }, { status: 400 });
+    if (deleteError) {
+      console.log(`[DELETE_EMPLOYEE] User not found in Auth or error deleting, trying direct profile deletion:`, deleteError.message);
+      const { error: profileDeleteError } = await supabaseAdmin
+        .from('profiles')
+        .delete()
+        .eq('id', id);
+
+      if (profileDeleteError) {
+        return NextResponse.json({ error: 'Erro ao excluir perfil do funcionário: ' + profileDeleteError.message }, { status: 400 });
+      }
     }
 
-    // 5. Log deletion/disable action
+    // 5. Log deletion action
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
     await supabaseAdmin.from('employee_access_logs').insert({
       company_id: companyId,
       profile_id: adminProfile.id,
-      action: 'disable_employee',
+      action: 'delete_employee',
       resource: 'team',
       details: {
         target_employee_id: id,
@@ -230,7 +235,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     return NextResponse.json({
       success: true,
-      message: 'Funcionário desativado com sucesso (histórico preservado).'
+      message: 'Funcionário excluído definitivamente com sucesso.'
     });
 
   } catch (err: any) {

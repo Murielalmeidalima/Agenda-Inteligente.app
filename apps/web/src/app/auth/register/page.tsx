@@ -166,6 +166,29 @@ function RegisterFormContent() {
         throw new Error(check.error || 'Erro ao validar dados.');
       }
 
+      // Verificar no Supabase Auth se o e-mail já possui conta cadastrada
+      const supabase = createBrowserClient();
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      if (signUpError) {
+        const errStr = signUpError.message?.toLowerCase() || '';
+        if (errStr.includes('already registered') || errStr.includes('already been registered') || errStr.includes('database error') || errStr.includes('saving new user')) {
+          // Tenta fazer login para validar se a senha informada é a correta
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: formData.email,
+            password: formData.password,
+          });
+          if (signInError || !signInData?.user) {
+            throw new Error('Este e-mail já possui uma conta cadastrada no Supabase. Faça login com sua senha ou utilize um novo e-mail (ex: teste.novo@gmail.com).');
+          }
+        } else {
+          throw new Error('Erro no cadastro: ' + signUpError.message);
+        }
+      }
+
       setTrialAllowed(check.trialAllowed);
       
       // Prossegue para a etapa do cartão
