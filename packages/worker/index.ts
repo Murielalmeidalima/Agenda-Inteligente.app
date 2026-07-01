@@ -61,10 +61,10 @@ async function processQueue() {
         if (msg.type === 'sms') {
           providerResponse = await smsService.send({ to: msg.recipient, content: msg.payload.content });
         } else if (msg.type === 'whatsapp') {
-          const { data: company } = await supabase.from('companies').select('whatsapp_instance_name').eq('id', msg.company_id).single();
-          const instanceName = company?.whatsapp_instance_name || `empresa_${msg.company_id.replace(/-/g, '')}`;
-          whatsappService.setInstance(instanceName);
-          providerResponse = await whatsappService.send({ to: msg.recipient, content: msg.payload.content });
+          // Evolution API / WhatsApp integration is disabled in MVP
+          status = 'failed';
+          providerResponse = { error: 'Evolution API is disabled in MVP version' };
+          console.log(`[Worker] WhatsApp message skipped (Evolution API integration is inactive in MVP)`);
         } else if (msg.type === 'email') {
           status = 'sent';
         }
@@ -80,7 +80,7 @@ async function processQueue() {
         await supabase
           .from('message_queue')
           .update({ 
-            status: 'sent', 
+            status: status, 
             processed_at: new Date().toISOString() 
           })
           .eq('id', msg.id);

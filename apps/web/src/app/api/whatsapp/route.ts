@@ -37,48 +37,17 @@ export async function POST(req: NextRequest) {
 
     const companyId = profile.company_id;
     const instanceName = `empresa_${companyId.replace(/-/g, '')}`;
-    const whatsappService = new WhatsappService(instanceName);
 
+    // Evolution API is disabled in MVP
     if (action === 'status') {
-      try {
-        const state = await whatsappService.getStatus();
-        // Return state and also update database if connected
-        if (state?.instance?.state === 'open') {
-           await supabase.from('companies').update({
-             whatsapp_instance_name: instanceName,
-             whatsapp_status: 'connected'
-           }).eq('id', companyId);
-        }
-        return NextResponse.json(state);
-      } catch (err: any) {
-        if (err.message?.includes('not found') || err.message?.includes('Error getting connection')) {
-           return NextResponse.json({ instance: { state: 'not_created' } });
-        }
-        throw err;
-      }
+      return NextResponse.json({ instance: { state: 'disconnected' } });
     }
 
-    if (action === 'create') {
-      const response = await whatsappService.createInstance();
-      await supabase.from('companies').update({
-        whatsapp_instance_name: instanceName,
-        whatsapp_status: 'qr_ready'
-      }).eq('id', companyId);
-      
-      return NextResponse.json(response);
-    }
-
-    if (action === 'connect') {
-      const response = await whatsappService.connect();
-      return NextResponse.json(response);
-    }
-
-    if (action === 'logout') {
-      const response = await whatsappService.logout();
-      await supabase.from('companies').update({
-        whatsapp_status: 'disconnected'
-      }).eq('id', companyId);
-      return NextResponse.json(response);
+    if (action === 'create' || action === 'connect' || action === 'logout') {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'WhatsApp integration is disabled in MVP version' 
+      }, { status: 400 });
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-export const dynamic = 'force-dynamic';
-
 export async function GET(request: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -17,13 +15,17 @@ export async function GET(request: Request) {
       errors: [] as string[]
     };
 
-    const { data: rules } = await supabase
+    const { data: rulesData } = await supabase
       .from('automation_rules')
       .select('*')
       .eq('is_active', true);
 
+    // Evolution API / WhatsApp integration is disabled in MVP.
+    // We filter out all rules to prevent enqueuing any automated WhatsApp messages.
+    const rules = (rulesData || []).filter((r: any) => false);
+
     if (!rules || rules.length === 0) {
-      return NextResponse.json({ success: true, message: 'Nenhuma regra ativa' });
+      return NextResponse.json({ success: true, message: 'Nenhuma regra de automação ativa para processar no MVP (WhatsApp Desativado).' });
     }
 
     // 1. Definições de Timezone e Datas
@@ -55,7 +57,7 @@ export async function GET(request: Request) {
         .lte('start_time', targetTimeEndUtc.toISOString());
 
       if (appointments && appointments.length > 0) {
-        for (const appt of appointments) {
+        for (const appt of (appointments || [])) {
           if (rule.trigger_type === 'pre_appointment' && appt.status === 'completed') continue;
           if (rule.trigger_type === 'post_appointment' && appt.status !== 'completed') continue;
 
