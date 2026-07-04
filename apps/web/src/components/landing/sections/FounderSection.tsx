@@ -11,33 +11,33 @@ interface Scene {
 
 const SCENES: Scene[] = [
   {
-    image: '/images/founder_4.jpg', // Jamily writing
+    image: '/images/founder_4.jpg',
     text: "Por trás de toda grande solução existe uma história.",
-    subText: "Uma jornada que une cuidado, dedicação e o desejo de fazer a diferença para profissionais da saúde."
+    subText: "Uma jornada que une dedicação, cuidado e o compromisso de simplificar a rotina de empreendedores de estética e bem-estar."
   },
   {
-    image: '/images/founder_2.jpg', // Jamily at work
-    text: "Após identificar os desafios enfrentados por clínicas e consultórios...",
-    subText: "O estresse da agenda de papel, as faltas de pacientes e a falta de controle financeiro organizados."
+    image: '/images/founder_2.jpg',
+    text: "Desenvolvido para impulsionar a gestão de clínicas e consultórios...",
+    subText: "Criando soluções práticas que trazem estabilidade financeira, facilidade de agendamento e controle total sobre o negócio."
   },
   {
-    image: '/images/founder_3.jpg', // Jamily confident
-    text: "...nasceu o Agenda Inteligente.",
-    subText: "A resposta tecnológica focada em humanizar o atendimento e otimizar processos diários."
+    image: '/images/founder_3.jpg',
+    text: "...assim nasceu o Agenda Inteligente.",
+    subText: "Uma resposta tecnológica inovadora focada em elevar a qualidade do atendimento e otimizar cada processo diário."
   },
   {
-    image: '/images/founder_1.jpg', // Jamily with sphere
-    text: "Ajudar profissionais a terem mais organização, produtividade e crescimento.",
-    subText: "Uma plataforma pensada por quem vivencia e entende a rotina clínica no dia a dia."
+    image: '/images/founder_1.jpg',
+    text: "Nosso propósito é proporcionar organização, produtividade e crescimento constante.",
+    subText: "Uma plataforma pensada nos mínimos detalhes por quem entende a dinâmica e as necessidades reais desse mercado."
   },
   {
-    image: '/images/founder_5.jpg', // Jamily portrait
-    text: "Mais do que um sistema. Uma plataforma feita para transformar a gestão clínica.",
-    subText: "Projetada com alma e sensibilidade para encantar sua equipe e seus pacientes."
+    image: '/images/founder_5.jpg',
+    text: "Mais do que um sistema, somos o parceiro de crescimento da sua clínica.",
+    subText: "Projetado com excelência e sofisticação para encantar a sua equipe e os seus clientes todos os dias."
   }
 ];
 
-const SLIDE_DURATION_MS = 60000; // 1 minute (60 seconds) per slide
+const SLIDE_DURATION_MS = 8000; // 8 seconds per slide
 
 export function FounderSection() {
   const [currentScene, setCurrentScene] = useState(0);
@@ -53,12 +53,12 @@ export function FounderSection() {
   const activeScene = SCENES[currentScene];
 
   return (
-    <section className="py-24 px-4 md:px-10 w-full bg-[#fbf1f2]">
+    <section className="py-24 px-4 md:px-10 w-full bg-[#FAF6F0]">
       <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16 max-w-7xl mx-auto">
         
         {/* Left Side: Images of the Founder */}
         <div className="w-full lg:w-1/2 flex justify-center">
-          <div className="relative w-full max-w-[450px] aspect-[4/5] bg-[#fbf1f2] rounded-3xl overflow-hidden shadow-xl border-4 border-white shadow-[#7d525f]/10">
+          <div className="relative w-full max-w-[450px] aspect-[4/5] bg-white rounded-3xl overflow-hidden shadow-xl border-4 border-white shadow-[#2C2825]/5">
             
             {/* Smooth transition between images (Ken Burns effect) */}
             <div className="absolute inset-0 select-none pointer-events-none overflow-hidden">
@@ -71,8 +71,8 @@ export function FounderSection() {
                 >
                   <Image 
                     alt={`Jamily Guimarães - Foto ${idx + 1}`} 
-                    className={`relative w-full h-full object-cover object-center transition-transform duration-[60200ms] ease-out ${
-                      idx === currentScene ? 'scale-110' : 'scale-100'
+                    className={`relative w-full h-full object-cover object-center transition-transform duration-[8200ms] ease-out ${
+                      idx === currentScene ? 'scale-105' : 'scale-100'
                     }`}
                     src={scene.image}
                     fill
@@ -84,21 +84,21 @@ export function FounderSection() {
             </div>
 
             {/* Subtle light/color glow effects */}
-            <div className="absolute top-0 right-0 w-64 h-64 bg-[#d9a5b3]/10 rounded-full blur-[60px] -mr-16 -mt-16 pointer-events-none z-20" />
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#c97d95]/10 rounded-full blur-[50px] -ml-12 -mb-12 pointer-events-none z-20" />
+            <div className="absolute top-0 right-0 w-64 h-64 bg-[#D4AF37]/5 rounded-full blur-[60px] -mr-16 -mt-16 pointer-events-none z-20" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#FFF0F2]/10 rounded-full blur-[50px] -ml-12 -mb-12 pointer-events-none z-20" />
           </div>
         </div>
 
         {/* Right Side: Storytelling & Corporate Message */}
         <div className="w-full lg:w-1/2 flex flex-col justify-center min-h-[350px] space-y-6">
           <div className="space-y-2">
-            <span className="text-[#8c4a60] font-semibold tracking-widest uppercase text-xs font-sans block">
+            <span className="text-[#D4AF37] font-semibold tracking-widest uppercase text-xs font-sans block">
               Conheça a Fundadora
             </span>
-            <h2 className="font-playfair-display text-3xl md:text-4xl font-bold text-[#7d525f] leading-tight tracking-tight">
+            <h2 className="font-serif text-3xl md:text-4xl font-bold text-[#2C2825] leading-tight tracking-tight">
               Jamily Guimarães
             </h2>
-            <p className="text-[#504446]/60 text-xs font-black uppercase tracking-widest mt-0.5">
+            <p className="text-[#8A847C] text-xs font-bold uppercase tracking-widest mt-0.5">
               Fundadora &amp; CEO
             </p>
           </div>
@@ -108,11 +108,11 @@ export function FounderSection() {
             key={currentScene} 
             className="space-y-4 animate-fade-in min-h-[140px] flex flex-col justify-center"
           >
-            <blockquote className="font-playfair-display text-xl md:text-2xl lg:text-3xl italic text-[#504446] leading-relaxed relative pl-5 border-l-4 border-[#d9a5b3]">
+            <blockquote className="font-serif text-xl md:text-2xl lg:text-3xl italic text-[#2C2825] leading-relaxed relative pl-5 border-l-4 border-[#D4AF37]">
               "{activeScene.text}"
             </blockquote>
             {activeScene.subText && (
-              <p className="text-[#504446]/75 text-sm md:text-base font-normal leading-relaxed pl-5 font-sans">
+              <p className="text-[#5C5855] text-sm md:text-base font-normal leading-relaxed pl-5 font-sans">
                 {activeScene.subText}
               </p>
             )}
@@ -125,16 +125,16 @@ export function FounderSection() {
                 key={idx}
                 onClick={() => setCurrentScene(idx)}
                 className={`h-2.5 rounded-full transition-all duration-300 ${
-                  idx === currentScene ? 'w-8 bg-[#8c4a60]' : 'w-2.5 bg-[#eae0e1]'
+                  idx === currentScene ? 'w-8 bg-[#D4AF37]' : 'w-2.5 bg-[#E5E0D8]'
                 }`}
                 aria-label={`Ir para o slide ${idx + 1}`}
               />
             ))}
           </div>
 
-          <div className="pt-6 border-t border-[#d4c2c5]/20 flex flex-wrap gap-4">
+          <div className="pt-6 border-t border-[#FAF6F0] flex flex-wrap gap-4">
             <a 
-              className="w-10 h-10 rounded-full bg-[#eae0e1] flex items-center justify-center text-[#7d525f] hover:bg-[#7d525f] hover:text-white transition-colors duration-300 cursor-pointer shadow-sm" 
+              className="w-10 h-10 rounded-full bg-white border border-[#E5E0D8]/40 flex items-center justify-center text-[#2C2825] hover:bg-[#D4AF37] hover:text-white transition-all duration-300 cursor-pointer shadow-sm" 
               href="https://www.instagram.com/studiojamilyguimaraes?igsh=MXE2cDl2ZmljdG5qMQ%3D%3D&utm_source=qr"
               target="_blank"
               rel="noopener noreferrer"

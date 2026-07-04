@@ -1,50 +1,114 @@
 'use client';
-import { Calendar, TrendingUp, Package, Users, FileCheck2, MessageSquareShare, BellRing, Bot, Smartphone, BarChart3 } from 'lucide-react';
+
+import { 
+  Calendar, 
+  Users, 
+  TrendingUp, 
+  Package, 
+  Megaphone, 
+  UserCheck, 
+  FileText, 
+  Star, 
+  Trophy, 
+  BarChart3, 
+  Bot, 
+  Link2 
+} from 'lucide-react';
 
 export function FeaturesSection() {
   const features = [
-    { icon: Calendar, title: 'Agenda Inteligente', desc: 'Controle de horários, salas e profissionais com visão unificada e sem conflitos.' },
-    { icon: TrendingUp, title: 'Financeiro Completo', desc: 'Fluxo de caixa, contas a pagar/receber, DRE e controle de inadimplência.' },
-    { icon: Package, title: 'Estoque Integrado', desc: 'Baixa automática de insumos, alertas de reposição e controle de validade.' },
-    { icon: Bot, title: 'Marketing Automático', desc: 'Campanhas de reengajamento, aniversariantes e clientes inativos no automático.' },
-    { icon: Users, title: 'Gestão de Equipe', desc: 'Permissões de acesso, comissões por profissional e auditoria de acessos.' },
-    { icon: FileCheck2, title: 'Anamnese Digital', desc: 'Prontuário eletrônico seguro com fotos, assinatura digital e histórico.' },
-    { icon: MessageSquareShare, title: 'WhatsApp Automatizado', desc: 'Lembretes de consulta, confirmações e campanhas direto no WhatsApp.' },
-    { icon: BellRing, title: 'Avaliações Automáticas', desc: 'Solicite avaliações no Google automaticamente após cada atendimento.' },
-    { icon: Smartphone, title: 'Acesso Mobile', desc: 'Use de qualquer lugar, do celular ou tablet, com interface 100% responsiva.' },
-    { icon: BarChart3, title: 'Relatórios e Metas', desc: 'Dashboards visuais, metas mensais e relatórios gerenciais para decisões.' },
+    { 
+      icon: Calendar, 
+      title: 'Agenda Inteligente', 
+      desc: 'Agendamentos rápidos de forma visual com controle de salas, profissionais e múltiplos horários.' 
+    },
+    { 
+      icon: Users, 
+      title: 'Clientes', 
+      desc: 'Histórico completo de atendimentos, prontuários, preferências e aniversários em um clique.' 
+    },
+    { 
+      icon: TrendingUp, 
+      title: 'Financeiro', 
+      desc: 'Fluxo de caixa em tempo real, contas a pagar e receber, comissões de equipe e DRE automático.' 
+    },
+    { 
+      icon: Package, 
+      title: 'Estoque', 
+      desc: 'Controle inteligente de insumos com baixa automática de produtos a cada procedimento realizado.' 
+    },
+    { 
+      icon: Megaphone, 
+      title: 'Marketing', 
+      desc: 'Campanhas automáticas de fidelização e reengajamento de clientes para aumentar suas vendas.' 
+    },
+    { 
+      icon: UserCheck, 
+      title: 'Equipe', 
+      desc: 'Gestão de permissões de acesso, comissões automatizadas e metas de produtividade individuais.' 
+    },
+    { 
+      icon: FileText, 
+      title: 'Anamnese', 
+      desc: 'Fichas digitais 100% personalizáveis, galeria de fotos clínicas e assinatura direta na tela.' 
+    },
+    { 
+      icon: Star, 
+      title: 'Avaliações', 
+      desc: 'Envio automático de convites para avaliação no Google, elevando sua reputação local online.' 
+    },
+    { 
+      icon: Trophy, 
+      title: 'Planejamento', 
+      desc: 'Definição e acompanhamento de metas operacionais e de faturamento da clínica de forma visual.' 
+    },
+    { 
+      icon: BarChart3, 
+      title: 'Relatórios', 
+      desc: 'Métricas precisas e gráficos intuitivos sobre a saúde financeira e operacional do negócio.' 
+    },
+    { 
+      icon: Bot, 
+      title: 'Automações', 
+      desc: 'Lembretes e confirmações automáticas de consultas via WhatsApp, reduzindo as faltas.' 
+    },
+    { 
+      icon: Link2, 
+      title: 'Integrações', 
+      desc: 'Sincronização nativa com WhatsApp oficial, gateways de pagamento e serviços de e-mail.' 
+    },
   ];
 
   return (
-    <section id="features" className="py-20 md:py-28 px-4 bg-[#fbf1f2] relative">
-      <div className="absolute top-0 right-0 w-1/3 h-1/2 bg-[#d9a5b3]/10 blur-[100px] -z-10" />
+    <section id="features" className="py-20 md:py-28 px-4 bg-[#FAF6F0] relative">
+      <div className="absolute top-0 right-0 w-1/3 h-1/2 bg-[#D4AF37]/5 blur-[100px] -z-10 pointer-events-none" />
 
       <div className="max-w-7xl mx-auto font-sans">
-        <div className="text-center mb-14">
-          <span className="text-[#7d525f] font-bold tracking-widest uppercase text-sm mb-3 block">
-            A SOLUÇÃO
+        <div className="text-center mb-16">
+          <span className="text-[#D4AF37] font-bold tracking-widest uppercase text-xs sm:text-sm mb-3 block">
+            RECURSOS COMPLETOS
           </span>
-          <h2 className="text-3xl md:text-5xl font-extrabold mb-4 text-[#1f1a1b] font-playfair-display">
-            Tudo em um só lugar
+          <h2 className="font-serif text-3xl md:text-5xl font-bold mb-4 text-[#2C2825]">
+            Tudo o que você precisa em um único lugar
           </h2>
-          <p className="text-[#504446] text-lg md:text-xl">
-            Mais de 10 módulos integrados para escalar a operação da sua clínica.
+          <p className="text-[#5C5855] text-base sm:text-lg max-w-2xl mx-auto">
+            Uma plataforma integrada de ponta a ponta com recursos pensados especificamente para escalar a operação do seu negócio.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {features.map((feat, idx) => {
             const Icon = feat.icon;
             return (
               <div
                 key={idx}
-                className="p-5 bg-white border border-[#d4c2c5]/30 rounded-3xl hover:border-[#c97d95]/40 hover:shadow-[0_12px_32px_rgba(201,125,149,0.03)] hover:-translate-y-1 transition-all duration-300 group cursor-default"
+                className="p-6 bg-white border border-[#FAF6F0] rounded-[2rem] hover:border-[#D4AF37]/30 hover:shadow-[0_15px_30px_rgba(44,40,37,0.03)] hover:-translate-y-1 transition-all duration-300 group cursor-pointer"
               >
-                <div className="w-11 h-11 bg-[#f5ecec] rounded-xl flex items-center justify-center mb-4 text-[#7d525f] group-hover:bg-[#7d525f] group-hover:text-white transition-all duration-300">
+                <div className="w-12 h-12 bg-[#FAF6F0] rounded-2xl flex items-center justify-center mb-5 text-[#D4AF37] group-hover:bg-[#D4AF37] group-hover:text-white transition-all duration-300 shadow-sm shadow-[#D4AF37]/5">
                   <Icon className="w-5 h-5" />
                 </div>
-                <h3 className="text-base font-bold mb-1.5 text-[#1f1a1b] font-playfair-display">{feat.title}</h3>
-                <p className="text-[#504446] text-xs leading-relaxed">{feat.desc}</p>
+                <h3 className="text-base font-bold mb-2 text-[#2C2825] font-serif group-hover:text-[#D4AF37] transition-colors duration-300">{feat.title}</h3>
+                <p className="text-[#5C5855] text-xs sm:text-sm leading-relaxed">{feat.desc}</p>
               </div>
             );
           })}

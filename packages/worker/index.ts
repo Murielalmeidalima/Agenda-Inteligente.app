@@ -1,3 +1,4 @@
+import path from 'path';
 import { loadEnvConfig } from '@next/env';
 import { createClient } from '@supabase/supabase-js';
 import { SmsService, WhatsappService } from '@projeto/utils';
@@ -5,6 +6,10 @@ import { SmsService, WhatsappService } from '@projeto/utils';
 // Load environment variables from the web app's .env files or VPS envs
 const projectDir = process.cwd();
 loadEnvConfig(projectDir);
+
+// Fallback to load from the web app workspace folder during local development
+const webAppDir = path.resolve(__dirname, '../../apps/web');
+loadEnvConfig(webAppDir);
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

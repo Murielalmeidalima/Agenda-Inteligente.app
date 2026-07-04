@@ -148,7 +148,7 @@ export const DayWeekView = ({
       <div 
         className={cn(
           "grid flex-1 min-w-0",
-          view === 'day' ? "grid-cols-1" : "grid-cols-7"
+          view === 'day' ? "grid-cols-1" : "grid-cols-7 min-w-[750px] md:min-w-0"
         )}
       >
         {visibleDays.map((day) => (

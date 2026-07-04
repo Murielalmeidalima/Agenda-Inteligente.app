@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   format, 
   startOfWeek,
@@ -71,6 +71,12 @@ export default function ScheduleCalendarComponent({
 }: ScheduleCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<CalendarViewType>('week');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setView('day');
+    }
+  }, []);
 
   const [filterPaymentStatus, setFilterPaymentStatus] = useState<string>('all');
   const [filterProfessional, setFilterProfessional] = useState<string>('all');
@@ -162,46 +168,49 @@ export default function ScheduleCalendarComponent({
            </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full xl:w-auto">
+          {/* Group 1: Configuration & View Switcher */}
+          <div className="grid grid-cols-2 gap-3 w-full sm:w-auto">
+            {/* Bloquear Dias */}
+            <div className="flex items-center bg-white rounded-xl border border-[#E5E0D8] px-2 h-10">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={onOpenBlocks}
+                className="gap-2 text-[#5C5855] hover:text-red-600 font-bold uppercase tracking-widest text-[10px] w-full justify-center"
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+                Bloquear Dias
+              </Button>
+            </div>
 
-
-          <div className="flex items-center bg-white rounded-xl border border-[#E5E0D8] px-2 h-10">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={onOpenBlocks}
-              className="gap-2 text-[#5C5855] hover:text-red-600 font-bold uppercase tracking-widest text-[10px]"
-            >
-              <Settings2 className="h-3.5 w-3.5" />
-              Bloquear Dias
-            </Button>
+            {/* View Switcher */}
+            <div className="flex items-center bg-white rounded-xl border border-[#E5E0D8] px-2 h-10 w-full sm:w-[140px]">
+              <Select 
+                value={view} 
+                onValueChange={(val) => setView(val as CalendarViewType)}
+              >
+                <SelectTrigger className="border-none h-8 p-0 px-2 bg-transparent focus:ring-0 text-xs font-bold text-[#5C5855] w-full uppercase tracking-widest">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="day">Diário</SelectItem>
+                  <SelectItem value="week">Semanal</SelectItem>
+                  <SelectItem value="month">Calendário</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {/* View Switcher */}
-          <div className="flex items-center bg-white rounded-xl border border-[#E5E0D8] px-2 h-10 w-[140px]">
-            <Select 
-              value={view} 
-              onValueChange={(val) => setView(val as CalendarViewType)}
-            >
-              <SelectTrigger className="border-none h-8 p-0 px-2 bg-transparent focus:ring-0 text-xs font-bold text-[#5C5855] w-full uppercase tracking-widest">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="day">Diário</SelectItem>
-                <SelectItem value="week">Semanal</SelectItem>
-                <SelectItem value="month">Calendário</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1 bg-white rounded-xl border border-[#E5E0D8] p-1">
-               <Button size="icon" variant="ghost" className="h-8 w-8 text-[#8A847C] hover:text-[#D4AF37] hover:bg-[#FAF6E9] rounded-lg" onClick={() => navigate('prev')}>
+          {/* Group 2: Date Navigation & New Appointment */}
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+            {/* Date Navigator */}
+            <div className="flex items-center justify-between bg-white rounded-xl border border-[#E5E0D8] p-1 w-full sm:w-auto">
+               <Button size="icon" variant="ghost" className="h-8 w-8 text-[#8A847C] hover:text-[#D4AF37] hover:bg-[#FAF6E9] rounded-lg shrink-0" onClick={() => navigate('prev')}>
                   <ChevronLeft className="h-4 w-4" />
                </Button>
                
-               <div className="relative flex items-center justify-center w-[140px] group">
+               <div className="relative flex items-center justify-center flex-1 sm:w-[140px] group">
                  <div className="h-8 flex items-center justify-center bg-transparent group-hover:bg-[#FAF9F6] text-[#2C2825] px-2 text-[11px] font-black uppercase w-full gap-1 rounded-md cursor-pointer transition-colors text-center leading-tight">
                    {view === 'month' 
                      ? format(currentDate, "MMMM 'de' yyyy", { locale: ptBR }) 
@@ -222,12 +231,13 @@ export default function ScheduleCalendarComponent({
                  />
                </div>
 
-               <Button size="icon" variant="ghost" className="h-8 w-8 text-[#8A847C] hover:text-[#D4AF37] hover:bg-[#FAF6E9] rounded-lg" onClick={() => navigate('next')}>
+               <Button size="icon" variant="ghost" className="h-8 w-8 text-[#8A847C] hover:text-[#D4AF37] hover:bg-[#FAF6E9] rounded-lg shrink-0" onClick={() => navigate('next')}>
                   <ChevronRight className="h-4 w-4" />
                </Button>
             </div>
 
-            <Button onClick={() => onNewAppointment(currentDate)} className="h-10 bg-gradient-to-r from-[#D4AF37] to-[#B5952F] hover:from-[#C5A028] hover:to-[#A48625] text-white font-bold rounded-xl px-4 shadow-lg shadow-[#D4AF37]/20 active:scale-[0.98] transition-all">
+            {/* Novo Agendamento */}
+            <Button onClick={() => onNewAppointment(currentDate)} className="h-10 w-full sm:w-auto bg-gradient-to-r from-[#D4AF37] to-[#B5952F] hover:from-[#C5A028] hover:to-[#A48625] text-white font-bold rounded-xl px-4 shadow-lg shadow-[#D4AF37]/20 active:scale-[0.98] transition-all justify-center">
                <Plus className="h-4 w-4 mr-2" />
                Novo Agendamento
             </Button>
@@ -238,7 +248,7 @@ export default function ScheduleCalendarComponent({
       {/* Visual Legend & Filter Row */}
       <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
         {/* Legend */}
-        <div className="flex flex-wrap items-center gap-3.5 bg-[#FAF9F6] border border-[#E5E0D8]/60 px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-wider text-[#5C5855] shadow-sm">
+        <div className="flex items-center gap-3.5 bg-[#FAF9F6] border border-[#E5E0D8]/60 px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-wider text-[#5C5855] shadow-sm overflow-x-auto w-full md:w-auto whitespace-nowrap scrollbar-none">
           <span className="text-[#8A847C]">Legenda:</span>
           <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500" /> <span>Pago</span></div>
           <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-orange-500" /> <span>Parcial</span></div>
@@ -248,7 +258,7 @@ export default function ScheduleCalendarComponent({
         </div>
 
         {/* Quick Filter Bar */}
-        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+        <div className="flex items-center gap-2.5 w-full overflow-x-auto pb-2 scrollbar-none whitespace-nowrap md:overflow-x-visible md:pb-0 md:w-auto">
           <div className="text-[9px] font-black text-[#8A847C] uppercase tracking-widest flex items-center gap-1 mr-1">
             <Filter className="h-3.5 w-3.5 text-[#D4AF37]" />
             Filtrar:

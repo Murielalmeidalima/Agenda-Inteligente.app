@@ -15,7 +15,8 @@ import {
   FileText,
   Activity,
   TrendingUp,
-  Trophy
+  Trophy,
+  X
 } from 'lucide-react';
 
 import { Logo, LogoImage } from '../ui/Logo';
@@ -38,7 +39,7 @@ const menuItems = [
   { label: 'Configurações', href: '/dashboard/settings', icon: Settings, color: 'text-slate-400', bg: 'bg-slate-400' },
 ];
 
-export function Sidebar() {
+export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void } = {}) {
   const pathname = usePathname();
   const { profile, loading, hasPermission } = useProfile();
   const router = useRouter();
@@ -74,12 +75,25 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-white fixed top-0 left-0 h-screen p-6 flex flex-col border-r border-slate-100 overflow-y-auto transition-colors duration-300 shadow-sm z-40">
+    <aside className={cn(
+      "w-64 bg-white p-6 flex flex-col border-r border-slate-100 h-screen overflow-y-auto transition-all duration-300 shadow-sm z-50 shrink-0",
+      "fixed top-0 bottom-0 left-0 lg:sticky lg:top-0",
+      isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+    )}>
       {/* Subtle Background Glow */}
       <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-full blur-[100px] pointer-events-none opacity-50" />
       
-      <div className="mb-10 flex items-center justify-start relative z-10 px-4">
+      <div className="mb-10 flex items-center justify-between relative z-10 px-4">
         <Logo size={44} />
+        {onClose && (
+          <button 
+            onClick={onClose}
+            className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-slate-900 hover:bg-slate-50 transition-colors"
+            aria-label="Fechar menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
       
       <nav className="flex-1 space-y-2 relative z-10">
@@ -112,7 +126,7 @@ export function Sidebar() {
                 className={cn(
                   "group flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 relative overflow-hidden",
                   isActive 
-                    ? "bg-slate-50 text-slate-900 font-bold shadow-sm ring-1 ring-slate-100" 
+                    ? "bg-slate-100 text-slate-900 font-bold shadow-sm ring-1 ring-slate-200/50" 
                     : "text-slate-400 hover:text-slate-900 hover:bg-slate-50"
                 )}
               >

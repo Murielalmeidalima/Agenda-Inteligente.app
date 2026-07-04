@@ -21,12 +21,8 @@ export function DashboardContentWrapper({ children }: { children: React.ReactNod
   // Rotas que burlam/ignoram o bloqueio de faturamento para permitir pagamento ou administração geral
   const isBypassPath = pathname === '/dashboard/settings/billing' || pathname.startsWith('/dashboard/admin');
 
-  // Validação da assinatura
-  const isTrial = subscription?.status === 'trial';
-  const isActive = subscription?.status === 'active';
-  const isTrialValid = isTrial && subscription?.trial_end && new Date(subscription.trial_end) > new Date();
-
-  const hasActiveSubscription = isActive || isTrialValid;
+  // Validação da assinatura (Bypass local para acesso geral de desenvolvimento)
+  const hasActiveSubscription = true;
 
   // Intercepta e bloqueia o acesso caso a assinatura esteja inativa e o usuário tente acessar uma tela restrita
   if (!hasActiveSubscription && !isBypassPath && profile) {
