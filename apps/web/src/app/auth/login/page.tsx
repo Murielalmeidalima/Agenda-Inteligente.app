@@ -24,6 +24,7 @@ function LoginForm() {
   const [specialState, setSpecialState] = useState<SpecialState>(null);
   const [resendingEmail, setResendingEmail] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   // Erros vindos da URL (redirect do middleware)
   useEffect(() => {
@@ -38,18 +39,17 @@ function LoginForm() {
     }
   }, [searchParams]);
 
-  // Limpar sessão existente se entrar na tela de login por segurança
+  // Redirecionar se já houver sessão ativa
   useEffect(() => {
-    const clearSession = async () => {
+    const checkSession = async () => {
       const supabase = createBrowserClient();
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        console.log('[AUTH][LOGIN] Sessão ativa detectada na tela de login. Forçando logout...');
-        await supabase.auth.signOut();
-        router.refresh();
+        console.log('[AUTH][LOGIN] Sessão ativa detectada na tela de login. Redirecionando...');
+        router.push('/dashboard/schedule');
       }
     };
-    clearSession();
+    checkSession();
   }, [router]);
 
   const validateForm = () => {
@@ -229,7 +229,12 @@ function LoginForm() {
 
           <div className="flex items-center justify-between text-xs pt-1">
             <label className="flex items-center gap-2 cursor-pointer group select-none">
-              <input type="checkbox" className="peer w-4 h-4 rounded border-[#D1CDC7] bg-white text-[#D4AF37] focus:ring-[#D4AF37]/50 transition-all checked:bg-[#D4AF37] checked:border-[#D4AF37]" />
+              <input 
+                type="checkbox" 
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="peer w-4 h-4 rounded border-[#D1CDC7] bg-white text-[#D4AF37] focus:ring-[#D4AF37]/50 transition-all checked:bg-[#D4AF37] checked:border-[#D4AF37]" 
+              />
               <span className="text-[#5C5855] group-hover:text-[#2C2825] transition-colors">Lembrar-me</span>
             </label>
             <Link href="/auth/forgot-password" className="font-bold text-[#D4AF37] hover:text-[#B5952F] transition-colors hover:underline">Recuperar senha</Link>

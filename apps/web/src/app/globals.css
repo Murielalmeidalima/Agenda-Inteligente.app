@@ -132,3 +132,13 @@ h1, h2, h3, h4, h5, h6 {
     animation: none;
   }
 }
+
+/* Ativar rolagem por toque inercial apenas em dispositivos touch/mobile */
+@media (pointer: coarse) or (max-width: 1024px) {
+  .overflow-y-auto,
+  .overflow-x-auto,
+  .overflow-auto,
+  [class*="overflow-"] {
+    -webkit-overflow-scrolling: touch !important;
+  }
+}

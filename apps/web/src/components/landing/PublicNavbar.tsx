@@ -1,9 +1,10 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@projeto/ui';
 import { Logo } from '@/components/ui/Logo';
 import { Menu, X } from 'lucide-react';
+import { createBrowserClient } from '@/lib/supabase-browser';
 
 const navLinks = [
   { label: 'Benefícios', href: '/#benefits' },
@@ -15,6 +16,16 @@ const navLinks = [
 
 export function PublicNavbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsLoggedIn(!!session);
+    };
+    checkUser();
+  }, []);
 
   return (
     <nav className="fixed top-0 left-0 right-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-[#FAF6F0] shadow-[0_2px_15px_rgba(44,40,37,0.02)] transition-all duration-300">
@@ -38,16 +49,26 @@ export function PublicNavbar() {
 
         {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-6">
-          <Link href="/auth/login">
-            <button className="text-[#2C2825] font-semibold hover:text-[#D4AF37] transition-all cursor-pointer">
-              Login
-            </button>
-          </Link>
-          <Link href="/auth/register">
-            <button className="bg-gradient-to-r from-[#D4AF37] to-[#C5A028] hover:from-[#C5A028] hover:to-[#B5952F] text-white px-6 py-3 rounded-full font-semibold hover:scale-[1.02] active:scale-[0.98] transition-all shadow-md shadow-[#D4AF37]/10 cursor-pointer">
-              Começar Grátis
-            </button>
-          </Link>
+          {isLoggedIn ? (
+            <Link href="/dashboard/schedule">
+              <button className="bg-gradient-to-r from-[#D4AF37] to-[#C5A028] hover:from-[#C5A028] hover:to-[#B5952F] text-white px-6 py-3 rounded-full font-semibold hover:scale-[1.02] active:scale-[0.98] transition-all shadow-md shadow-[#D4AF37]/10 cursor-pointer">
+                Acessar Painel
+              </button>
+            </Link>
+          ) : (
+            <>
+              <Link href="/auth/login">
+                <button className="text-[#2C2825] font-semibold hover:text-[#D4AF37] transition-all cursor-pointer">
+                  Login
+                </button>
+              </Link>
+              <Link href="/auth/register">
+                <button className="bg-gradient-to-r from-[#D4AF37] to-[#C5A028] hover:from-[#C5A028] hover:to-[#B5952F] text-white px-6 py-3 rounded-full font-semibold hover:scale-[1.02] active:scale-[0.98] transition-all shadow-md shadow-[#D4AF37]/10 cursor-pointer">
+                  Começar Grátis
+                </button>
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile Toggle */}
@@ -75,16 +96,26 @@ export function PublicNavbar() {
               </Link>
             ))}
             <div className="border-t border-[#FAF6F0] mt-4 pt-4 flex flex-col gap-2">
-              <Link href="/auth/login" onClick={() => setMobileOpen(false)}>
-                <button className="w-full h-12 font-semibold text-[#2C2825] bg-[#FAF6F0] hover:bg-[#FAF6F0]/80 rounded-xl transition-all cursor-pointer">
-                  Login
-                </button>
-              </Link>
-              <Link href="/auth/register" onClick={() => setMobileOpen(false)}>
-                <button className="w-full h-12 bg-[#D4AF37] hover:bg-[#B5952F] text-white font-bold rounded-xl transition-all cursor-pointer shadow-md">
-                  Começar Agora
-                </button>
-              </Link>
+              {isLoggedIn ? (
+                <Link href="/dashboard/schedule" onClick={() => setMobileOpen(false)}>
+                  <button className="w-full h-12 bg-[#D4AF37] hover:bg-[#B5952F] text-white font-bold rounded-xl transition-all cursor-pointer shadow-md">
+                    Acessar Painel
+                  </button>
+                </Link>
+              ) : (
+                <>
+                  <Link href="/auth/login" onClick={() => setMobileOpen(false)}>
+                    <button className="w-full h-12 font-semibold text-[#2C2825] bg-[#FAF6F0] hover:bg-[#FAF6F0]/80 rounded-xl transition-all cursor-pointer">
+                      Login
+                    </button>
+                  </Link>
+                  <Link href="/auth/register" onClick={() => setMobileOpen(false)}>
+                    <button className="w-full h-12 bg-[#D4AF37] hover:bg-[#B5952F] text-white font-bold rounded-xl transition-all cursor-pointer shadow-md">
+                      Começar Agora
+                    </button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>

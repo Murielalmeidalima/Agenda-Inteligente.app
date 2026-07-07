@@ -38,7 +38,10 @@ import {
   Mail,
   Instagram,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Trash2,
+  Edit,
+  Eye
 } from 'lucide-react';
 
 export default function ClientsPage() {
@@ -202,7 +205,8 @@ export default function ClientsPage() {
       {/* Clients Table Card */}
       <Card className="rounded-[24px] overflow-hidden border-[#E5E0D8] shadow-sm">
         <CardContent className="p-0">
-          <Table>
+          <div className="hidden md:block">
+            <Table>
             <TableHeader className="bg-[#FAF9F6] border-b border-[#E5E0D8]">
               <TableRow className="hover:bg-transparent border-none">
                 <TableHead className="text-[#8A847C] font-bold uppercase text-[11px] tracking-widest pl-8 py-6">Paciente</TableHead>
@@ -237,7 +241,7 @@ export default function ClientsPage() {
                 filteredClients.map((client) => (
                   <TableRow key={client.id} className="border-b border-[#E5E0D8]/50 group hover:bg-[#FAF9F6] transition-colors">
                     <TableCell className="pl-8 py-5">
-                      <div className="flex items-center gap-4">
+                      <Link href={`/dashboard/clients/${client.id}`} className="flex items-center gap-4 hover:opacity-80 transition-opacity cursor-pointer">
                         <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
                            <AvatarFallback className="bg-[#FAF6E9] text-[#D4AF37] font-bold text-lg">
                               {client.full_name.charAt(0)}
@@ -249,7 +253,7 @@ export default function ClientsPage() {
                              Criado em {new Date(client.created_at).toLocaleDateString('pt-BR')}
                           </p>
                         </div>
-                      </div>
+                      </Link>
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1.5">
@@ -308,7 +312,90 @@ export default function ClientsPage() {
                 ))
               )}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
+
+          {/* Mobile View */}
+          <div className="md:hidden divide-y divide-[#E5E0D8]/50">
+            {loading ? (
+              Array(3).fill(0).map((_, i) => (
+                <div key={i} className="p-5 space-y-3 animate-pulse">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 bg-[#F0EBE0] rounded-full" />
+                    <div className="space-y-2 flex-1">
+                      <div className="h-4 w-24 bg-[#F0EBE0] rounded-md" />
+                      <div className="h-3 w-16 bg-[#F0EBE0] rounded-md" />
+                    </div>
+                  </div>
+                  <div className="h-4 w-full bg-[#F0EBE0] rounded-md" />
+                  <div className="h-8 w-full bg-[#F0EBE0] rounded-md" />
+                </div>
+              ))
+            ) : filteredClients.length === 0 ? (
+              <div className="py-12 text-center text-[#5C5855] italic">
+                Nenhum cliente encontrado.
+              </div>
+            ) : (
+              filteredClients.map((client) => (
+                <div key={client.id} className="p-5 space-y-4">
+                  <Link href={`/dashboard/clients/${client.id}`} className="block space-y-4 hover:opacity-80 transition-opacity cursor-pointer">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10 border-2 border-white shadow-sm shrink-0">
+                          <AvatarFallback className="bg-[#FAF6E9] text-[#D4AF37] font-bold text-base">
+                            {client.full_name?.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <h3 className="font-extrabold text-[#2C2825] text-base leading-snug">{client.full_name}</h3>
+                          <p className="text-[10px] text-[#A8A49D] uppercase tracking-wider font-bold mt-0.5">
+                            Criado em {new Date(client.created_at).toLocaleDateString('pt-BR')}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge className="bg-emerald-50 text-emerald-600 border border-emerald-100 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide shrink-0">
+                        Ativo
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-1.5 text-xs text-[#5C5855]">
+                      <div className="flex items-center gap-2 font-medium">
+                        <Phone className="h-3.5 w-3.5 text-[#D4AF37] shrink-0" /> {client.phone || '--'}
+                      </div>
+                      <div className="flex items-center gap-2 font-medium">
+                        <Mail className="h-3.5 w-3.5 text-[#D4AF37] shrink-0" /> {client.email || '--'}
+                      </div>
+                    </div>
+                  </Link>
+
+                  <div className="flex gap-2 pt-2">
+                    <Link href={`/dashboard/clients/${client.id}`} className="flex-1">
+                      <Button variant="outline" className="w-full h-10 border-blue-100 text-blue-600 bg-blue-50/30 hover:bg-blue-600 hover:text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all">
+                        <Eye className="h-4 w-4" />
+                        Prontuário
+                      </Button>
+                    </Link>
+                    <Link href={`/dashboard/clients/${client.id}/edit`} className="flex-1">
+                      <Button variant="outline" className="w-full h-10 border-[#E5E0D8] text-[#5C5855] bg-white hover:bg-[#D4AF37] hover:text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all">
+                        <Edit className="h-4 w-4" />
+                        Editar
+                      </Button>
+                    </Link>
+                    <Button 
+                       variant="outline" 
+                       className="h-10 border-red-100 text-red-600 bg-red-50/30 hover:bg-red-600 hover:text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all px-3 shrink-0"
+                       onClick={() => {
+                         setClientToDelete(client);
+                         setDeleteDialogOpen(true);
+                       }}
+                    >
+                       <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </CardContent>
       </Card>
 

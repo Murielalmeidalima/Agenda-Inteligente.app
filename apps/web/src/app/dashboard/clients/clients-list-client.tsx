@@ -146,7 +146,8 @@ export default function ClientsListClient({ initialClients, companyId }: Clients
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            <div className="overflow-x-auto hidden md:block">
           <Table>
             <TableHeader className="bg-[#FAF9F6]">
               <TableRow className="border-[#E5E0D8]">
@@ -217,6 +218,73 @@ export default function ClientsListClient({ initialClients, companyId }: Clients
             </TableBody>
           </Table>
           </div>
+
+          {/* Mobile View */}
+          <div className="md:hidden divide-y divide-[#F0EBE0]">
+            {clients.map((client) => (
+              <div key={client.id} className="p-5 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-extrabold text-[#2C2825] text-base leading-snug">{client.full_name}</h3>
+                    <div className="space-y-1.5 mt-2">
+                      {client.email && (
+                        <div className="flex items-center gap-2 text-xs text-[#5C5855] font-medium">
+                          <Mail className="h-3.5 w-3.5 text-[#D4AF37]" />
+                          {client.email}
+                        </div>
+                      )}
+                      {client.phone && (
+                        <div className="flex items-center gap-2 text-xs text-[#5C5855] font-medium">
+                          <Phone className="h-3.5 w-3.5 text-[#D4AF37]" />
+                          {formatPhone(client.phone)}
+                        </div>
+                      )}
+                      {!client.email && !client.phone && (
+                        <span className="text-xs text-[#8A847C] font-medium">Sem contato</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                  <div className="bg-[#FAF9F6] p-2 rounded-xl border border-[#E5E0D8]/40">
+                    <span className="text-[#8A847C] block text-[9px] uppercase font-bold tracking-wider">Nascimento</span>
+                    <span className="font-bold text-[#5C5855]">{formatDate(client.birth_date)}</span>
+                  </div>
+                  <div className="bg-[#FAF9F6] p-2 rounded-xl border border-[#E5E0D8]/40">
+                    <span className="text-[#8A847C] block text-[9px] uppercase font-bold tracking-wider">Cadastro</span>
+                    <span className="font-bold text-[#5C5855]">{formatDate(client.created_at)}</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <Link href={`/dashboard/clients/${client.id}`} className="flex-1">
+                    <Button variant="outline" className="w-full h-10 border-blue-100 text-blue-600 bg-blue-50/30 hover:bg-blue-600 hover:text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all">
+                      <Eye className="h-4 w-4" />
+                      Prontuário
+                    </Button>
+                  </Link>
+                  <Link href={`/dashboard/clients/${client.id}/edit`} className="flex-1">
+                    <Button variant="outline" className="w-full h-10 border-[#E5E0D8] text-[#5C5855] bg-white hover:bg-[#D4AF37] hover:text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all">
+                      <Edit className="h-4 w-4" />
+                      Editar
+                    </Button>
+                  </Link>
+                  <Button 
+                     variant="outline" 
+                     className="h-10 border-red-100 text-red-600 bg-red-50/30 hover:bg-red-600 hover:text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all px-3 shrink-0"
+                     onClick={() => {
+                       setClientToDelete(client);
+                       setDeleteDialogOpen(true);
+                     }}
+                  >
+                     <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </Card>
 
