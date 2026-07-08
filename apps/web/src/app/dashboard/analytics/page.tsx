@@ -107,15 +107,20 @@ export default function AnalyticsPage() {
       }
 
       // Fetch Data in parallel
-      const [productsRes, transactionsRes, appointmentsRes] = await Promise.all([
+      const [productsRes, transactionsRes, appointmentsRes, proceduresRes] = await Promise.all([
         supabase.from('products').select('*'),
         supabase.from('inventory_transactions').select('*, products(name, description)').eq('type', 'out'),
-        supabase.from('appointments').select('*, procedures(name, price), clients(id, full_name)').eq('status', 'completed')
+        supabase.from('appointments').select('*, procedures(name, price), clients(id, full_name)').eq('status', 'completed'),
+        supabase.from('procedures').select('id, name')
       ]);
 
       if (productsRes.error) throw productsRes.error;
       if (transactionsRes.error) throw transactionsRes.error;
       if (appointmentsRes.error) throw appointmentsRes.error;
+      if (proceduresRes.error) throw proceduresRes.error;
+
+      const proceduresList = proceduresRes.data || [];
+      const proceduresMap = new Map(proceduresList.map(p => [p.id, p.name]));
 
       // Filter products (Resale only)
       const validProducts = transactionsRes.data?.filter(t => {
@@ -141,6 +146,15 @@ export default function AnalyticsPage() {
       validAppointments.forEach(a => {
         const name = a.procedures?.name || 'Inconhecido';
         procMap[name] = (procMap[name] || 0) + 1;
+
+        if (Array.isArray(a.additional_procedure_ids)) {
+          a.additional_procedure_ids.forEach((id: string) => {
+            const extraName = proceduresMap.get(id);
+            if (extraName) {
+              procMap[extraName] = (procMap[extraName] || 0) + 1;
+            }
+          });
+        }
       });
 
       const productRanking = Object.entries(productMap)

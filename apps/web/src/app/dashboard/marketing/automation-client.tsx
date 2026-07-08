@@ -37,7 +37,7 @@ import { createBrowserClient } from '@/lib/supabase-browser';
 import { useProfile } from '@/providers/profile-provider';
 import { ReviewsWidget } from '@/components/marketing/ReviewsWidget';
 import { WhatsAppConnectionTab } from '@/components/marketing/WhatsAppConnectionTab';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 type Rule = {
   id: string;
@@ -306,7 +306,15 @@ export default function AutomationClient() {
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [isConfiguringReviews, setIsConfiguringReviews] = useState(false);
-  const [activeTab, setActiveTab] = useState('rules');
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabParam || 'rules');
+
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
   const [saving, setSaving] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -502,7 +510,78 @@ export default function AutomationClient() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="flex items-center justify-between gap-4 overflow-x-auto pb-2 scrollbar-hide">
+        {/* Mobile view: Grid of tabs (no horizontal scroll) */}
+        <div className="grid grid-cols-3 gap-2 md:hidden mb-6 bg-slate-900/5 p-1.5 rounded-2xl border border-slate-200/50">
+          <button 
+            type="button"
+            onClick={() => setActiveTab('rules')}
+            className={cn(
+              "flex flex-col items-center justify-center py-2.5 px-1 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all gap-1.5",
+              activeTab === 'rules' ? "bg-white text-slate-900 shadow-md" : "text-slate-400"
+            )}
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>Regras</span>
+          </button>
+          <button 
+            type="button"
+            onClick={() => setActiveTab('history')}
+            className={cn(
+              "flex flex-col items-center justify-center py-2.5 px-1 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all gap-1.5",
+              activeTab === 'history' ? "bg-white text-slate-900 shadow-md" : "text-slate-400"
+            )}
+          >
+            <Clock className="w-4 h-4" />
+            <span>Histórico</span>
+          </button>
+          <button 
+            type="button"
+            onClick={() => setActiveTab('birthday_campaign')}
+            className={cn(
+              "flex flex-col items-center justify-center py-2.5 px-1 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all gap-1.5",
+              activeTab === 'birthday_campaign' ? "bg-white text-slate-900 shadow-md" : "text-slate-400"
+            )}
+          >
+            <Gift className="w-4 h-4" />
+            <span>Aniver.</span>
+          </button>
+          <button 
+            type="button"
+            onClick={() => setActiveTab('reviews')}
+            className={cn(
+              "flex flex-col items-center justify-center py-2.5 px-1 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all gap-1.5",
+              activeTab === 'reviews' ? "bg-white text-slate-900 shadow-md" : "text-slate-400"
+            )}
+          >
+            <Star className="w-4 h-4" />
+            <span>Avalia.</span>
+          </button>
+          <button 
+            type="button"
+            onClick={() => setActiveTab('inactive')}
+            className={cn(
+              "flex flex-col items-center justify-center py-2.5 px-1 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all gap-1.5",
+              activeTab === 'inactive' ? "bg-white text-slate-900 shadow-md" : "text-slate-400"
+            )}
+          >
+            <UserMinus className="w-4 h-4" />
+            <span>Inativos</span>
+          </button>
+          <button 
+            type="button"
+            onClick={() => setActiveTab('whatsapp')}
+            className={cn(
+              "flex flex-col items-center justify-center py-2.5 px-1 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all gap-1.5",
+              activeTab === 'whatsapp' ? "bg-white text-emerald-600 shadow-md" : "text-slate-400"
+            )}
+          >
+            <Smartphone className="w-4 h-4" />
+            <span>WhatsApp</span>
+          </button>
+        </div>
+
+        {/* Desktop view: TabsList with horizontal overflow container */}
+        <div className="hidden md:flex items-center justify-between gap-4 overflow-x-auto pb-2 scrollbar-hide">
           <TabsList className="flex w-fit h-auto p-1.5 bg-slate-900/5 backdrop-blur-sm rounded-2xl border border-slate-200/50">
             <TabsTrigger value="rules" className="gap-2.5 py-2.5 px-6 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-lg rounded-xl transition-all font-black uppercase text-[10px] tracking-widest text-slate-400">
               <MessageSquare className="w-4 h-4" />

@@ -145,7 +145,13 @@ export default function PlanningPage() {
 
       const revenue = transRes?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
       const appointments = appsRes?.length || 0;
-      const procedures = appsRes?.reduce((sum, a) => sum + (Array.isArray(a.procedures) ? a.procedures.length : a.procedures ? 1 : 0), 0) || 0;
+      const procedures = appsRes?.reduce((sum, a) => {
+        let count = Array.isArray(a.procedures) ? a.procedures.length : a.procedures ? 1 : 0;
+        if (Array.isArray(a.additional_procedure_ids)) {
+          count += a.additional_procedure_ids.length;
+        }
+        return sum + count;
+      }, 0) || 0;
       const products = invRes?.reduce((sum, i) => sum + Number(i.quantity), 0) || 0;
 
       setActuals({ revenue, appointments, procedures, products });

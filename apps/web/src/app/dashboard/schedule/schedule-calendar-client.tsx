@@ -23,7 +23,7 @@ import { createBrowserClient } from '@/lib/supabase-browser';
 import { format, addMinutes } from 'date-fns';
 import { Plus, Settings2, CalendarOff } from 'lucide-react';
 import { EditAppointmentModal } from './edit-appointment-modal';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { BlockDaysModal } from './components/BlockDaysModal';
 import { showToast } from '@/lib/toast-helpers';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
@@ -44,6 +44,18 @@ export default function ScheduleCalendarClient({
   companyId
 }: ScheduleCalendarClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const filterParam = searchParams.get('filter');
+  const [isOnlyMaintenance, setIsOnlyMaintenance] = useState(filterParam === 'maintenance');
+
+  useEffect(() => {
+    if (filterParam === 'maintenance') {
+      setIsOnlyMaintenance(true);
+    } else {
+      setIsOnlyMaintenance(false);
+    }
+  }, [filterParam]);
+
   const [appointments, setAppointments] = useState(initialAppointments);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,6 +72,52 @@ export default function ScheduleCalendarClient({
     startTime: '',
     notes: ''
   });
+
+  const [additionalProcedureIds, setAdditionalProcedureIds] = useState<string[]>([]);
+
+  const [isManualDateTime, setIsManualDateTime] = useState(false);
+  const [manualDateTimeStr, setManualDateTimeStr] = useState('');
+
+  const parseManualDateTime = (str: string): string => {
+    const regex = /^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/;
+    const match = str.trim().match(regex);
+    if (match) {
+      const [, day, month, year, hour, minute] = match;
+      return `${year}-${month}-${day}T${hour}:${minute}`;
+    }
+    return '';
+  };
+
+  useEffect(() => {
+    if (isManualDateTime && formData.startTime) {
+      try {
+        const date = new Date(formData.startTime);
+        if (!isNaN(date.getTime())) {
+          setManualDateTimeStr(format(date, 'dd/MM/yyyy HH:mm'));
+        }
+      } catch (e) {}
+    } else if (!isManualDateTime && manualDateTimeStr) {
+      const parsed = parseManualDateTime(manualDateTimeStr);
+      if (parsed) {
+        setFormData(prev => ({ ...prev, startTime: parsed }));
+      }
+    }
+  }, [isManualDateTime]);
+
+  const selectedProceduresList = (() => {
+    const list = [];
+    const mainProc = procedures.find(p => p.id === formData.procedureId);
+    if (mainProc) list.push(mainProc);
+    
+    additionalProcedureIds.forEach(id => {
+      const extraProc = procedures.find(p => p.id === id);
+      if (extraProc) list.push(extraProc);
+    });
+    return list;
+  })();
+
+  const calculatedTotalDuration = selectedProceduresList.reduce((sum, p) => sum + p.duration_minutes, 0);
+  const calculatedTotalPrice = selectedProceduresList.reduce((sum, p) => sum + p.price, 0);
 
   // Edit Modal State
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
@@ -278,8 +336,18 @@ export default function ScheduleCalendarClient({
       const procedure = procedures.find(p => p.id === formData.procedureId);
       if (!procedure) throw new Error('Procedimento não selecionado');
       
-      const start = new Date(formData.startTime);
-      const end = addMinutes(start, procedure.duration_minutes);
+      let startStr = formData.startTime;
+      if (isManualDateTime) {
+        const parsed = parseManualDateTime(manualDateTimeStr);
+        if (!parsed) {
+          showToast.error('A data/hora digitada manualmente é inválida. Use o formato: DD/MM/AAAA HH:MM');
+          setIsSubmitting(false);
+          return;
+        }
+        startStr = parsed;
+      }
+      const start = new Date(startStr);
+      const end = addMinutes(start, calculatedTotalDuration);
 
       const hasConflict = appointments.some((apt) => {
         if (apt.status === 'cancelled') return false;
@@ -302,6 +370,8 @@ export default function ScheduleCalendarClient({
           company_id: companyId,
           client_id: formData.clientId,
           procedure_id: formData.procedureId,
+          additional_procedure_ids: additionalProcedureIds.filter(id => id !== ''),
+          price_override: calculatedTotalPrice,
           professional_id: formData.professionalId,
           start_time: start.toISOString(),
           end_time: end.toISOString(),
@@ -319,11 +389,12 @@ export default function ScheduleCalendarClient({
 
       // Criar notificação para o profissional designado
       if (formData.professionalId) {
+        const procedureNames = selectedProceduresList.map(p => p.name).join(' e ');
         await supabase.from('notifications').insert({
           profile_id: formData.professionalId,
           company_id: companyId,
           title: 'Novo Agendamento',
-          message: `${data.clients?.full_name} agendado para ${data.procedures?.name} em ${format(start, 'dd/MM HH:mm')}.`,
+          message: `${data.clients?.full_name} agendado para ${procedureNames} em ${format(start, 'dd/MM HH:mm')}.`,
           type: 'reminder',
           link: '/dashboard/schedule'
         });
@@ -332,12 +403,13 @@ export default function ScheduleCalendarClient({
       // Adicionar mensagem na fila do WhatsApp (Confirmação imediata)
       const client = clients.find(c => c.id === formData.clientId);
       if (client?.phone) {
+        const procedureNames = selectedProceduresList.map(p => p.name).join(' e ');
         await supabase.from('message_queue').insert({
           company_id: companyId,
           type: 'whatsapp',
           recipient: client.phone,
           payload: { 
-            content: `Olá ${client.full_name.split(' ')[0]},\n\nSeu agendamento de *${procedure.name}* está confirmado para *${format(start, 'dd/MM/yyyy')}* às *${format(start, 'HH:mm')}*.\n\nQualquer dúvida, estamos à disposição!` 
+            content: `Olá ${client.full_name.split(' ')[0]},\n\nSeu agendamento de *${procedureNames}* está confirmado para *${format(start, 'dd/MM/yyyy')}* às *${format(start, 'HH:mm')}*.\n\nQualquer dúvida, estamos à disposição!` 
           },
           status: 'pending',
           scheduled_for: new Date().toISOString()
@@ -356,22 +428,41 @@ export default function ScheduleCalendarClient({
         startTime: '',
         notes: ''
       });
+      setAdditionalProcedureIds([]);
 
     } catch (err: any) {
       if (err.message?.includes('AbortError') || err.name === 'AbortError') return;
       if (err.message !== 'Conflito de Horário') {
-        console.error('Error saving appointment:', err);
-        alert('Erro ao salvar agendamento');
+        console.error('Error saving appointment:', err.message || err.details || err);
+        alert(`Erro ao salvar agendamento: ${err.message || err.details || 'Verifique as migrações no banco de dados.'}`);
       }
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const displayedAppointments = isOnlyMaintenance 
+    ? appointments.filter(a => a.is_maintenance) 
+    : appointments;
+
   return (
     <div className="flex flex-col h-full bg-white p-8 -m-8 min-h-screen">
+      {isOnlyMaintenance && (
+        <div className="bg-[#FAF6E9] border border-[#E5E0D8] rounded-2xl p-4 flex items-center justify-between text-xs text-[#765928] font-bold mb-4 animate-in fade-in shadow-xs">
+          <span className="flex items-center gap-2">🛠️ Mostrando apenas agendamentos de Retorno / Manutenção</span>
+          <button 
+            onClick={() => {
+              setIsOnlyMaintenance(false);
+              router.replace('/dashboard/schedule');
+            }}
+            className="text-[#C8A46B] underline hover:text-[#b5925a] font-black uppercase tracking-wider"
+          >
+            Mostrar todos os agendamentos
+          </button>
+        </div>
+      )}
       <ScheduleCalendar 
-        appointments={appointments} 
+        appointments={displayedAppointments} 
         onNewAppointment={handleNewAppointment}
         onViewAppointment={(id) => {
           const apt = appointments.find(a => a.id === id);
@@ -389,6 +480,18 @@ export default function ScheduleCalendarClient({
         procedures={procedures}
       />
 
+      <EditAppointmentModal 
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        appointment={selectedAppointment}
+        professionals={professionals}
+        procedures={procedures}
+        onUpdate={() => {
+           router.refresh();
+           fetchLatestAppointments();
+        }}
+      />
+
       <BlockDaysModal 
         isOpen={isBlockModalOpen}
         onClose={() => setIsBlockModalOpen(false)}
@@ -399,19 +502,20 @@ export default function ScheduleCalendarClient({
         }}
       />
 
-      <EditAppointmentModal 
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        appointment={selectedAppointment}
-        professionals={professionals}
-        onUpdate={() => {
-           router.refresh();
-           fetchLatestAppointments();
-        }}
-      />
-
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[550px] bg-white border-[#E5E0D8] p-0 overflow-hidden rounded-3xl shadow-2xl">
+      <Dialog open={isModalOpen} onOpenChange={(open) => {
+        setIsModalOpen(open);
+        if (!open) {
+          setFormData({
+            clientId: '',
+            procedureId: '',
+            professionalId: '',
+            startTime: '',
+            notes: ''
+          });
+          setAdditionalProcedureIds([]);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto bg-white border-[#E5E0D8] p-0 rounded-3xl shadow-2xl custom-scrollbar">
           <DialogHeader className="p-8 pb-0">
              <div className="flex items-center gap-4 mb-2">
                 <div className="p-2.5 bg-[#D4AF37]/10 rounded-xl">
@@ -461,6 +565,56 @@ export default function ScheduleCalendarClient({
                     ))}
                   </SelectContent>
                 </Select>
+
+                {/* List of additional procedures */}
+                {additionalProcedureIds.map((extraId, idx) => (
+                  <div key={idx} className="flex items-center gap-2 mt-2">
+                    <Select 
+                      onValueChange={(val) => {
+                        const updated = [...additionalProcedureIds];
+                        updated[idx] = val;
+                        setAdditionalProcedureIds(updated);
+                      }}
+                      value={extraId}
+                    >
+                      <SelectTrigger className="bg-white border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] flex-1">
+                        <SelectValue placeholder="Outro procedimento..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-[#E5E0D8] text-[#2C2825]">
+                        {procedures
+                          .filter(p => p.id !== formData.procedureId && !additionalProcedureIds.includes(p.id) || p.id === extraId)
+                          .map(p => (
+                            <SelectItem key={p.id} value={p.id} className="hover:bg-primary-500/10 focus:bg-primary-500/10">{p.name}</SelectItem>
+                          ))
+                        }
+                      </SelectContent>
+                    </Select>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      onClick={() => {
+                        setAdditionalProcedureIds(additionalProcedureIds.filter((_, i) => i !== idx));
+                      }}
+                      className="h-12 px-3 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl shrink-0"
+                    >
+                      Remover
+                    </Button>
+                  </div>
+                ))}
+
+                {/* Add Procedure button */}
+                {formData.procedureId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setAdditionalProcedureIds([...additionalProcedureIds, '']);
+                    }}
+                    className="mt-2 text-xs font-bold text-[#D4AF37] hover:text-[#B5952F] hover:bg-[#D4AF37]/5 px-3 py-1.5 h-auto rounded-lg flex items-center gap-1.5"
+                  >
+                    <span>➕ Adicionar outro procedimento</span>
+                  </Button>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -482,14 +636,42 @@ export default function ScheduleCalendarClient({
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Data e Horário</label>
-              <Input 
-                type="datetime-local" 
-                value={formData.startTime}
-                onChange={(e) => setFormData({...formData, startTime: e.target.value})}
-                required
-                className="bg-white border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] appearance-none focus:ring-primary-500/10"
-              />
+              <div className="flex justify-between items-center ml-1">
+                <label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest">Data e Horário</label>
+                <button 
+                  type="button" 
+                  onClick={() => setIsManualDateTime(!isManualDateTime)}
+                  className="text-[9px] font-black text-[#D4AF37] uppercase tracking-wider hover:underline"
+                >
+                  {isManualDateTime ? '📅 Usar Calendário' : '✍️ Digitar Manualmente'}
+                </button>
+              </div>
+              
+              {isManualDateTime ? (
+                <div className="space-y-1">
+                  <Input 
+                    type="text" 
+                    placeholder="Ex: 08/07/2026 07:00"
+                    value={manualDateTimeStr}
+                    onChange={(e) => {
+                      let val = e.target.value;
+                      val = val.replace(/[^\d\s/:]/g, '');
+                      setManualDateTimeStr(val);
+                    }}
+                    required
+                    className="bg-white border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] focus:ring-primary-500/10 font-bold"
+                  />
+                  <p className="text-[9px] text-[#8A847C] ml-1">Use o formato: DD/MM/AAAA HH:MM (Ex: 08/07/2026 07:00)</p>
+                </div>
+              ) : (
+                <Input 
+                  type="datetime-local" 
+                  value={formData.startTime}
+                  onChange={(e) => setFormData({...formData, startTime: e.target.value})}
+                  required
+                  className="bg-white border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] focus:ring-primary-500/10"
+                />
+              )}
             </div>
 
             <div className="space-y-2">
@@ -502,11 +684,40 @@ export default function ScheduleCalendarClient({
               />
             </div>
 
+            {selectedProceduresList.length > 1 && (
+              <div className="bg-[#FAF6E9]/45 border border-[#E5E0D8] rounded-2xl p-4 space-y-2 text-xs">
+                <p className="font-black text-[#2C2825] uppercase tracking-widest text-[9px] mb-1 text-neutral-600">Resumo dos Procedimentos</p>
+                {selectedProceduresList.map((p, i) => (
+                  <div key={p.id} className="flex justify-between items-center text-neutral-800">
+                    <span className="font-bold">{i + 1}. {p.name}</span>
+                    <span className="font-medium text-[#8A847C]">{p.duration_minutes} min • R$ {p.price.toFixed(2)}</span>
+                  </div>
+                ))}
+                <div className="border-t border-[#E5E0D8] pt-2 mt-2 flex justify-between font-black text-sm text-[#2C2825]">
+                  <span>Total ({selectedProceduresList.length} itens)</span>
+                  <span className="text-[#D4AF37]">
+                    {Math.floor(calculatedTotalDuration / 60) > 0 ? `${Math.floor(calculatedTotalDuration / 60)}h ` : ''}
+                    {calculatedTotalDuration % 60}m • R$ {calculatedTotalPrice.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-4 pt-4">
               <Button 
                 type="button" 
                 variant="outline" 
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setFormData({
+                    clientId: '',
+                    procedureId: '',
+                    professionalId: '',
+                    startTime: '',
+                    notes: ''
+                  });
+                  setAdditionalProcedureIds([]);
+                }}
                 className="flex-1 h-12 border-[#E5E0D8] bg-transparent text-neutral-400 hover:bg-neutral-800 rounded-xl font-bold transition-all"
               >
                 Cancelar

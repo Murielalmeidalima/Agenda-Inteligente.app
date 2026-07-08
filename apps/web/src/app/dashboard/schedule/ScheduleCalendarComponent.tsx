@@ -148,6 +148,7 @@ export default function ScheduleCalendarComponent({
         slotInterval={slotInterval}
         scheduleBlocks={scheduleBlocks}
         blockHolidays={blockHolidays}
+        procedures={procedures}
       />
     );
   };

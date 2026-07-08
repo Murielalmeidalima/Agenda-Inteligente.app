@@ -129,7 +129,8 @@ export default function StockTable({
         )}
       </div>
 
-      <div className="bg-white">
+      {/* Desktop view: Table layout */}
+      <div className="hidden md:block bg-white">
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50/50 border-b border-neutral-100 hover:bg-transparent">
@@ -160,8 +161,6 @@ export default function StockTable({
                 </TableCell>
               </TableRow>
             ) : (
-             // ... existing map
-
               filteredProducts.map((product) => {
                 const isLowStock = product.current_stock <= product.min_stock;
                 return (
@@ -243,6 +242,125 @@ export default function StockTable({
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Mobile view: Card layout */}
+      <div className="block md:hidden space-y-4">
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="p-4 bg-white rounded-2xl border border-neutral-100 space-y-3 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="bg-slate-100 h-10 w-10 rounded-xl" />
+                <div className="space-y-1.5 flex-1">
+                  <div className="h-4 w-32 bg-slate-100 rounded" />
+                  <div className="h-3 w-20 bg-slate-100 rounded" />
+                </div>
+              </div>
+              <div className="flex justify-between border-t pt-2">
+                <div className="h-3 w-16 bg-slate-100 rounded" />
+                <div className="h-3 w-16 bg-slate-100 rounded" />
+              </div>
+            </div>
+          ))
+        ) : filteredProducts.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-2xl border border-neutral-100 text-neutral-500 italic">
+            Nenhum produto encontrado.
+          </div>
+        ) : (
+          filteredProducts.map((product) => {
+            const isLowStock = product.current_stock <= product.min_stock;
+            return (
+              <div 
+                key={product.id} 
+                className={cn(
+                  "p-4 bg-white rounded-2xl border transition-all shadow-sm space-y-3",
+                  isLowStock ? "border-red-200 bg-red-50/5" : "border-neutral-100"
+                )}
+              >
+                {/* Top row: Icon, Name and Status Badge */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className={cn(
+                      "p-2 rounded-xl shrink-0",
+                      isLowStock ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"
+                    )}>
+                      <Package className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-slate-800 text-sm truncate">{product.name}</h4>
+                      <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none uppercase text-[8px] font-black tracking-wider px-1.5 py-0.5 mt-1">
+                        {product.category || 'Sem Categoria'}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="shrink-0">
+                    {isLowStock ? (
+                      <div className="flex items-center gap-1 text-[9px] font-black text-red-600 bg-red-50 px-2 py-1 rounded-full border border-red-100">
+                        <AlertTriangle className="h-3 w-3" />
+                        CRÍTICO
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 text-[9px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">
+                        <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                        OK
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Middle row: Stock counts */}
+                <div className="flex items-center justify-between text-xs bg-slate-50/50 p-2.5 rounded-xl border border-neutral-100">
+                  <div>
+                    <span className="text-slate-400 font-medium block text-[9px] uppercase tracking-wider">Estoque Atual</span>
+                    <span className="font-bold text-slate-700">{product.current_stock} {product.unit}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-slate-400 font-medium block text-[9px] uppercase tracking-wider">Estoque Mínimo</span>
+                    <span className="font-bold text-slate-500">{product.min_stock} {product.unit}</span>
+                  </div>
+                </div>
+
+                {/* Action buttons row */}
+                <div className="flex gap-2 pt-1">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex-1 h-9 border-[#E5E0D8] text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl font-bold text-xs"
+                    onClick={() => {
+                      setSelectedProduct(product);
+                      setTransactionType('in');
+                    }}
+                  >
+                    <ArrowUpRight className="h-3.5 w-3.5 mr-1" />
+                    Entrada
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex-1 h-9 border-[#E5E0D8] text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-xl font-bold text-xs"
+                    onClick={() => {
+                      setSelectedProduct(product);
+                      setTransactionType('out');
+                    }}
+                  >
+                    <ArrowDownRight className="h-3.5 w-3.5 mr-1" />
+                    Saída
+                  </Button>
+                  {onDeleteProduct && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-9 w-9 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl shrink-0"
+                      onClick={() => onDeleteProduct(product.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Transaction Dialog */}

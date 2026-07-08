@@ -47,7 +47,7 @@ export default function ProceduresClient() {
   const [newService, setNewService] = useState({
     name: '',
     duration_minutes: 60,
-    price: 0,
+    price: '',
     description: '',
     color: '#D4AF37',
     maintenance_required: false,
@@ -107,14 +107,33 @@ export default function ProceduresClient() {
   }, [companyId]);
 
   const handleCreateService = async () => {
+    const normalizedNewName = newService.name.trim().toLowerCase();
+    
+    if (!normalizedNewName) {
+      alert('O nome do procedimento não pode ser vazio.');
+      return;
+    }
+
+    const isDuplicate = procedures.some(p => 
+      p.name.trim().toLowerCase() === normalizedNewName && 
+      p.id !== editingProcedureId
+    );
+
+    if (isDuplicate) {
+      alert('Já existe um procedimento com este nome.');
+      return;
+    }
+
     let error;
+    const parsedPrice = parseFloat(newService.price.toString().replace(',', '.')) || 0;
+
     if (editingProcedureId) {
        const { error: updateError } = await supabase
          .from('procedures')
          .update({
            name: newService.name,
            duration_minutes: newService.duration_minutes,
-           price: newService.price,
+           price: parsedPrice,
            description: newService.description,
            color: newService.color,
            maintenance_required: newService.maintenance_required,
@@ -133,7 +152,7 @@ export default function ProceduresClient() {
          .insert([{
            name: newService.name,
            duration_minutes: newService.duration_minutes,
-           price: newService.price,
+           price: parsedPrice,
            description: newService.description,
            color: newService.color,
            maintenance_required: newService.maintenance_required,
@@ -153,7 +172,7 @@ export default function ProceduresClient() {
       setNewService({
         name: '',
         duration_minutes: 60,
-        price: 0,
+        price: '',
         description: '',
         color: '#D4AF37',
         maintenance_required: false,
@@ -207,7 +226,7 @@ export default function ProceduresClient() {
            if (!open) {
               setEditingProcedureId(null);
               setNewService({
-                name: '', duration_minutes: 60, price: 0, description: '', color: '#D4AF37', maintenance_required: false, maintenance_days_limit: 30, maintenance_period_unit: 'days', maintenance_duration_minutes: 60, requires_anamnese: false, anamnese_template_id: ''
+                name: '', duration_minutes: 60, price: '', description: '', color: '#D4AF37', maintenance_required: false, maintenance_days_limit: 30, maintenance_period_unit: 'days', maintenance_duration_minutes: 60, requires_anamnese: false, anamnese_template_id: ''
               });
            }
         }}>
@@ -215,7 +234,7 @@ export default function ProceduresClient() {
              <Button className="h-11 px-6 bg-[#D4AF37] text-white hover:bg-[#B5952F] font-black rounded-xl active:scale-[0.98] transition-all" onClick={() => {
                 setEditingProcedureId(null);
                 setNewService({
-                  name: '', duration_minutes: 60, price: 0, description: '', color: '#D4AF37', maintenance_required: false, maintenance_days_limit: 30, maintenance_period_unit: 'days', maintenance_duration_minutes: 60, requires_anamnese: false, anamnese_template_id: ''
+                  name: '', duration_minutes: 60, price: '', description: '', color: '#D4AF37', maintenance_required: false, maintenance_days_limit: 30, maintenance_period_unit: 'days', maintenance_duration_minutes: 60, requires_anamnese: false, anamnese_template_id: ''
                 });
              }}>
                  <Plus className="h-5 w-5 mr-2" />
@@ -321,10 +340,16 @@ export default function ProceduresClient() {
                    <div className="space-y-2">
                      <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Valor (R$)</Label>
                      <Input 
-                       type="number"
-                       step="0.01"
+                       type="text"
+                       inputMode="decimal"
+                       placeholder="0,00"
                        value={newService.price}
-                       onChange={(e) => setNewService({...newService, price: parseFloat(e.target.value) || 0})}
+                       onChange={(e) => {
+                         const val = e.target.value;
+                         if (val === '' || /^[0-9]*[.,]?[0-9]*$/.test(val)) {
+                           setNewService({...newService, price: val});
+                         }
+                       }}
                        className="bg-[#FDFBF7] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] font-bold" 
                      />
                    </div>
@@ -530,7 +555,7 @@ export default function ProceduresClient() {
                                     setNewService({
                                       name: p.name || '',
                                       duration_minutes: p.duration_minutes || 60,
-                                      price: p.price || 0,
+                                      price: p.price !== undefined && p.price !== null ? p.price.toString() : '',
                                       description: p.description || '',
                                       color: p.color || '#D4AF37',
                                       maintenance_required: p.maintenance_required || false,
@@ -615,7 +640,7 @@ export default function ProceduresClient() {
                        setNewService({
                          name: p.name || '',
                          duration_minutes: p.duration_minutes || 60,
-                         price: p.price || 0,
+                         price: p.price !== undefined && p.price !== null ? p.price.toString() : '',
                          description: p.description || '',
                          color: p.color || '#D4AF37',
                          maintenance_required: p.maintenance_required || false,

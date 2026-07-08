@@ -120,7 +120,8 @@ export default async function DashboardPage() {
     { data: maintenanceAppointmentsData },
     { data: pendingReviewsData },
     { data: productsData },
-    { data: transactionsData }
+    { data: transactionsData },
+    { data: upcomingAppointmentsData }
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -197,8 +198,26 @@ export default async function DashboardPage() {
 
     supabase
       .from('transactions')
-      .select('id, amount, type, status, date')
+      .select('id, amount, type, status, date, transaction_date')
+      .eq('company_id', COMPANY_ID),
+
+    supabase
+      .from('appointments')
+      .select(`
+        id,
+        start_time,
+        end_time,
+        status,
+        client_id,
+        procedure_id,
+        clients(id, full_name, phone),
+        procedures(name, duration_minutes, price)
+      `)
       .eq('company_id', COMPANY_ID)
+      .gte('start_time', new Date().toISOString())
+      .in('status', ['scheduled', 'confirmed', 'rescheduled'])
+      .order('start_time', { ascending: true })
+      .limit(10)
   ]);
 
   // Calculate Predicted Revenue
@@ -237,7 +256,16 @@ export default async function DashboardPage() {
 
   // Real financial calculations from transactions
   const allTx = transactionsData || [];
-  const monthlyIncomes = allTx.filter((t: any) => t.type === 'income' && (t.status === 'completed' || !t.status) && t.date >= startOfMonthStr.slice(0, 10));
+  const monthlyIncomes = allTx.filter((t: any) => {
+    const rawDate = t.date || t.transaction_date;
+    if (!rawDate) return false;
+    try {
+      const tLocalDateStr = format(new Date(rawDate), 'yyyy-MM-dd');
+      return t.type === 'income' && (t.status === 'completed' || !t.status) && tLocalDateStr >= startOfMonthStr.slice(0, 10);
+    } catch (e) {
+      return false;
+    }
+  });
   const receivedRevenue = monthlyIncomes.reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
 
   const entriesTotal = allTx.filter((t: any) => t.type === 'income' && (t.status === 'completed' || !t.status)).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
@@ -251,20 +279,25 @@ export default async function DashboardPage() {
   const weeklyRevenue = [0, 1, 2, 3, 4, 5, 6].map(dayOffset => {
     const dayDateStr = format(addDays(weekStart, dayOffset), 'yyyy-MM-dd');
     return allTx
-      .filter((t: any) => t.type === 'income' && (t.status === 'completed' || !t.status) && t.date && t.date.startsWith(dayDateStr))
+      .filter((t: any) => {
+        const rawDate = t.date || t.transaction_date;
+        if (!rawDate) return false;
+        try {
+          const tLocalDateStr = format(new Date(rawDate), 'yyyy-MM-dd');
+          return t.type === 'income' && (t.status === 'completed' || !t.status) && tLocalDateStr === dayDateStr;
+        } catch (e) {
+          return false;
+        }
+      })
       .reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
   });
 
   // New clients created in month
   const newClientsCount = (allClientsData || []).filter((c: any) => c.created_at && c.created_at >= startOfMonthStr).length;
 
-  // Dynamic Next Appointment calculation (find upcoming appointment closest to current time today)
-  const nowIso = today.toISOString();
-  const activeAppointments = (appointmentsData || []).filter(a => a.status !== 'cancelled' && a.status !== 'completed');
-  const upcomingAppointmentsToday = activeAppointments.filter(a => a.start_time >= nowIso);
-  const nextAppointment = upcomingAppointmentsToday.length > 0 
-    ? upcomingAppointmentsToday[0] 
-    : (activeAppointments.length > 0 ? activeAppointments[0] : null);
+  // Next upcoming appointments from now onwards
+  const upcomingAppointments = upcomingAppointmentsData || [];
+  const nextAppointment = upcomingAppointments.length > 0 ? upcomingAppointments[0] : null;
 
   const attendedCount = appointmentsData?.filter(a => a.status === 'completed' || a.status === 'confirmed').length || 0;
 
@@ -293,7 +326,7 @@ export default async function DashboardPage() {
       }}
       weeklyRevenue={weeklyRevenue}
       nextAppointment={nextAppointment}
-      upcomingAppointments={appointmentsData || []}
+      upcomingAppointments={upcomingAppointments}
     />
   );
 }

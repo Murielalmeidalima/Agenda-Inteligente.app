@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import ScheduleCalendarClient from './schedule-calendar-client';
+import { Suspense } from 'react';
 
 export const dynamic = 'force-dynamic';
 
@@ -149,12 +150,14 @@ export default async function SchedulePage() {
   if (professionalsError) console.error('Error fetching professionals:', professionalsError);
 
   return (
-    <ScheduleCalendarClient 
-      initialAppointments={hydratedAppointments as any || []}
-      clients={clients || []}
-      procedures={procedures || []}
-      professionals={professionals || []}
-      companyId={profile.company_id}
-    />
+    <Suspense fallback={<div className="text-center py-10">Carregando agenda...</div>}>
+      <ScheduleCalendarClient 
+        initialAppointments={hydratedAppointments as any || []}
+        clients={clients || []}
+        procedures={procedures || []}
+        professionals={professionals || []}
+        companyId={profile.company_id}
+      />
+    </Suspense>
   );
 }

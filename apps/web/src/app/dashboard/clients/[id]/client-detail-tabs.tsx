@@ -34,6 +34,7 @@ interface ClientTabsProps {
   anamneses?: any[];
   attachments?: any[];
   appointments: any[];
+  procedures?: any[];
   currentProfessionalId: string;
 }
 
@@ -45,6 +46,7 @@ export default function ClientDetailTabs({
   anamneses = [],
   attachments = [],
   appointments,
+  procedures = [],
   currentProfessionalId
 }: ClientTabsProps) {
   const [records, setRecords] = useState(initialRecords);
@@ -179,7 +181,20 @@ export default function ClientDetailTabs({
                       <Calendar className="h-6 w-6 text-primary-600" />
                     </div>
                     <div>
-                      <p className="font-bold text-neutral-900">{apt.procedures?.name}</p>
+                      <p className="font-bold text-neutral-900">
+                        {(() => {
+                          const primaryName = apt.procedures?.name || 'Procedimento';
+                          if (Array.isArray(apt.additional_procedure_ids) && apt.additional_procedure_ids.length > 0 && procedures) {
+                            const extraNames = apt.additional_procedure_ids
+                              .map((id: string) => procedures.find((p: any) => p.id === id)?.name)
+                              .filter(Boolean);
+                            if (extraNames.length > 0) {
+                              return `${primaryName} + ${extraNames.join(' + ')}`;
+                            }
+                          }
+                          return primaryName;
+                        })()}
+                      </p>
                       <p className="text-sm text-neutral-500">
                         {formatDate(apt.start_time)} às {new Date(apt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                       </p>

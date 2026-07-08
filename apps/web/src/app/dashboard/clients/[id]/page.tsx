@@ -72,9 +72,15 @@ export default async function ClientDetailPage(props: {
   // Buscar agendamentos do cliente
   const { data: clientAppointments } = await supabase
     .from('appointments')
-    .select('*, procedures(name)')
+    .select('*, procedures(name), additional_procedure_ids')
     .eq('client_id', params.id)
     .order('start_time', { ascending: false });
+
+  // Buscar todos os procedimentos para mapear nomes no histórico
+  const { data: procedures } = await supabase
+    .from('procedures')
+    .select('id, name')
+    .eq('company_id', profile?.company_id);
 
   // Buscar registros médicos legados (Prontuário Geral)
   const { data: medicalRecords } = await supabase
@@ -154,6 +160,7 @@ export default async function ClientDetailPage(props: {
         anamneses={anamneses || []}
         attachments={attachments || []}
         appointments={clientAppointments || []}
+        procedures={procedures || []}
         currentProfessionalId={user.id}
       />
     </div>

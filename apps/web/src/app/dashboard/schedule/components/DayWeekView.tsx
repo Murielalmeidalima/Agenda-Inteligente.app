@@ -25,10 +25,11 @@ interface DayWeekViewProps {
   slotInterval: number; // In minutes, e.g., 15, 30, 60
   scheduleBlocks: any[];
   blockHolidays?: boolean;
+  procedures?: any[];
 }
 
 const PIXELS_PER_MINUTE = 2; // 120 pixels per hour
-const SCHEDULE_START_HOUR = 5;
+const SCHEDULE_START_HOUR = 0;
 const SCHEDULE_END_HOUR = 24; // goes up to 23:xx
 
 export const DayWeekView = ({ 
@@ -39,7 +40,8 @@ export const DayWeekView = ({
   onViewAppointment,
   slotInterval,
   scheduleBlocks,
-  blockHolidays = false
+  blockHolidays = false,
+  procedures = []
 }: DayWeekViewProps) => {
   const [hoveredAptId, setHoveredAptId] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -157,7 +159,7 @@ export const DayWeekView = ({
             {/* Day Header */}
             <div className={cn(
               "h-14 flex flex-col items-center justify-center border-b border-[#E5E0D8] sticky top-0 z-30 transition-colors",
-              isToday(day) ? "bg-[#D4AF37]/5 border-b-[#D4AF37]/30" : "bg-white/95 backdrop-blur-md",
+              isToday(day) ? "bg-[#FAF6EE] border-b-[#D4AF37]/30" : "bg-white backdrop-blur-md",
               checkIsBlocked(day) && "bg-red-50/50"
             )}>
               <span className={cn(
@@ -331,26 +333,58 @@ export const DayWeekView = ({
 
                           {/* Procedimento e Valor */}
                           <div className="flex flex-wrap items-center justify-between gap-1 mt-0.5 opacity-90">
-                            <p className="font-bold truncate text-[10px]">
-                              {apt.procedures?.name || 'Procedimento'}
+                            <p 
+                              className={cn(
+                                "font-bold text-[10px] leading-tight break-words",
+                                height <= 35 ? "truncate" :
+                                height <= 55 ? "line-clamp-2" :
+                                height <= 90 ? "line-clamp-3" : ""
+                              )}
+                            >
+                              {(() => {
+                                const primaryName = apt.procedures?.name || 'Procedimento';
+                                if (Array.isArray(apt.additional_procedure_ids) && apt.additional_procedure_ids.length > 0) {
+                                  const extraNames = apt.additional_procedure_ids
+                                    .map((id: string) => procedures.find((p: any) => p.id === id)?.name)
+                                    .filter(Boolean);
+                                  if (extraNames.length > 0) {
+                                    return `${primaryName} + ${extraNames.join(' + ')}`;
+                                  }
+                                }
+                                return primaryName;
+                              })()}
                             </p>
                             <p className="font-black text-[10px] text-inherit shrink-0">
                               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(apt.price_override || apt.procedures?.price || 0)}
                             </p>
                           </div>
 
-                          {/* Profissional e Observações Rápidas (Desktop and high cards only) */}
+                          {/* Info Panel: Displays professional, notes, and extra procedures on both mobile and desktop when card is tall */}
                           {height > 55 && (
-                            <div className="hidden md:flex flex-col gap-0.5 mt-1 border-t border-current/10 pt-1">
+                            <div className="flex flex-col gap-0.5 mt-1 border-t border-current/10 pt-1 text-[9px]">
                               {apt.profiles?.full_name && (
-                                <p className="text-[9px] font-bold opacity-75 truncate">
+                                <p className="font-bold opacity-80 truncate">
                                   👤 {apt.profiles.full_name}
                                 </p>
                               )}
                               {apt.notes && (
-                                <p className="text-[9px] font-medium opacity-75 truncate italic">
+                                <p className="font-medium opacity-75 line-clamp-2 italic leading-tight">
                                   💬 {apt.notes}
                                 </p>
+                              )}
+                              
+                              {/* Extra procedures breakdown inside the empty space for tall cards */}
+                              {height > 90 && Array.isArray(apt.additional_procedure_ids) && apt.additional_procedure_ids.length > 0 && (
+                                <div className="mt-1 space-y-0.5 border-t border-current/5 pt-1 text-[8px] opacity-90 animate-in fade-in">
+                                  <p className="font-bold uppercase tracking-wider text-[6.5px] opacity-60">Procedimentos Extras:</p>
+                                  {apt.additional_procedure_ids
+                                    .map((id: string) => procedures.find((p: any) => p.id === id)?.name)
+                                    .filter(Boolean)
+                                    .map((name: string, i: number) => (
+                                      <p key={i} className="truncate font-semibold leading-tight">+ {name}</p>
+                                    ))
+                                  }
+                                </div>
                               )}
                             </div>
                           )}
@@ -401,8 +435,21 @@ export const DayWeekView = ({
               <span>{apt.clients?.full_name}</span>
             </div>
             <div>
-              <span className="text-[10px] text-neutral-400 block uppercase font-black tracking-wider">Procedimento</span>
-              <span className="font-bold text-white">{procedure?.name || '-'}</span>
+              <span className="text-[10px] text-neutral-400 block uppercase font-black tracking-wider">Procedimento(s)</span>
+              <span className="font-bold text-white block">
+                {(() => {
+                  const primaryName = procedure?.name || 'Procedimento';
+                  if (Array.isArray(apt.additional_procedure_ids) && apt.additional_procedure_ids.length > 0) {
+                    const extraNames = apt.additional_procedure_ids
+                      .map((id: string) => procedures.find((p: any) => p.id === id)?.name)
+                      .filter(Boolean);
+                    if (extraNames.length > 0) {
+                      return `${primaryName} + ${extraNames.join(' + ')}`;
+                    }
+                  }
+                  return primaryName;
+                })()}
+              </span>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>

@@ -69,6 +69,7 @@ export function StitchDashboardClient({
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDateStr, setCurrentDateStr] = useState<string>('');
   const [greeting, setGreeting] = useState<string>('Boa tarde');
+  const [isCalendarExpanded, setIsCalendarExpanded] = useState(false);
 
   useEffect(() => {
     const updateDateTime = () => {
@@ -165,13 +166,24 @@ export function StitchDashboardClient({
         {/* Metrics Grid (10 Cards - 2 Rows of 5) Cards com redirecionamento interativo */}
         <section className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
           {/* Row 1 */}
-          <Link href="/dashboard/schedule" className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block">
+          <div 
+            onClick={() => {
+              setIsCalendarExpanded(true);
+              setTimeout(() => {
+                const el = document.getElementById('unified-next-appointment-card');
+                if (el) {
+                  el.scrollIntoView({ behavior: 'smooth' });
+                }
+              }, 50);
+            }} 
+            className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block"
+          >
             <p className="text-xs font-semibold text-[#4E463A] uppercase tracking-wider mb-1">Agenda de Hoje</p>
             <div className="flex items-end justify-between">
               <h3 className="text-3xl font-bold text-[#3D2C28]">{metrics.todayAppointmentsCount}</h3>
               <CalendarCheck className="w-6 h-6 text-[#C8A46B] group-hover:scale-110 transition-transform" />
             </div>
-          </Link>
+          </div>
 
           <Link href="/dashboard/schedule" className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block">
             <p className="text-xs font-semibold text-[#4E463A] uppercase tracking-wider mb-1">Atendimentos</p>
@@ -210,7 +222,7 @@ export function StitchDashboardClient({
           </Link>
 
           {/* Row 2 */}
-          <Link href="/dashboard/clients" className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block">
+          <Link href="/dashboard/marketing?tab=birthday_campaign" className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block">
             <p className="text-xs font-semibold text-[#4E463A] uppercase tracking-wider mb-1">Aniversariantes</p>
             <div className="flex items-end justify-between">
               <h3 className="text-3xl font-bold text-[#3D2C28]">{metrics.birthdaysCount}</h3>
@@ -218,7 +230,7 @@ export function StitchDashboardClient({
             </div>
           </Link>
 
-          <Link href="/dashboard/clients" className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block">
+          <Link href="/dashboard/marketing?tab=inactive" className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block">
             <p className="text-xs font-semibold text-[#4E463A] uppercase tracking-wider mb-1">Inativos</p>
             <div className="flex items-end justify-between">
               <h3 className="text-3xl font-bold text-[#3D2C28]">{metrics.inactiveClientsCount}</h3>
@@ -234,7 +246,7 @@ export function StitchDashboardClient({
             </div>
           </Link>
 
-          <Link href="/dashboard/marketing" className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block">
+          <Link href="/dashboard/marketing?tab=reviews" className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block">
             <p className="text-xs font-semibold text-[#4E463A] uppercase tracking-wider mb-1">Avaliações</p>
             <div className="flex items-end justify-between">
               <h3 className="text-3xl font-bold text-[#3D2C28]">{metrics.pendingReviewsCount}</h3>
@@ -242,7 +254,7 @@ export function StitchDashboardClient({
             </div>
           </Link>
 
-          <Link href="/dashboard/schedule" className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block">
+          <Link href="/dashboard/schedule?filter=maintenance" className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block">
             <p className="text-xs font-semibold text-[#4E463A] uppercase tracking-wider mb-1">Manutenções</p>
             <div className="flex items-end justify-between">
               <h3 className="text-3xl font-bold text-[#3D2C28]">{metrics.maintenancesCount}</h3>
@@ -302,49 +314,57 @@ export function StitchDashboardClient({
               </div>
             </div>
 
-            {/* Next Appointment Card */}
-            <div className="bg-white rounded-2xl shadow-sm border border-[#D1C5B5]/30 overflow-hidden">
+            {/* Unified Next Appointment & Upcoming Slots Card */}
+            <div id="unified-next-appointment-card" className="bg-white rounded-2xl shadow-sm border border-[#D1C5B5]/30 overflow-hidden transition-all duration-300">
               <div className="bg-[#C8A46B]/10 px-6 sm:px-8 py-4 border-b border-[#C8A46B]/20 flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-[#C8A46B]" />
                   <span className="text-xs font-bold text-[#765928] uppercase tracking-wider">Próximo Atendimento</span>
                 </div>
-                {nextAppointment && (
-                  <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold uppercase">
-                    {nextAppointment.status === 'confirmed' ? 'Confirmado' : 'Agendado'}
-                  </span>
-                )}
+                <div className="flex items-center gap-3">
+                  {nextAppointment && (
+                    <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold uppercase">
+                      {nextAppointment.status === 'confirmed' ? 'Confirmado' : 'Agendado'}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setIsCalendarExpanded(!isCalendarExpanded)}
+                    className="text-xs font-bold text-[#C8A46B] hover:text-[#b5925a] flex items-center gap-1 transition-colors"
+                  >
+                    {isCalendarExpanded ? '✕ Ocultar Calendário' : '📅 Ver Próximos Horários'}
+                  </button>
+                </div>
               </div>
 
               {nextAppointment ? (
                 <div className="p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-8">
-                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-[#FED8C3] flex items-center justify-center text-[#795C4C] font-bold text-2xl shadow-inner flex-shrink-0">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-[#FED8C3] flex items-center justify-center text-[#795C4C] font-bold text-2xl shadow-inner flex-shrink-0">
                     {nextAppointment.clients?.full_name ? nextAppointment.clients.full_name.charAt(0) : '?'}
                   </div>
                   <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 w-full">
                     <div>
-                      <p className="text-xs font-semibold text-[#4E463A] uppercase">Paciente</p>
-                      <p className="text-lg font-bold text-[#3D2C28]">{nextAppointment.clients?.full_name || 'Paciente'}</p>
-                      <p className="text-xs text-[#4E463A]">{nextAppointment.clients?.phone || 'Sem telefone'}</p>
+                      <p className="text-[10px] font-bold text-[#8A847C] uppercase tracking-wider">Paciente</p>
+                      <p className="text-base font-bold text-[#3D2C28] mt-0.5">{nextAppointment.clients?.full_name || 'Paciente'}</p>
+                      <p className="text-xs text-[#5C5855] mt-0.5">{nextAppointment.clients?.phone || 'Sem telefone'}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-[#4E463A] uppercase">Horário & Procedimento</p>
-                      <p className="text-lg font-bold text-[#3D2C28]">
+                      <p className="text-[10px] font-bold text-[#8A847C] uppercase tracking-wider">Horário & Procedimento</p>
+                      <p className="text-base font-bold text-[#3D2C28] mt-0.5">
                         {nextAppointment.start_time ? format(new Date(nextAppointment.start_time), 'HH:mm') : '--:--'}{' '}
-                        <span className="text-[#4E463A] font-normal">—</span> {nextAppointment.procedures?.name || 'Procedimento'}
+                        <span className="text-[#8A847C] font-normal">—</span> {nextAppointment.procedures?.name || 'Procedimento'}
                       </p>
-                      <p className="text-xs text-[#4E463A]">Duração: {nextAppointment.procedures?.duration || 30} min</p>
+                      <p className="text-xs text-[#5C5855] mt-0.5">Duração: {nextAppointment.procedures?.duration_minutes || 30} min</p>
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-[#4E463A] uppercase">Status</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs font-bold text-[#3D2C28] capitalize">{nextAppointment.status || 'Agendado'}</span>
-                      </div>
+                      <p className="text-[10px] font-bold text-[#8A847C] uppercase tracking-wider">Data do Atendimento</p>
+                      <p className="text-base font-bold text-[#3D2C28] mt-0.5">
+                        {nextAppointment.start_time ? format(new Date(nextAppointment.start_time), 'dd/MM/yyyy') : '--/--/----'}
+                      </p>
+                      <p className="text-xs text-[#5C5855] mt-0.5 capitalize">
+                        {nextAppointment.start_time ? format(new Date(nextAppointment.start_time), 'EEEE', { locale: ptBR }) : ''}
+                      </p>
                     </div>
                   </div>
-                  <Link href="/dashboard/schedule" className="bg-[#FFF8F6] hover:bg-[#FFF0ED] border border-[#D1C5B5]/50 p-4 rounded-xl transition-all group self-end sm:self-center">
-                    <ChevronRight className="w-5 h-5 text-[#C8A46B] group-hover:translate-x-1 transition-transform" />
-                  </Link>
                 </div>
               ) : (
                 <div className="p-8 text-center flex flex-col items-center justify-center">
@@ -352,10 +372,70 @@ export function StitchDashboardClient({
                     <Clock className="w-8 h-8 text-[#C8A46B] opacity-50" />
                   </div>
                   <p className="text-base font-bold text-[#3D2C28]">Nenhum próximo atendimento agendado</p>
-                  <p className="text-xs text-[#4E463A] mt-1">Sua agenda não possui consultas ativas para este momento.</p>
-                  <Link href="/dashboard/schedule" className="mt-4 text-xs font-bold text-[#C8A46B] hover:underline flex items-center gap-1">
-                    Ver agenda completa <ChevronRight className="w-4 h-4" />
-                  </Link>
+                  <p className="text-xs text-[#4E463A] mt-1">Sua agenda não possui consultas ativas no momento.</p>
+                </div>
+              )}
+
+              {/* Collapsible/Expandable Section */}
+              {isCalendarExpanded && (
+                <div className="border-t border-[#D1C5B5]/20 bg-[#FDFBF7]/50 p-6 sm:p-8 space-y-6 transition-all duration-300 animate-in fade-in slide-in-from-top-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Mini Calendar component */}
+                    <div>
+                      <div className="flex justify-between items-center mb-4">
+                        <span className="text-xs font-bold text-[#3D2C28] uppercase tracking-wider">Próximos Dias</span>
+                        <span className="text-xs font-semibold text-[#C8A46B] capitalize">{currentMonthYearName}</span>
+                      </div>
+                      <div className="grid grid-cols-7 text-center text-[10px] font-bold text-[#4E463A] uppercase mb-4">
+                        <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sab</span>
+                      </div>
+                      <div className="grid grid-cols-7 gap-y-2 text-center text-xs text-[#3D2C28]">
+                        <span className="text-[#D1C5B5] py-1.5">28</span>
+                        <span className="text-[#D1C5B5] py-1.5">29</span>
+                        <span className="text-[#D1C5B5] py-1.5">30</span>
+                        <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">1</span>
+                        <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">2</span>
+                        <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">3</span>
+                        <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">4</span>
+                        <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">5</span>
+                        <span className="py-1.5 font-bold text-[#C8A46B] bg-[#C8A46B]/10 rounded-lg cursor-pointer">6</span>
+                        <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">7</span>
+                        <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer relative">8 <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-[#C8A46B] rounded-full" /></span>
+                        <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">9</span>
+                        <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">10</span>
+                        <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">11</span>
+                      </div>
+                    </div>
+
+                    {/* Next List Section */}
+                    <div className="space-y-4">
+                      <span className="text-xs font-bold text-[#3D2C28] uppercase tracking-wider block">Agendamentos em Sequência</span>
+                      <div className="space-y-3">
+                        {upcomingAppointments && upcomingAppointments.length > 0 ? (
+                          upcomingAppointments.slice(0, 4).map((appt: any) => (
+                            <div key={appt.id} className="flex items-center gap-3 p-3 rounded-xl bg-white border border-[#D1C5B5]/25 border-l-4 border-[#C8A46B] shadow-xs">
+                              <div className="text-center w-12 border-r border-[#D1C5B5]/20 pr-2 flex-shrink-0">
+                                <p className="text-xs font-bold text-[#3D2C28]">
+                                  {appt.start_time ? format(new Date(appt.start_time), 'HH:mm') : '--:--'}
+                                </p>
+                                <p className="text-[9px] text-[#8A847C] font-semibold">
+                                  {appt.start_time ? format(new Date(appt.start_time), 'dd/MM') : ''}
+                                </p>
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-xs font-bold text-[#3D2C28] line-clamp-1">{appt.procedures?.name || 'Procedimento'}</p>
+                                <p className="text-[11px] text-[#4E463A] line-clamp-1">{appt.clients?.full_name || 'Cliente'}</p>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-4 text-center text-xs font-medium text-[#4E463A] bg-[#FFF8F6] rounded-xl border border-dashed border-[#D1C5B5]/50">
+                            Nenhum horário próximo agendado.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -485,62 +565,6 @@ export function StitchDashboardClient({
               </div>
             </div>
 
-            {/* Mini Calendar / Upcoming Slots (Dados Reais da Agenda + Mês Vigente) */}
-            <div className="bg-white rounded-2xl shadow-sm border border-[#D1C5B5]/30 p-6 sm:p-8">
-              <div className="flex justify-between items-center mb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-[#3D2C28]">Próximos Horários</h3>
-                  <p className="text-xs font-semibold text-[#C8A46B] capitalize">{currentMonthYearName}</p>
-                </div>
-                <div className="flex gap-2">
-                  <Link href="/dashboard/schedule" className="w-8 h-8 rounded-full border border-[#D1C5B5]/30 flex items-center justify-center hover:bg-[#FFF8F6]">
-                    <ChevronLeft className="w-4 h-4 text-[#4E463A]" />
-                  </Link>
-                  <Link href="/dashboard/schedule" className="w-8 h-8 rounded-full border border-[#D1C5B5]/30 flex items-center justify-center hover:bg-[#FFF8F6]">
-                    <ChevronRight className="w-4 h-4 text-[#4E463A]" />
-                  </Link>
-                </div>
-              </div>
-              <div className="grid grid-cols-7 text-center text-[10px] font-bold text-[#4E463A] uppercase mb-4">
-                <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sab</span>
-              </div>
-              <div className="grid grid-cols-7 gap-y-2 text-center text-xs text-[#3D2C28]">
-                <span className="text-[#D1C5B5] py-1.5">28</span>
-                <span className="text-[#D1C5B5] py-1.5">29</span>
-                <span className="text-[#D1C5B5] py-1.5">30</span>
-                <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">1</span>
-                <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">2</span>
-                <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">3</span>
-                <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">4</span>
-                <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">5</span>
-                <span className="py-1.5 font-bold text-[#C8A46B] bg-[#C8A46B]/10 rounded-lg cursor-pointer">6</span>
-                <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">7</span>
-                <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer relative">8 <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-[#C8A46B] rounded-full" /></span>
-                <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">9</span>
-                <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">10</span>
-                <span className="py-1.5 hover:bg-[#FFF8F6] rounded-lg cursor-pointer">11</span>
-              </div>
-              
-              <div className="mt-6 space-y-3">
-                {upcomingAppointments && upcomingAppointments.length > 0 ? (
-                  upcomingAppointments.slice(0, 3).map((appt: any) => (
-                    <Link key={appt.id} href="/dashboard/schedule" className="flex items-center gap-3 p-3 rounded-xl bg-[#FFF0ED] border-l-4 border-[#C8A46B] block hover:opacity-90 transition-opacity">
-                      <span className="text-xs font-semibold w-12 text-[#4E463A]">
-                        {appt.start_time ? format(new Date(appt.start_time), 'HH:mm') : '--:--'}
-                      </span>
-                      <div className="flex-1">
-                        <p className="text-xs font-bold text-[#3D2C28]">{appt.procedures?.name || 'Procedimento'}</p>
-                        <p className="text-[11px] text-[#4E463A]">{appt.clients?.full_name || 'Cliente'}</p>
-                      </div>
-                    </Link>
-                  ))
-                ) : (
-                  <div className="p-4 text-center text-xs font-medium text-[#4E463A] bg-[#FFF8F6] rounded-xl border border-dashed border-[#D1C5B5]/50">
-                    Nenhum horário próximo agendado para hoje.
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
         </div>
       </div>

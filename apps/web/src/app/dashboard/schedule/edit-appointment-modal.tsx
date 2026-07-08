@@ -28,9 +28,10 @@ interface EditAppointmentModalProps {
   appointment: any;
   onUpdate: () => void;
   professionals?: any[];
+  procedures?: any[];
 }
 
-export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, professionals }: EditAppointmentModalProps) {
+export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, professionals, procedures = [] }: EditAppointmentModalProps) {
   const [status, setStatus] = useState(appointment?.status || 'scheduled');
   const [notes, setNotes] = useState(appointment?.notes || '');
   const [loading, setLoading] = useState(false);
@@ -45,8 +46,8 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
 
   // Finance integration
   const isOriginallyCompleted = appointment?.status === 'completed';
-  const [paymentStatus, setPaymentStatus] = useState<'paid'|'partial'|'unpaid'>('paid');
-  const [paymentMethod, setPaymentMethod] = useState('pix');
+  const [paymentStatus, setPaymentStatus] = useState<'paid'|'partial'|'unpaid'>('unpaid');
+  const [paymentMethod, setPaymentMethod] = useState('');
   const [paymentAmount, setPaymentAmount] = useState<string>('');
 
   // Adições para o Histórico Financeiro
@@ -253,6 +254,12 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
   };
 
   const handleSave = async () => {
+    // Validação Financeira: se foi concluído e marcado como pago/parcial, exige o método de pagamento
+    if (status === 'completed' && !isOriginallyCompleted && paymentStatus !== 'unpaid' && !paymentMethod) {
+      toast.error('Por favor, informe o método de pagamento para registrar a receita ou selecione "Não Pago".');
+      return;
+    }
+
     setLoading(true);
     const supabase = createBrowserClient();
 
@@ -481,13 +488,54 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
                  <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest block mb-1">Cliente</Label>
                  <p className="font-bold text-sm truncate text-white">{appointment.clients?.full_name}</p>
               </div>
-              <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800">
-                 <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest block mb-1">Procedimento</Label>
-                 <p className="font-bold text-sm truncate text-white">{(Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures)?.name}</p>
-                 <p className="text-emerald-400 text-xs font-black mt-1">
-                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(appointment.price_override || (Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures)?.price || 0)}
-                 </p>
-              </div>
+              <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800 flex flex-col justify-between">
+                  <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest block mb-1">Procedimento(s)</Label>
+                  <div className="space-y-2 max-h-[120px] overflow-y-auto custom-scrollbar">
+                    {/* Primary Procedure */}
+                    <div>
+                      <p className="font-bold text-xs truncate text-white">{(Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures)?.name}</p>
+                      <p className="text-[#8A847C] text-[10px]">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures)?.price || 0)}
+                      </p>
+                    </div>
+                    {/* Additional Procedures */}
+                    {Array.isArray(appointment.additional_procedure_ids) && appointment.additional_procedure_ids.map((id: string) => {
+                      const extraProc = procedures?.find((p: any) => p.id === id);
+                      if (!extraProc) return null;
+                      return (
+                        <div key={id} className="border-t border-neutral-800 pt-1 mt-1">
+                          <p className="font-bold text-xs truncate text-white">{extraProc.name}</p>
+                          <p className="text-[#8A847C] text-[10px]">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(extraProc.price || 0)}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Total Price */}
+                  <div className="border-t border-emerald-500/30 pt-1.5 mt-2 flex justify-between items-center">
+                    <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest leading-none">Total</span>
+                    <span className="text-emerald-400 text-xs font-black">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                        (() => {
+                          if (appointment?.price_override !== null && appointment?.price_override !== undefined && Number(appointment.price_override) > 0) {
+                            return Number(appointment.price_override);
+                          }
+                          const proc = Array.isArray(appointment?.procedures) ? appointment.procedures[0] : appointment?.procedures;
+                          const primaryPrice = Number(proc?.price || 0);
+                          let extraPrice = 0;
+                          if (Array.isArray(appointment?.additional_procedure_ids)) {
+                            appointment.additional_procedure_ids.forEach((id: string) => {
+                              const extraProc = procedures?.find((p: any) => p.id === id);
+                              if (extraProc) extraPrice += Number(extraProc.price || 0);
+                            });
+                          }
+                          return primaryPrice + extraPrice;
+                        })()
+                      )}
+                    </span>
+                  </div>
+               </div>
            </div>
 
            {/* Status Selector */}
@@ -553,7 +601,7 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
                       <Label className="text-xs font-bold text-emerald-800">Método Utilizado</Label>
                       <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                         <SelectTrigger className="bg-white border-emerald-200">
-                          <SelectValue />
+                          <SelectValue placeholder="Selecione..." />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="pix">PIX</SelectItem>
