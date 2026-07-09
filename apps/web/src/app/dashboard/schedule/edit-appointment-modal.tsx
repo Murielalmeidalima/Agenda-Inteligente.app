@@ -56,9 +56,6 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
 
   // Finance integration
   const isOriginallyCompleted = appointment?.status === 'completed';
-  const [paymentStatus, setPaymentStatus] = useState<'paid'|'partial'|'unpaid'>('unpaid');
-  const [paymentMethod, setPaymentMethod] = useState('');
-  const [paymentAmount, setPaymentAmount] = useState<string>('');
 
   // Adições para o Histórico Financeiro
   const [transactionsList, setTransactionsList] = useState<any[]>([]);
@@ -101,10 +98,6 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
       setEditStartTime(appointment.start_time ? format(new Date(appointment.start_time), "yyyy-MM-dd'T'HH:mm") : '');
       setEditNotes(appointment.notes || '');
       setIsEditing(false);
-      
-      const procObj = Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures;
-      const procedurePrice = appointment.price_override || procObj?.price || 0;
-      setPaymentAmount(procedurePrice.toString());
 
       const fetchMedicalRecord = async () => {
         const supabase = createBrowserClient();
@@ -271,11 +264,6 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
   };
 
   const handleSave = async () => {
-    // Validação Financeira: se foi concluído e marcado como pago/parcial, exige o método de pagamento
-    if (status === 'completed' && !isOriginallyCompleted && paymentStatus !== 'unpaid' && !paymentMethod) {
-      toast.error('Por favor, informe o método de pagamento para registrar a receita ou selecione "Não Pago".');
-      return;
-    }
 
     setLoading(true);
     const supabase = createBrowserClient();
@@ -391,65 +379,6 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
                   complications
                });
          }
-
-          // Lógica Financeira (Apenas na PRIMEIRA vez que é concluído)
-          if (!isOriginallyCompleted && paymentStatus !== 'unpaid') {
-            const procObj = Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures;
-            const procedurePrice = Number(appointment.price_override || procObj?.price || 0);
-            const paidAmount = paymentStatus === 'paid' ? procedurePrice : Number(paymentAmount.replace(',', '.'));
-            
-            if (paidAmount > 0) {
-              // Buscar categoria 'Procedimentos' ou qualquer categoria de 'income' como fallback
-              let { data: catData } = await supabase.from('financial_categories')
-                .select('id')
-                .eq('company_id', appointment.company_id)
-                .eq('name', 'Procedimentos')
-                .maybeSingle();
-                
-              if (!catData) {
-                const { data: fallbackCat } = await supabase.from('financial_categories')
-                  .select('id')
-                  .eq('company_id', appointment.company_id)
-                  .eq('type', 'income')
-                  .limit(1)
-                  .maybeSingle();
-                catData = fallbackCat;
-              }
-                
-              const { data: accData } = await supabase.from('financial_accounts')
-                .select('id')
-                .eq('company_id', appointment.company_id)
-                .order('created_at', { ascending: true })
-                .limit(1)
-                .maybeSingle();
-
-              const transactionValues = {
-                company_id: appointment.company_id,
-                appointment_id: appointment.id,
-                category_id: catData?.id,
-                account_id: accData?.id,
-                amount: paidAmount,
-                type: 'income',
-                status: 'completed',
-                payment_method: paymentMethod,
-                description: `Atendimento: ${appointment.clients?.full_name}`,
-                date: new Date().toISOString(),
-                transaction_date: new Date().toISOString()
-              };
-              
-              const { error: txError } = await supabase.from('transactions').insert(transactionValues);
-              if (txError) throw txError;
-
-              // Atualizar saldo da conta
-              if (accData?.id) {
-                const { error: rpcError } = await supabase.rpc('update_account_balance', { 
-                  target_account_id: accData.id, 
-                  amount_diff: paidAmount 
-                });
-                if (rpcError) throw rpcError;
-              }
-            }
-          }
       }
 
       toast.success('Agendamento atualizado!');
@@ -700,73 +629,6 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
                  />
               </div>
            </div>
-
-           {/* Painel Financeiro INJECT (exibido apenas quando marcou Concluído agora - não reexibe se ja era concluido antes para evitar double billing) */}
-           {status === 'completed' && !isOriginallyCompleted && (
-              <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 space-y-4 animate-fade-in relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-5">
-                   <Banknote className="h-24 w-24" />
-                </div>
-                <h3 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2 relative z-10">
-                   <Banknote className="w-4 h-4 text-emerald-600" />
-                   Baixa Financeira
-                </h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-bold text-emerald-800">Situação do Pagamento</Label>
-                    <Select value={paymentStatus} onValueChange={(val: any) => setPaymentStatus(val)}>
-                      <SelectTrigger className="bg-white border-emerald-200">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="paid" className="text-emerald-700 font-bold">Pago Totalmente</SelectItem>
-                        <SelectItem value="partial" className="text-amber-600 font-bold">Pago Parcial</SelectItem>
-                        <SelectItem value="unpaid" className="text-rose-600 font-bold">Não Pago (Pendente)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  {paymentStatus !== 'unpaid' && (
-                    <div className="space-y-1">
-                      <Label className="text-xs font-bold text-emerald-800">Método Utilizado</Label>
-                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                        <SelectTrigger className="bg-white border-emerald-200">
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pix">PIX</SelectItem>
-                          <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
-                          <SelectItem value="debit_card">Cartão de Débito</SelectItem>
-                          <SelectItem value="cash">Dinheiro</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </div>
-
-                {paymentStatus === 'partial' && (
-                  <div className="space-y-1 relative z-10">
-                    <Label className="text-xs font-bold text-emerald-800">Valor Recebido Agora (R$)</Label>
-                    <Input 
-                      type="number"
-                      step="0.01"
-                      className="bg-white border-emerald-200 focus:ring-emerald-500/20"
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(e.target.value)}
-                    />
-                    <p className="text-[10px] text-emerald-700 mt-1 font-medium italic">
-                      O valor restante irá automaticamente para "Contas a Receber".
-                    </p>
-                  </div>
-                )}
-                {paymentStatus === 'unpaid' && (
-                  <p className="text-[10px] text-emerald-700 font-medium italic relative z-10">
-                    Nenhuma entrada será gerada agora. O sistema vai classificar este atendimento automaticamente em "Contas a Receber".
-                  </p>
-                )}
-              </div>
-           )}
 
             {/* Notes */}
             <div className="space-y-2">
