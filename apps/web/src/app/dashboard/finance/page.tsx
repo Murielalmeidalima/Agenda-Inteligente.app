@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { 
   Button, 
@@ -61,13 +61,23 @@ import { useProfile } from '@/providers/profile-provider';
 
 type Period = 'today' | 'week' | 'month' | 'year';
 
-export default function FinancePage() {
+function FinancePageContent() {
   const { profile } = useProfile();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>('month');
   const [activeTab, setActiveTab] = useState<'overview' | 'receivables' | 'settings'>('overview');
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'pending' || tab === 'receivables') {
+      setActiveTab('receivables');
+    } else if (tab === 'received' || tab === 'overview') {
+      setActiveTab('overview');
+    }
+  }, [searchParams]);
   const [categories, setCategories] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [data, setData] = useState({
@@ -823,5 +833,17 @@ function FinanceCard({ label, value, loading, icon: Icon, color, subtitle, onCli
         color === 'blue' ? 'bg-blue-500' : color === 'emerald' ? 'bg-emerald-500' : color === 'red' ? 'bg-red-500' : color === 'rose' ? 'bg-rose-500' : 'bg-amber-500'
       )} />
     </Card>
+  );
+}
+
+export default function FinancePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#D4AF37]" />
+      </div>
+    }>
+      <FinancePageContent />
+    </Suspense>
   );
 }

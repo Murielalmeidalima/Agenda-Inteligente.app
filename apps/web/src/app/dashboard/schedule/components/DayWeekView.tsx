@@ -150,7 +150,7 @@ export const DayWeekView = ({
       <div 
         className={cn(
           "grid flex-1 min-w-0",
-          view === 'day' ? "grid-cols-1" : "grid-cols-7 min-w-[750px] md:min-w-0"
+          view === 'day' ? "grid-cols-1" : "grid-cols-7 min-w-[950px] md:min-w-0"
         )}
       >
         {visibleDays.map((day) => (
@@ -187,10 +187,11 @@ export const DayWeekView = ({
               {/* background clickable slots */}
               {timeSlots.map(({hour, minute}) => {
                 const isHour = minute === 0;
-                
+                const now = new Date();
                 const slotTime = new Date(day);
-                slotTime.setHours(hour, minute);
+                slotTime.setHours(hour, minute, 0, 0);
                 const blockedInfo = checkIsBlocked(slotTime);
+                const isPastSlot = slotTime < new Date(now.getTime() - 2 * 60 * 1000);
                 
                 return (
                   <div 
@@ -198,11 +199,19 @@ export const DayWeekView = ({
                     className={cn(
                       "group/slot cursor-pointer transition-colors relative border-[#E5E0D8]/50",
                       isHour ? "border-b" : "border-b border-dashed",
+                      isPastSlot && "bg-neutral-50/50 opacity-60 cursor-not-allowed",
                       blockedInfo?.isBlocking && "cursor-not-allowed bg-red-100/40",
                       blockedInfo && !blockedInfo.isBlocking && "bg-blue-50/10"
                     )}
                     style={{ height: `${slotHeightPx}px` }}
                     onClick={() => {
+                      if (isPastSlot) {
+                        showToast.error(
+                          'Operação não permitida',
+                          'Não é possível criar um agendamento em uma data ou horário que já passou. Caso este atendimento tenha sido realizado sem agendamento prévio, utilize a opção \'Lançar Atendimento\'.'
+                        );
+                        return;
+                      }
                       if (blockedInfo?.isBlocking) {
                         showToast.error('Bloqueado', `Este horário está bloqueado: ${blockedInfo.title}`);
                         return;

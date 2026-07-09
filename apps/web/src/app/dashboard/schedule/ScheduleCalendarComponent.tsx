@@ -45,6 +45,7 @@ interface ScheduleCalendarProps {
     procedures: { name: string; duration_minutes: number };
   })[];
   onNewAppointment: (date: Date) => void;
+  onLaunchAppointment: () => void;
   onViewAppointment: (id: string) => void;
   slotInterval: number;
   onSlotIntervalChange: (interval: number) => void;
@@ -60,6 +61,7 @@ interface ScheduleCalendarProps {
 export default function ScheduleCalendarComponent({
   appointments,
   onNewAppointment,
+  onLaunchAppointment,
   onViewAppointment,
   slotInterval,
   onSlotIntervalChange,
@@ -71,6 +73,14 @@ export default function ScheduleCalendarComponent({
 }: ScheduleCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<CalendarViewType>('week');
+
+  const isDateInPast = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkDate = new Date(currentDate);
+    checkDate.setHours(0, 0, 0, 0);
+    return checkDate < today;
+  }, [currentDate]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
@@ -132,6 +142,7 @@ export default function ScheduleCalendarComponent({
           currentDate={currentDate} 
           appointments={filteredAppointments} 
           onDayClick={handleDayClick} 
+          onViewAppointment={onViewAppointment}
           scheduleBlocks={scheduleBlocks}
           blockHolidays={blockHolidays}
         />
@@ -165,7 +176,12 @@ export default function ScheduleCalendarComponent({
               <h2 className="text-2xl font-black text-[#2C2825] capitalize leading-none mb-1 font-serif">
                 {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
               </h2>
-              <p className="text-[10px] text-[#8A847C] uppercase font-black tracking-widest">Controle de Agendamentos</p>
+              <p className={cn(
+                "text-[10px] uppercase font-black tracking-widest transition-colors",
+                isDateInPast ? "text-red-600 font-extrabold" : "text-[#8A847C]"
+              )}>
+                {isDateInPast ? '⚠️ Somente consulta (Data no passado)' : 'Controle de Agendamentos'}
+              </p>
            </div>
         </div>
 
@@ -237,8 +253,21 @@ export default function ScheduleCalendarComponent({
                </Button>
             </div>
 
+            {/* Lançar Atendimento */}
+            <Button 
+              onClick={onLaunchAppointment} 
+              className="h-10 w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold rounded-xl px-4 shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition-all justify-center"
+            >
+               <Plus className="h-4 w-4 mr-2" />
+               Lançar Atendimento
+            </Button>
+
             {/* Novo Agendamento */}
-            <Button onClick={() => onNewAppointment(currentDate)} className="h-10 w-full sm:w-auto bg-gradient-to-r from-[#D4AF37] to-[#B5952F] hover:from-[#C5A028] hover:to-[#A48625] text-white font-bold rounded-xl px-4 shadow-lg shadow-[#D4AF37]/20 active:scale-[0.98] transition-all justify-center">
+            <Button 
+              onClick={() => onNewAppointment(currentDate)} 
+              disabled={isDateInPast}
+              className="h-10 w-full sm:w-auto bg-gradient-to-r from-[#D4AF37] to-[#B5952F] hover:from-[#C5A028] hover:to-[#A48625] text-white font-bold rounded-xl px-4 shadow-lg shadow-[#D4AF37]/20 active:scale-[0.98] transition-all justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            >
                <Plus className="h-4 w-4 mr-2" />
                Novo Agendamento
             </Button>

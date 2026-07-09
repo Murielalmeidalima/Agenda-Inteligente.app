@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
@@ -55,6 +56,7 @@ interface StitchDashboardClientProps {
   weeklyRevenue?: number[];
   nextAppointment: any | null;
   upcomingAppointments: any[];
+  popularProcedures?: { name: string; count: number; percentage: number }[];
 }
 
 export function StitchDashboardClient({
@@ -64,16 +66,31 @@ export function StitchDashboardClient({
   financialSummary,
   weeklyRevenue = [0, 0, 0, 0, 0, 0, 0],
   nextAppointment,
-  upcomingAppointments
+  upcomingAppointments,
+  popularProcedures = []
 }: StitchDashboardClientProps) {
+  const router = useRouter();
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDateStr, setCurrentDateStr] = useState<string>('');
   const [greeting, setGreeting] = useState<string>('Boa tarde');
   const [isCalendarExpanded, setIsCalendarExpanded] = useState(false);
+  const [initialDay] = useState<number>(() => new Date().getDate());
+
+  // Force-refresh server data on component mount to bypass Next.js client router caching
+  useEffect(() => {
+    router.refresh();
+  }, [router]);
 
   useEffect(() => {
     const updateDateTime = () => {
       const now = new Date();
+
+      // Auto-reload at midnight rollover to keep dashboard dates accurate
+      if (now.getDate() !== initialDay) {
+        window.location.reload();
+        return;
+      }
+
       const hours = now.getHours();
 
       if (hours >= 5 && hours < 12) {
@@ -91,7 +108,7 @@ export function StitchDashboardClient({
     updateDateTime();
     const interval = setInterval(updateDateTime, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [initialDay]);
 
   const userName = profile?.full_name 
     ? profile.full_name
@@ -193,7 +210,7 @@ export function StitchDashboardClient({
             </div>
           </Link>
 
-          <Link href="/dashboard/finance" className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block">
+          <Link href="/dashboard/finance?tab=pending" className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block">
             <p className="text-xs font-semibold text-[#4E463A] uppercase tracking-wider mb-1">Receita Prevista</p>
             <div className="flex items-end justify-between">
               <h3 className="text-2xl sm:text-3xl font-bold text-[#3D2C28]">
@@ -203,7 +220,7 @@ export function StitchDashboardClient({
             </div>
           </Link>
 
-          <Link href="/dashboard/finance" className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block">
+          <Link href="/dashboard/finance?tab=received" className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block">
             <p className="text-xs font-semibold text-[#4E463A] uppercase tracking-wider mb-1">Receita Recebida</p>
             <div className="flex items-end justify-between">
               <h3 className="text-2xl sm:text-3xl font-bold text-[#3D2C28]">
@@ -443,22 +460,21 @@ export function StitchDashboardClient({
             {/* Charts Section (Visual apenas sem redirecionar ao clicar) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-[#D1C5B5]/30">
-                <h4 className="text-xs font-bold text-[#3D2C28] uppercase tracking-wider mb-6 flex justify-between items-center">
+                <h4 className="text-xs font-bold text-[#3D2C28] uppercase tracking-wider mb-6">
                   Faturamento Semanal
-                  <MoreHorizontal className="w-4 h-4 text-[#4E463A]" />
                 </h4>
                 <div className="h-48 flex items-end justify-between gap-2 pt-4">
                   {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'].map((dayName, idx) => {
                     const dayVal = weeklyRevenue[idx] || 0;
                     const heightPct = maxWeeklyVal > 0 ? Math.max(10, Math.round((dayVal / maxWeeklyVal) * 100)) : 15;
                     return (
-                      <div key={dayName} className="w-full flex flex-col items-center group relative cursor-pointer">
+                      <div key={dayName} className="w-full h-full flex flex-col justify-end items-center group relative cursor-pointer">
                         {/* Tooltip Hover visual com valor em Reais */}
                         <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity bg-[#3D2C28] text-white text-[10px] font-bold px-2 py-1 rounded shadow-md whitespace-nowrap z-20 pointer-events-none">
                           {formatMoney(dayVal)}
                         </div>
                         <div 
-                          className={`w-full rounded-t-lg transition-all duration-300 ${dayVal > 0 ? 'bg-[#C8A46B] group-hover:bg-[#b5925a]' : 'bg-[#FFF0ED] group-hover:bg-[#C8A46B]/40'}`} 
+                          className={`w-full rounded-t-lg transition-all duration-300 ${dayVal > 0 ? 'bg-[#C8A46B] group-hover:bg-[#b5925a]' : 'bg-[#D1C5B5]/20 group-hover:bg-[#C8A46B]/30'}`} 
                           style={{ height: `${heightPct}%` }}
                         />
                       </div>
@@ -471,15 +487,33 @@ export function StitchDashboardClient({
               </div>
 
               <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-[#D1C5B5]/30">
-                <h4 className="text-xs font-bold text-[#3D2C28] uppercase tracking-wider mb-6">Procedimentos Populares</h4>
+                <h4 className="text-xs font-bold text-[#3D2C28] uppercase tracking-wider mb-6 flex justify-between items-center">
+                  Procedimentos Populares
+                  <span className="text-[10px] text-[#4E463A] bg-[#FFF0ED] px-2 py-0.5 rounded font-normal normal-case">Esta Semana</span>
+                </h4>
                 <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <span className="text-xs font-medium w-24">Procedimentos</span>
-                    <div className="flex-1 h-2 bg-[#FFF0ED] rounded-full overflow-hidden">
-                      <div className="h-full bg-[#C8A46B] w-[100%]" />
+                  {popularProcedures && popularProcedures.length > 0 ? (
+                    popularProcedures.map((proc, index) => (
+                      <div key={index} className="flex items-center gap-4">
+                        <span className="text-xs font-medium w-28 truncate" title={proc.name}>
+                          {proc.name}
+                        </span>
+                        <div className="flex-1 h-2 bg-[#FFF0ED] rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-[#C8A46B] transition-all duration-500" 
+                            style={{ width: `${proc.percentage}%` }} 
+                          />
+                        </div>
+                        <span className="text-xs font-bold w-10 text-right">{proc.percentage}%</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-6 text-center text-sm text-[#8A847C]">
+                      <Sparkles className="w-8 h-8 text-[#C8A46B]/40 mb-2 animate-pulse" />
+                      <p className="font-medium text-[#4E463A]">Nenhum procedimento registrado</p>
+                      <p className="text-xs text-[#8A847C]/80 mt-0.5">nesta semana</p>
                     </div>
-                    <span className="text-xs font-bold">100%</span>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -61,10 +61,46 @@ export default function ScheduleCalendarClient({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [slotInterval, setSlotInterval] = useState<number>(30);
   
+  // local client list state to allow inline client registration
+  const [localClients, setLocalClients] = useState(clients);
+  useEffect(() => {
+    setLocalClients(clients);
+  }, [clients]);
+
+  // inline client registration states
+  const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientPhone, setNewClientPhone] = useState('');
+  const [isCreatingClientLoading, setIsCreatingClientLoading] = useState(false);
+
+  // launching past appointment states
+  const [isLaunching, setIsLaunching] = useState(false);
+  const [launchingPrice, setLaunchingPrice] = useState('');
+  const [launchingPaymentStatus, setLaunchingPaymentStatus] = useState<'paid'|'partial'|'pending'>('paid');
+  const [launchingPaymentMethod, setLaunchingPaymentMethod] = useState('pix');
+  const [launchingPaidAmount, setLaunchingPaidAmount] = useState('');
+
+  const handleLaunchAppointment = () => {
+    setIsLaunching(true);
+    setFormData({
+      clientId: '',
+      procedureId: '',
+      professionalId: '',
+      startTime: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+      notes: ''
+    });
+    setAdditionalProcedureIds([]);
+    setLaunchingPrice('');
+    setLaunchingPaymentStatus('paid');
+    setLaunchingPaymentMethod('pix');
+    setLaunchingPaidAmount('');
+    setIsModalOpen(true);
+  };
+
   useEffect(() => {
     setAppointments(initialAppointments);
   }, [initialAppointments]);
-  
+
   const [formData, setFormData] = useState({
     clientId: '',
     procedureId: '',
@@ -267,18 +303,69 @@ export default function ScheduleCalendarClient({
   }, [companyId]);
 
   const handleNewAppointment = (date: Date) => {
-    // Verificar se o dia está bloqueado antes de abrir
+    // block scheduling in the past
+    const now = new Date();
+    if (date < new Date(now.getTime() - 2 * 60 * 1000)) {
+      showToast.error(
+        'Operação não permitida', 
+        'Não é possível criar um agendamento em uma data ou horário que já passou. Caso este atendimento tenha sido realizado sem agendamento prévio, utilize a opção \'Lançar Atendimento\'.'
+      );
+      return;
+    }
+
     const isBlocked = checkIsBlocked(date);
     if (isBlocked) {
       showToast.error('Indisponível', 'Este dia ou horário está bloqueado para atendimentos.');
       return;
     }
 
+    setIsLaunching(false);
     setFormData({
       ...formData,
       startTime: format(date, "yyyy-MM-dd'T'HH:mm")
     });
     setIsModalOpen(true);
+  };
+
+  useEffect(() => {
+    if (isLaunching) {
+      setLaunchingPrice(calculatedTotalPrice.toString());
+    }
+  }, [calculatedTotalPrice, isLaunching]);
+
+  const handleSaveNewClientInline = async () => {
+    if (!newClientName.trim()) {
+      showToast.error('Erro', 'O nome do cliente é obrigatório');
+      return;
+    }
+
+    setIsCreatingClientLoading(true);
+    try {
+      const supabase = createBrowserClient();
+      const { data, error } = await supabase
+        .from('clients')
+        .insert({
+          full_name: newClientName.trim(),
+          phone: newClientPhone.trim() || null,
+          company_id: companyId
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      showToast.success('Cliente cadastrado!');
+      setLocalClients(prev => [...prev, data]);
+      setFormData(prev => ({ ...prev, clientId: data.id }));
+      setIsCreatingClient(false);
+      setNewClientName('');
+      setNewClientPhone('');
+    } catch (err: any) {
+      console.error('Error creating client inline:', err);
+      showToast.error('Erro ao cadastrar cliente', err.message || 'Tente novamente.');
+    } finally {
+      setIsCreatingClientLoading(false);
+    }
   };
 
   const checkIsBlocked = (date: Date) => {
@@ -349,8 +436,22 @@ export default function ScheduleCalendarClient({
       const start = new Date(startStr);
       const end = addMinutes(start, calculatedTotalDuration);
 
-      const hasConflict = appointments.some((apt) => {
-        if (apt.status === 'cancelled') return false;
+      // Block scheduling in the past for normal appointments
+      if (!isLaunching) {
+        const now = new Date();
+        if (start < new Date(now.getTime() - 2 * 60 * 1000)) {
+          showToast.error(
+            'Operação não permitida', 
+            'Não é possível criar um agendamento em uma data ou horário que já passou. Caso este atendimento tenha sido realizado sem agendamento prévio, utilize a opção \'Lançar Atendimento\'.'
+          );
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // Bypass conflict checks for completed launched appointments
+      const hasConflict = !isLaunching && appointments.some((apt) => {
+        if (apt.status === 'cancelled' || apt.status === 'completed') return false;
         if (apt.professional_id !== formData.professionalId) return false;
         
         const existingStart = new Date(apt.start_time);
@@ -364,6 +465,8 @@ export default function ScheduleCalendarClient({
         throw new Error('Conflito de Horário');
       }
 
+      const priceVal = isLaunching ? Number(launchingPrice) : calculatedTotalPrice;
+
       const { data, error } = await supabase
         .from('appointments')
         .insert({
@@ -371,12 +474,12 @@ export default function ScheduleCalendarClient({
           client_id: formData.clientId,
           procedure_id: formData.procedureId,
           additional_procedure_ids: additionalProcedureIds.filter(id => id !== ''),
-          price_override: calculatedTotalPrice,
+          price_override: priceVal,
           professional_id: formData.professionalId,
           start_time: start.toISOString(),
           end_time: end.toISOString(),
           notes: formData.notes,
-          status: 'scheduled'
+          status: isLaunching ? 'completed' : 'scheduled'
         })
         .select(`
           *,
@@ -387,8 +490,65 @@ export default function ScheduleCalendarClient({
 
       if (error) throw error;
 
-      // Criar notificação para o profissional designado
-      if (formData.professionalId) {
+      // Se for Lançamento e o pagamento não for Pendente, cria a transação e atualiza a conta
+      if (isLaunching && launchingPaymentStatus !== 'pending') {
+        let { data: catData } = await supabase.from('financial_categories')
+          .select('id')
+          .eq('company_id', companyId)
+          .eq('name', 'Procedimentos')
+          .maybeSingle();
+          
+        if (!catData) {
+          const { data: fallbackCat } = await supabase.from('financial_categories')
+            .select('id')
+            .eq('company_id', companyId)
+            .eq('type', 'income')
+            .limit(1)
+            .maybeSingle();
+          catData = fallbackCat;
+        }
+
+        const { data: accData } = await supabase.from('financial_accounts')
+          .select('id')
+          .eq('company_id', companyId)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        const paymentVal = launchingPaymentStatus === 'paid' ? priceVal : Number(launchingPaidAmount);
+        
+        if (paymentVal > 0) {
+          const transactionValues = {
+            company_id: companyId,
+            appointment_id: data.id,
+            category_id: catData?.id || null,
+            account_id: accData?.id || null,
+            amount: paymentVal,
+            type: 'income',
+            status: 'completed',
+            payment_method: launchingPaymentMethod,
+            description: `Atendimento (Lançado): ${data.clients?.full_name}`,
+            date: start.toISOString(),
+            transaction_date: start.toISOString()
+          };
+          
+          const { error: txError } = await supabase.from('transactions').insert(transactionValues);
+          if (txError) {
+            console.error('Error inserting transaction:', txError);
+          } else if (accData?.id) {
+            const { error: rpcError } = await supabase.rpc('update_account_balance', { 
+              target_account_id: accData.id, 
+              amount_diff: paymentVal 
+            });
+            if (rpcError) {
+              console.error('Error updating account balance:', rpcError);
+            }
+          }
+        }
+      }
+
+      // Criar notificação para o profissional designado (somente se agendado para o futuro)
+      if (formData.professionalId && !isLaunching) {
         const procedureNames = selectedProceduresList.map(p => p.name).join(' e ');
         await supabase.from('notifications').insert({
           profile_id: formData.professionalId,
@@ -400,9 +560,9 @@ export default function ScheduleCalendarClient({
         });
       }
 
-      // Adicionar mensagem na fila do WhatsApp (Confirmação imediata)
-      const client = clients.find(c => c.id === formData.clientId);
-      if (client?.phone) {
+      // Adicionar mensagem na fila do WhatsApp (somente se agendado para o futuro)
+      const client = localClients.find(c => c.id === formData.clientId);
+      if (client?.phone && !isLaunching) {
         const procedureNames = selectedProceduresList.map(p => p.name).join(' e ');
         await supabase.from('message_queue').insert({
           company_id: companyId,
@@ -429,6 +589,8 @@ export default function ScheduleCalendarClient({
         notes: ''
       });
       setAdditionalProcedureIds([]);
+      setIsLaunching(false);
+      setIsCreatingClient(false);
 
     } catch (err: any) {
       if (err.message?.includes('AbortError') || err.name === 'AbortError') return;
@@ -464,6 +626,7 @@ export default function ScheduleCalendarClient({
       <ScheduleCalendar 
         appointments={displayedAppointments} 
         onNewAppointment={handleNewAppointment}
+        onLaunchAppointment={handleLaunchAppointment}
         onViewAppointment={(id) => {
           const apt = appointments.find(a => a.id === id);
           if (apt) {
@@ -513,6 +676,8 @@ export default function ScheduleCalendarClient({
             notes: ''
           });
           setAdditionalProcedureIds([]);
+          setIsLaunching(false);
+          setIsCreatingClient(false);
         }
       }}>
         <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto bg-white border-[#E5E0D8] p-0 rounded-3xl shadow-2xl custom-scrollbar">
@@ -522,31 +687,75 @@ export default function ScheduleCalendarClient({
                    <Plus className="h-5 w-5 text-[#D4AF37]" />
                 </div>
                 <div>
-                   <DialogTitle className="text-xl font-black text-[#2C2825]">Criar Agendamento</DialogTitle>
-                   <p className="text-[10px] text-[#8A847C] uppercase font-black tracking-widest mt-0.5">Configure o novo atendimento</p>
+                   <DialogTitle className="text-xl font-black text-[#2C2825]">
+                     {isLaunching ? 'Lançar Atendimento' : 'Criar Agendamento'}
+                   </DialogTitle>
+                   <p className="text-[10px] text-[#8A847C] uppercase font-black tracking-widest mt-0.5">
+                     {isLaunching ? 'Registre um atendimento que já foi realizado' : 'Configure o novo agendamento'}
+                   </p>
                 </div>
              </div>
           </DialogHeader>
           
           <form onSubmit={handleSaveAppointment} className="p-8 space-y-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Cliente</label>
-              <Select 
-                onValueChange={(val) => setFormData({...formData, clientId: val})}
-                value={formData.clientId}
-              >
-                <SelectTrigger className="bg-white border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] focus:ring-primary-500/10">
-                  <SelectValue placeholder="Selecione o cliente" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border-[#E5E0D8] text-[#2C2825]">
-                  {clients.map(c => (
-                    <SelectItem key={c.id} value={c.id} className="hover:bg-primary-500/10 focus:bg-primary-500/10">{c.full_name}</SelectItem>
-                  ))}
-                  {clients.length === 0 && (
-                     <div className="p-4 text-center text-xs text-neutral-600 italic">Nenhum cliente cadastrado</div>
-                  )}
-                </SelectContent>
-              </Select>
+              <div className="flex justify-between items-center ml-1">
+                <label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest">Cliente</label>
+                <button 
+                  type="button" 
+                  onClick={() => setIsCreatingClient(!isCreatingClient)}
+                  className="text-[9px] font-black text-[#D4AF37] uppercase tracking-wider hover:underline"
+                >
+                  {isCreatingClient ? '❌ Cancelar' : '➕ Novo Cliente'}
+                </button>
+              </div>
+              
+              {isCreatingClient ? (
+                <div className="bg-[#FAF9F6] border border-[#E5E0D8] rounded-2xl p-4 space-y-3 animate-in fade-in duration-200">
+                  <p className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider">Cadastrar Cliente Rápido</p>
+                  <div className="space-y-1">
+                    <Input 
+                      placeholder="Nome Completo *" 
+                      value={newClientName}
+                      onChange={(e) => setNewClientName(e.target.value)}
+                      className="bg-white h-10 rounded-lg text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Input 
+                      placeholder="WhatsApp (com DDD) - Opcional" 
+                      value={newClientPhone}
+                      onChange={(e) => setNewClientPhone(e.target.value)}
+                      className="bg-white h-10 rounded-lg text-xs"
+                    />
+                  </div>
+                  <Button 
+                    type="button" 
+                    onClick={handleSaveNewClientInline}
+                    loading={isCreatingClientLoading}
+                    className="w-full h-10 bg-[#D4AF37] text-white hover:bg-[#B5952F] rounded-lg text-xs font-bold transition-all"
+                  >
+                    Salvar e Selecionar
+                  </Button>
+                </div>
+              ) : (
+                <Select 
+                  onValueChange={(val) => setFormData({...formData, clientId: val})}
+                  value={formData.clientId}
+                >
+                  <SelectTrigger className="bg-white border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] focus:ring-primary-500/10">
+                    <SelectValue placeholder="Selecione o cliente" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-[#E5E0D8] text-[#2C2825]">
+                    {localClients.map(c => (
+                      <SelectItem key={c.id} value={c.id} className="hover:bg-primary-500/10 focus:bg-primary-500/10">{c.full_name}</SelectItem>
+                    ))}
+                    {localClients.length === 0 && (
+                       <div className="p-4 text-center text-xs text-neutral-600 italic">Nenhum cliente cadastrado</div>
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -674,6 +883,84 @@ export default function ScheduleCalendarClient({
               )}
             </div>
 
+            {isLaunching && (
+              <div className="bg-[#FAF9F6] border border-[#E5E0D8] rounded-2xl p-4 space-y-4 animate-in fade-in duration-200">
+                <p className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider mb-1">Informações Financeiras</p>
+                
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Valor do Atendimento (R$)</label>
+                  <Input 
+                    type="number" 
+                    step="0.01"
+                    placeholder="0.00"
+                    value={launchingPrice}
+                    onChange={(e) => setLaunchingPrice(e.target.value)}
+                    required
+                    className="bg-white border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] focus:ring-primary-500/10 font-bold"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Situação do Pagamento</label>
+                    <Select 
+                      value={launchingPaymentStatus} 
+                      onValueChange={(val: any) => {
+                        setLaunchingPaymentStatus(val);
+                        if (val === 'partial' && !launchingPaidAmount) {
+                          setLaunchingPaidAmount((Number(launchingPrice) / 2).toString());
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="bg-white border-[#E5E0D8] h-12 rounded-xl text-[#2C2825]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-[#E5E0D8] text-[#2C2825]">
+                        <SelectItem value="paid">Pago</SelectItem>
+                        <SelectItem value="partial">Parcial</SelectItem>
+                        <SelectItem value="pending">Pendente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Forma de Pagamento</label>
+                    <Select 
+                      value={launchingPaymentMethod} 
+                      onValueChange={setLaunchingPaymentMethod}
+                      disabled={launchingPaymentStatus === 'pending'}
+                    >
+                      <SelectTrigger className="bg-white border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] disabled:opacity-50">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-[#E5E0D8] text-[#2C2825]">
+                        <SelectItem value="pix">Pix</SelectItem>
+                        <SelectItem value="money">Dinheiro</SelectItem>
+                        <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
+                        <SelectItem value="debit_card">Cartão de Débito</SelectItem>
+                        <SelectItem value="bank_transfer">Transferência Bancária</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {launchingPaymentStatus === 'partial' && (
+                  <div className="space-y-2 animate-in slide-in-from-top-1 duration-200">
+                    <label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Valor Pago Parcialmente (R$)</label>
+                    <Input 
+                      type="number" 
+                      step="0.01"
+                      placeholder="0.00"
+                      value={launchingPaidAmount}
+                      onChange={(e) => setLaunchingPaidAmount(e.target.value)}
+                      required
+                      className="bg-white border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] focus:ring-primary-500/10 font-bold"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2">
               <label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Observações</label>
               <TextArea 
@@ -717,6 +1004,8 @@ export default function ScheduleCalendarClient({
                     notes: ''
                   });
                   setAdditionalProcedureIds([]);
+                  setIsLaunching(false);
+                  setIsCreatingClient(false);
                 }}
                 className="flex-1 h-12 border-[#E5E0D8] bg-transparent text-neutral-400 hover:bg-neutral-800 rounded-xl font-bold transition-all"
               >
@@ -727,7 +1016,7 @@ export default function ScheduleCalendarClient({
                 className="flex-1 h-12 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-[#2C2825] font-bold rounded-xl shadow-lg shadow-primary-500/20 transition-all active:scale-[0.98]"
                 loading={isSubmitting}
               >
-                Agendar Horário
+                {isLaunching ? 'Lançar Atendimento' : 'Agendar Horário'}
               </Button>
             </div>
           </form>

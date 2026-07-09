@@ -87,13 +87,25 @@ export default async function DashboardPage() {
     return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
   };
 
+  // Helper to convert date to Brazil timezone
+  const toBrazilDate = (d: Date | string | number) => {
+    return new Date(new Date(d).toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  };
+
   // Dates for querying
-  const today = new Date();
+  const today = toBrazilDate(new Date());
   const todayStr = format(today, 'yyyy-MM-dd');
   const monthDayStr = format(today, 'MM-dd');
   const currentMonthStr = format(today, 'MM');
-  const startOfMonthStr = format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd') + 'T00:00:00Z';
-  const endOfMonthStr = format(new Date(today.getFullYear(), today.getMonth() + 1, 0), 'yyyy-MM-dd') + 'T23:59:59Z';
+  
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const startOfMonthStr = format(startOfMonth, 'yyyy-MM-dd') + 'T00:00:00-03:00';
+  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const endOfMonthStr = format(endOfMonth, 'yyyy-MM-dd') + 'T23:59:59-03:00';
+
+  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+  const weekStartStr = format(weekStart, 'yyyy-MM-dd') + 'T00:00:00-03:00';
+  const weekEndStr = format(addDays(weekStart, 6), 'yyyy-MM-dd') + 'T23:59:59-03:00';
 
   // Dynamic Greeting based on time of day (Kombai Luxury Rules)
   const currentHour = today.getHours();
@@ -121,7 +133,9 @@ export default async function DashboardPage() {
     { data: pendingReviewsData },
     { data: productsData },
     { data: transactionsData },
-    { data: upcomingAppointmentsData }
+    { data: upcomingAppointmentsData },
+    { data: weeklyAppointmentsData },
+    { data: proceduresData }
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -142,20 +156,21 @@ export default async function DashboardPage() {
         procedures(name, duration)
       `)
       .eq('company_id', COMPANY_ID)
-      .gte('start_time', todayStr + 'T00:00:00Z')
-      .lte('start_time', todayStr + 'T23:59:59Z')
+      .gte('start_time', todayStr + 'T00:00:00-03:00')
+      .lte('start_time', todayStr + 'T23:59:59-03:00')
       .order('start_time', { ascending: true }),
 
     supabase
       .from('appointments')
       .select(`
+        id,
         price_override,
         status,
         procedures(price)
       `)
       .eq('company_id', COMPANY_ID)
-      .gte('start_time', todayStr + 'T00:00:00Z')
-      .lte('start_time', todayStr + 'T23:59:59Z')
+      .gte('start_time', todayStr + 'T00:00:00-03:00')
+      .lte('start_time', todayStr + 'T23:59:59-03:00')
       .neq('status', 'cancelled'),
 
     supabase
@@ -181,7 +196,7 @@ export default async function DashboardPage() {
       .from('appointments')
       .select('id')
       .eq('company_id', COMPANY_ID)
-      .gte('start_time', todayStr + 'T00:00:00Z')
+      .gte('start_time', todayStr + 'T00:00:00-03:00')
       .eq('is_maintenance', true)
       .neq('status', 'cancelled'),
 
@@ -217,13 +232,39 @@ export default async function DashboardPage() {
       .gte('start_time', new Date().toISOString())
       .in('status', ['scheduled', 'confirmed', 'rescheduled'])
       .order('start_time', { ascending: true })
-      .limit(10)
+      .limit(10),
+
+    supabase
+      .from('appointments')
+      .select(`
+        id,
+        procedure_id,
+        additional_procedure_ids,
+        procedures(name)
+      `)
+      .eq('company_id', COMPANY_ID)
+      .gte('start_time', weekStartStr)
+      .lte('start_time', weekEndStr)
+      .neq('status', 'cancelled'),
+
+    supabase
+      .from('procedures')
+      .select('id, name')
+      .eq('company_id', COMPANY_ID)
   ]);
 
-  // Calculate Predicted Revenue
-  const todayRevenue = revenueData?.reduce((acc: number, curr: any) => {
-    return acc + (curr.price_override || curr.procedures?.price || 0);
-  }, 0) || 0;
+  // Calculate Predicted Revenue (Today's unpaid appointments total)
+  const todayRevenue = (revenueData || []).reduce((acc: number, curr: any) => {
+    // get linked completed transactions for this appointment
+    const linkedTrans = (transactionsData || []).filter((t: any) => t.appointment_id === curr.id);
+    const paidConfirmed = linkedTrans
+      .filter((t: any) => t.status === 'completed' || !t.status)
+      .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
+      
+    const totalPrice = Number(curr.price_override || curr.procedures?.price || 0);
+    const pendingValue = Math.max(0, totalPrice - paidConfirmed);
+    return acc + pendingValue;
+  }, 0);
 
   const todayAppointments = appointmentsData?.length || 0;
   
@@ -260,8 +301,11 @@ export default async function DashboardPage() {
     const rawDate = t.date || t.transaction_date;
     if (!rawDate) return false;
     try {
-      const tLocalDateStr = format(new Date(rawDate), 'yyyy-MM-dd');
-      return t.type === 'income' && (t.status === 'completed' || !t.status) && tLocalDateStr >= startOfMonthStr.slice(0, 10);
+      const tLocalDateStr = format(toBrazilDate(rawDate), 'yyyy-MM-dd');
+      return t.type === 'income' && 
+             (t.status === 'completed' || !t.status) && 
+             tLocalDateStr >= startOfMonthStr.slice(0, 10) && 
+             tLocalDateStr <= endOfMonthStr.slice(0, 10);
     } catch (e) {
       return false;
     }
@@ -275,7 +319,6 @@ export default async function DashboardPage() {
   const toPay = allTx.filter((t: any) => t.type === 'expense' && t.status === 'pending').reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
 
   // Calculate daily revenue for Mon-Sun of current week
-  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
   const weeklyRevenue = [0, 1, 2, 3, 4, 5, 6].map(dayOffset => {
     const dayDateStr = format(addDays(weekStart, dayOffset), 'yyyy-MM-dd');
     return allTx
@@ -283,7 +326,7 @@ export default async function DashboardPage() {
         const rawDate = t.date || t.transaction_date;
         if (!rawDate) return false;
         try {
-          const tLocalDateStr = format(new Date(rawDate), 'yyyy-MM-dd');
+          const tLocalDateStr = format(toBrazilDate(rawDate), 'yyyy-MM-dd');
           return t.type === 'income' && (t.status === 'completed' || !t.status) && tLocalDateStr === dayDateStr;
         } catch (e) {
           return false;
@@ -300,6 +343,40 @@ export default async function DashboardPage() {
   const nextAppointment = upcomingAppointments.length > 0 ? upcomingAppointments[0] : null;
 
   const attendedCount = appointmentsData?.filter(a => a.status === 'completed' || a.status === 'confirmed').length || 0;
+
+  // Calculate dynamic weekly popular procedures breakdown
+  const weekAppointments = weeklyAppointmentsData || [];
+  const proceduresList = proceduresData || [];
+  const proceduresMap = new Map(proceduresList.map((p: any) => [p.id, p.name]));
+
+  const procCountMap: Record<string, number> = {};
+  let totalProcedureCount = 0;
+
+  weekAppointments.forEach((a: any) => {
+    // Primary procedure
+    const name = a.procedures?.name || (a.procedure_id ? proceduresMap.get(a.procedure_id) : null) || 'Desconhecido';
+    procCountMap[name] = (procCountMap[name] || 0) + 1;
+    totalProcedureCount++;
+
+    // Additional procedures
+    if (Array.isArray(a.additional_procedure_ids)) {
+      a.additional_procedure_ids.forEach((id: string) => {
+        const extraName = proceduresMap.get(id);
+        if (extraName) {
+          procCountMap[extraName] = (procCountMap[extraName] || 0) + 1;
+          totalProcedureCount++;
+        }
+      });
+    }
+  });
+
+  const popularProcedures = Object.entries(procCountMap)
+    .map(([name, count]) => {
+      const percentage = totalProcedureCount > 0 ? Math.round((count / totalProcedureCount) * 100) : 0;
+      return { name, count, percentage };
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
 
   return (
     <StitchDashboardClient
@@ -327,6 +404,7 @@ export default async function DashboardPage() {
       weeklyRevenue={weeklyRevenue}
       nextAppointment={nextAppointment}
       upcomingAppointments={upcomingAppointments}
+      popularProcedures={popularProcedures}
     />
   );
 }
