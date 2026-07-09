@@ -117,9 +117,8 @@ export function StitchDashboardClient({
   const userRoleTitle = profile?.role === 'admin' ? 'Diretora Clínica' : 'Profissional da Saúde';
 
   const formatMoney = (val: number) => {
-    if (!val && val !== 0) return 'R$ 0';
-    if (Math.abs(val) >= 1000) return `R$ ${(val / 1000).toFixed(1)}k`;
-    return `R$ ${val.toLocaleString('pt-BR')}`;
+    if (!val && val !== 0) return 'R$ 0,00';
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
   const currentMonthYearName = format(new Date(), "MMMM 'de' yyyy", { locale: ptBR });
@@ -213,7 +212,7 @@ export function StitchDashboardClient({
           <Link href="/dashboard/finance?tab=pending" className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block">
             <p className="text-xs font-semibold text-[#4E463A] uppercase tracking-wider mb-1">Receita Prevista</p>
             <div className="flex items-end justify-between">
-              <h3 className="text-2xl sm:text-3xl font-bold text-[#3D2C28]">
+              <h3 className="text-lg sm:text-xl font-bold text-[#3D2C28]">
                 {formatMoney(metrics.predictedRevenue)}
               </h3>
               <TrendingUp className="w-6 h-6 text-[#C8A46B] group-hover:scale-110 transition-transform" />
@@ -223,7 +222,7 @@ export function StitchDashboardClient({
           <Link href="/dashboard/finance?tab=received" className="bg-white p-5 rounded-2xl shadow-sm border border-[#D1C5B5]/30 group hover:border-[#C8A46B]/50 transition-all cursor-pointer block">
             <p className="text-xs font-semibold text-[#4E463A] uppercase tracking-wider mb-1">Receita Recebida</p>
             <div className="flex items-end justify-between">
-              <h3 className="text-2xl sm:text-3xl font-bold text-[#3D2C28]">
+              <h3 className="text-lg sm:text-xl font-bold text-[#3D2C28]">
                 {formatMoney(metrics.receivedRevenue)}
               </h3>
               <DollarSign className="w-6 h-6 text-[#755848] group-hover:scale-110 transition-transform" />
