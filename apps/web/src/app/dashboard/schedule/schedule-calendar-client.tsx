@@ -649,6 +649,7 @@ export default function ScheduleCalendarClient({
         appointment={selectedAppointment}
         professionals={professionals}
         procedures={procedures}
+        clients={localClients}
         onUpdate={() => {
            router.refresh();
            fetchLatestAppointments();

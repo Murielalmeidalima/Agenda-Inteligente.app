@@ -15,7 +15,8 @@ import {
   Badge,
   Label,
   TextArea,
-  Input
+  Input,
+  cn
 } from '@projeto/ui';
 import { Edit2, CheckCircle2, XCircle, AlertCircle, Banknote } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase-browser';
@@ -29,9 +30,10 @@ interface EditAppointmentModalProps {
   onUpdate: () => void;
   professionals?: any[];
   procedures?: any[];
+  clients?: any[];
 }
 
-export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, professionals, procedures = [] }: EditAppointmentModalProps) {
+export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, professionals, procedures = [], clients = [] }: EditAppointmentModalProps) {
   const [status, setStatus] = useState(appointment?.status || 'scheduled');
   const [notes, setNotes] = useState(appointment?.notes || '');
   const [loading, setLoading] = useState(false);
@@ -43,6 +45,14 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
   const [materialsUsed, setMaterialsUsed] = useState('');
   const [complications, setComplications] = useState('');
   const [recordId, setRecordId] = useState<string | null>(null);
+
+  // Edit states
+  const [isEditing, setIsEditing] = useState(false);
+  const [editClientId, setEditClientId] = useState('');
+  const [editProfessionalId, setEditProfessionalId] = useState('');
+  const [editProcedureId, setEditProcedureId] = useState('');
+  const [editStartTime, setEditStartTime] = useState('');
+  const [editNotes, setEditNotes] = useState('');
 
   // Finance integration
   const isOriginallyCompleted = appointment?.status === 'completed';
@@ -84,6 +94,13 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
     if (appointment) {
       setStatus(appointment.status);
       setNotes(appointment.notes || '');
+
+      setEditClientId(appointment.client_id || '');
+      setEditProfessionalId(appointment.professional_id || '');
+      setEditProcedureId(appointment.procedure_id || '');
+      setEditStartTime(appointment.start_time ? format(new Date(appointment.start_time), "yyyy-MM-dd'T'HH:mm") : '');
+      setEditNotes(appointment.notes || '');
+      setIsEditing(false);
       
       const procObj = Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures;
       const procedurePrice = appointment.price_override || procObj?.price || 0;
@@ -265,9 +282,33 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
 
     try {
       // Atualiza compromisso
+      const updatePayload: any = { status };
+      
+      if (isEditing) {
+        if (!editClientId || !editProfessionalId || !editProcedureId || !editStartTime) {
+          toast.error('Preencha todos os campos obrigatórios (Cliente, Profissional, Procedimento e Data/Hora).');
+          setLoading(false);
+          return;
+        }
+        
+        const selectedProc = procedures?.find(p => p.id === editProcedureId);
+        const duration = selectedProc?.duration_minutes || 60;
+        const start = new Date(editStartTime);
+        const end = new Date(start.getTime() + duration * 60 * 1000);
+        
+        updatePayload.client_id = editClientId;
+        updatePayload.professional_id = editProfessionalId;
+        updatePayload.procedure_id = editProcedureId;
+        updatePayload.start_time = start.toISOString();
+        updatePayload.end_time = end.toISOString();
+        updatePayload.notes = editNotes;
+      } else {
+        updatePayload.notes = notes;
+      }
+
       const { error } = await supabase
         .from('appointments')
-        .update({ status, notes })
+        .update(updatePayload)
         .eq('id', appointment.id);
 
       if (error) throw error;
@@ -468,75 +509,165 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto bg-white border-[#E5E0D8] p-0 rounded-3xl shadow-2xl text-[#2C2825] custom-scrollbar">
         <DialogHeader className="p-6 pb-0 bg-[#FDFBF7]/50 sticky top-0 z-10 border-b border-[#E5E0D8]/40 backdrop-blur-md">
-           <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-[#FDFBF7] rounded-xl text-[#8A847C] border border-[#E5E0D8]">
-                 <Edit2 className="h-5 w-5" />
+           <div className="flex items-center justify-between w-full mb-2 pr-6">
+              <div className="flex items-center gap-3">
+                 <button 
+                   type="button"
+                   onClick={() => setIsEditing(!isEditing)}
+                   className={cn(
+                     "p-2 rounded-xl border transition-all hover:scale-105 active:scale-95",
+                     isEditing 
+                       ? "bg-[#D4AF37] text-white border-[#D4AF37] shadow-sm" 
+                       : "bg-[#FDFBF7] text-[#8A847C] border-[#E5E0D8] hover:bg-[#FAF6EE] hover:text-[#2C2825]"
+                   )}
+                   title="Editar agendamento"
+                 >
+                    <Edit2 className="h-5 w-5" />
+                 </button>
+                 <div>
+                    <DialogTitle className="text-lg font-black text-[#2C2825]">
+                      {isEditing ? 'Editar Agendamento' : 'Gerenciar Agendamento'}
+                    </DialogTitle>
+                    <p className="text-[10px] text-[#8A847C] uppercase font-black tracking-widest mt-0.5">
+                       {format(new Date(appointment.start_time), 'dd/MM/yyyy HH:mm')}
+                    </p>
+                 </div>
               </div>
-              <div>
-                 <DialogTitle className="text-lg font-black text-[#2C2825]">Gerenciar Agendamento</DialogTitle>
-                 <p className="text-[10px] text-[#8A847C] uppercase font-black tracking-widest mt-0.5">
-                    {format(new Date(appointment.start_time), 'dd/MM/yyyy HH:mm')}
-                 </p>
-              </div>
+              
+              {isEditing && (
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="text-[9px] font-black text-rose-500 uppercase tracking-wider hover:underline"
+                >
+                  Cancelar
+                </button>
+              )}
            </div>
         </DialogHeader>
 
         <div className="p-6 space-y-6">
-           {/* Info Cards */}
-           <div className="grid grid-cols-2 gap-4">
-              <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800">
-                 <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest block mb-1">Cliente</Label>
-                 <p className="font-bold text-sm truncate text-white">{appointment.clients?.full_name}</p>
+                {isEditing ? (
+              <div className="space-y-4 bg-[#FAF9F6] p-4 rounded-2xl border border-[#E5E0D8]">
+                {/* Cliente */}
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Cliente</Label>
+                  <Select value={editClientId} onValueChange={setEditClientId}>
+                    <SelectTrigger className="bg-white border-[#E5E0D8] h-10 rounded-xl text-[#2C2825]">
+                      <SelectValue placeholder="Selecione o cliente" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-[#E5E0D8] text-[#2C2825]">
+                      {clients.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Profissional */}
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Profissional</Label>
+                  <Select value={editProfessionalId} onValueChange={setEditProfessionalId}>
+                    <SelectTrigger className="bg-white border-[#E5E0D8] h-10 rounded-xl text-[#2C2825]">
+                      <SelectValue placeholder="Selecione o profissional" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-[#E5E0D8] text-[#2C2825]">
+                      {professionals?.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Procedimento */}
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Procedimento</Label>
+                  <Select value={editProcedureId} onValueChange={setEditProcedureId}>
+                    <SelectTrigger className="bg-white border-[#E5E0D8] h-10 rounded-xl text-[#2C2825]">
+                      <SelectValue placeholder="Selecione o procedimento" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-[#E5E0D8] text-[#2C2825]">
+                      {procedures?.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Data e Hora */}
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Data e Hora de Início</Label>
+                  <Input 
+                    type="datetime-local" 
+                    value={editStartTime}
+                    onChange={(e) => setEditStartTime(e.target.value)}
+                    className="bg-white h-10 rounded-xl text-[#2C2825] border-[#E5E0D8]"
+                  />
+                </div>
               </div>
-              <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800 flex flex-col justify-between">
-                  <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest block mb-1">Procedimento(s)</Label>
-                  <div className="space-y-2 max-h-[120px] overflow-y-auto custom-scrollbar">
-                    {/* Primary Procedure */}
-                    <div>
-                      <p className="font-bold text-xs truncate text-white">{(Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures)?.name}</p>
-                      <p className="text-[#8A847C] text-[10px]">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures)?.price || 0)}
-                      </p>
-                    </div>
-                    {/* Additional Procedures */}
-                    {Array.isArray(appointment.additional_procedure_ids) && appointment.additional_procedure_ids.map((id: string) => {
-                      const extraProc = procedures?.find((p: any) => p.id === id);
-                      if (!extraProc) return null;
-                      return (
-                        <div key={id} className="border-t border-neutral-800 pt-1 mt-1">
-                          <p className="font-bold text-xs truncate text-white">{extraProc.name}</p>
-                          <p className="text-[#8A847C] text-[10px]">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(extraProc.price || 0)}
-                          </p>
-                        </div>
-                      );
-                    })}
+            ) : (
+              /* Info Cards */
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                 <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800">
+                    <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest block mb-1">Cliente</Label>
+                    <p className="font-bold text-sm truncate text-white">{appointment.clients?.full_name}</p>
+                 </div>
+                 <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800">
+                    <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest block mb-1">Profissional</Label>
+                    <p className="font-bold text-sm truncate text-white">
+                      {appointment.profiles?.full_name || 'Não atribuído'}
+                    </p>
+                 </div>
+                 <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800 flex flex-col justify-between">
+                     <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest block mb-1">Procedimento(s)</Label>
+                     <div className="space-y-2 max-h-[120px] overflow-y-auto custom-scrollbar">
+                       {/* Primary Procedure */}
+                       <div>
+                         <p className="font-bold text-xs truncate text-white">{(Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures)?.name}</p>
+                         <p className="text-[#8A847C] text-[10px]">
+                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures)?.price || 0)}
+                         </p>
+                       </div>
+                       {/* Additional Procedures */}
+                       {Array.isArray(appointment.additional_procedure_ids) && appointment.additional_procedure_ids.map((id: string) => {
+                         const extraProc = procedures?.find((p: any) => p.id === id);
+                         if (!extraProc) return null;
+                         return (
+                           <div key={id} className="border-t border-neutral-800 pt-1 mt-1">
+                             <p className="font-bold text-xs truncate text-white">{extraProc.name}</p>
+                             <p className="text-[#8A847C] text-[10px]">
+                               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(extraProc.price || 0)}
+                             </p>
+                           </div>
+                         );
+                       })}
+                     </div>
+                     {/* Total Price */}
+                     <div className="border-t border-emerald-500/30 pt-1.5 mt-2 flex justify-between items-center">
+                       <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest leading-none">Total</span>
+                       <span className="text-emerald-400 text-xs font-black">
+                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                           (() => {
+                             if (appointment?.price_override !== null && appointment?.price_override !== undefined && Number(appointment.price_override) > 0) {
+                               return Number(appointment.price_override);
+                             }
+                             const proc = Array.isArray(appointment?.procedures) ? appointment.procedures[0] : appointment?.procedures;
+                             const primaryPrice = Number(proc?.price || 0);
+                             let extraPrice = 0;
+                             if (Array.isArray(appointment?.additional_procedure_ids)) {
+                               appointment.additional_procedure_ids.forEach((id: string) => {
+                                 const extraProc = procedures?.find((p: any) => p.id === id);
+                                 if (extraProc) extraPrice += Number(extraProc.price || 0);
+                               });
+                             }
+                             return primaryPrice + extraPrice;
+                           })()
+                         )}
+                       </span>
+                     </div>
                   </div>
-                  {/* Total Price */}
-                  <div className="border-t border-emerald-500/30 pt-1.5 mt-2 flex justify-between items-center">
-                    <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest leading-none">Total</span>
-                    <span className="text-emerald-400 text-xs font-black">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                        (() => {
-                          if (appointment?.price_override !== null && appointment?.price_override !== undefined && Number(appointment.price_override) > 0) {
-                            return Number(appointment.price_override);
-                          }
-                          const proc = Array.isArray(appointment?.procedures) ? appointment.procedures[0] : appointment?.procedures;
-                          const primaryPrice = Number(proc?.price || 0);
-                          let extraPrice = 0;
-                          if (Array.isArray(appointment?.additional_procedure_ids)) {
-                            appointment.additional_procedure_ids.forEach((id: string) => {
-                              const extraProc = procedures?.find((p: any) => p.id === id);
-                              if (extraProc) extraPrice += Number(extraProc.price || 0);
-                            });
-                          }
-                          return primaryPrice + extraPrice;
-                        })()
-                      )}
-                    </span>
-                  </div>
-               </div>
-           </div>
+              </div>
+            )}
 
            {/* Status Selector */}
            <div className="space-y-2">
