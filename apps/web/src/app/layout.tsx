@@ -51,6 +51,11 @@ export const metadata: Metadata = {
     follow: true,
   },
   manifest: "/manifest.json",
+  icons: {
+    icon: "/images/logo_icon.png",
+    shortcut: "/images/logo_icon.png",
+    apple: "/images/logo_icon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

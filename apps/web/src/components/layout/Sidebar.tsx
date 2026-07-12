@@ -155,10 +155,13 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
       {/* Footer / Profile Snippet */}
       <div className="mt-auto border-t border-slate-100 pt-6 space-y-3">
         {/* User Profile Card */}
-        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex items-center gap-3 cursor-pointer hover:border-slate-200 transition-colors group">
+        <Link 
+          href="/dashboard/settings"
+          className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex items-center gap-3 cursor-pointer hover:border-slate-200 transition-colors group block"
+        >
           {loading ? (
             <>
-              <div className="h-10 w-10 rounded-full bg-slate-100 animate-pulse" />
+              <div className="h-10 w-10 rounded-full bg-slate-100 animate-pulse shrink-0" />
               <div className="flex-1 space-y-2">
                 <div className="h-3 bg-slate-100 rounded animate-pulse" />
                 <div className="h-2 bg-slate-100 rounded w-2/3 animate-pulse" />
@@ -168,11 +171,19 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
             <>
               <div 
                 className={cn(
-                  "h-10 w-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg group-hover:scale-105 transition-transform",
-                  getAvatarColor(profile?.full_name)
+                  "h-10 w-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg group-hover:scale-105 transition-transform overflow-hidden shrink-0",
+                  !profile?.companies?.logo_url && getAvatarColor(profile?.full_name)
                 )}
               >
-                {getInitials(profile?.full_name)}
+                {profile?.companies?.logo_url ? (
+                  <img 
+                    src={profile.companies.logo_url} 
+                    alt={profile?.companies?.name || 'Clínica'} 
+                    className="w-full h-full object-cover" 
+                  />
+                ) : (
+                  getInitials(profile?.full_name)
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-black text-slate-900 truncate tracking-tight">
@@ -184,7 +195,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
               </div>
             </>
           )}
-        </div>
+        </Link>
 
         {/* Logout Button */}
         <button
