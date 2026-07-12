@@ -13,6 +13,10 @@ export type Client = {
 export type Company = {
   id: string;
   name: string;
+  cnpj?: string | null;
+  address_city?: string | null;
+  address_state?: string | null;
+  phone?: string | null;
   logo_url?: string | null;
   created_at: string;
   updated_at: string;

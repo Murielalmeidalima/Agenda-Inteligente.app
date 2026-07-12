@@ -40,7 +40,8 @@ import {
   Smartphone,
   LogOut,
   FileText,
-  Users
+  Users,
+  User
 } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { useRouter } from 'next/navigation';
@@ -49,8 +50,25 @@ import { useProfile } from '@/providers/profile-provider';
 export default function SettingsClient() {
   const [loading, setLoading] = useState(true);
   const [isEditingCompany, setIsEditingCompany] = useState(false);
-  const [activeTab, setActiveTab] = useState<'clinic' | 'security' | 'notifications'>('clinic');
+  const [activeTab, setActiveTab] = useState<'profile' | 'clinic' | 'security' | 'notifications'>('clinic');
   
+  // Company details form state
+  const [companyForm, setCompanyForm] = useState({
+    name: '',
+    phone: '',
+    cnpj: '',
+    cityState: ''
+  });
+  const [savingCompany, setSavingCompany] = useState(false);
+
+  // User profile form state
+  const [profileForm, setProfileForm] = useState({
+    fullName: '',
+    phone: ''
+  });
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+
   // Security form state
   const [passwordForm, setPasswordForm] = useState({
     newPassword: '',
@@ -77,7 +95,96 @@ export default function SettingsClient() {
   // Use company_id from profile, fallback to empty string if loading
   const companyId = profile?.company_id;
 
-  // File Upload Logic
+  // Sync profile and company details when loaded
+  useEffect(() => {
+    if (profile) {
+      setProfileForm({
+        fullName: profile.full_name || '',
+        phone: profile.phone || ''
+      });
+      if (profile.companies) {
+        setCompanyForm({
+          name: profile.companies.name || '',
+          phone: profile.companies.phone || '',
+          cnpj: profile.companies.cnpj || '',
+          cityState: [profile.companies.address_city, profile.companies.address_state]
+            .filter(Boolean)
+            .join(', ')
+        });
+        if (profile.companies.logo_url) {
+          setLogoPreview(profile.companies.logo_url);
+        }
+      }
+    }
+  }, [profile]);
+
+  const handleSaveCompany = async () => {
+    if (!companyId) return;
+    try {
+      setSavingCompany(true);
+      
+      let address_city = '';
+      let address_state = '';
+      if (companyForm.cityState) {
+        const parts = companyForm.cityState.split(/[,-\/]/);
+        address_city = parts[0]?.trim() || '';
+        address_state = parts[1]?.trim() || '';
+      }
+
+      const { error } = await supabase
+        .from('companies')
+        .update({
+          name: companyForm.name,
+          phone: companyForm.phone,
+          cnpj: companyForm.cnpj,
+          address_city,
+          address_state,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', companyId);
+
+      if (error) throw error;
+
+      setIsEditingCompany(false);
+      await refreshProfile();
+      router.refresh();
+      alert("Dados da clínica atualizados com sucesso!");
+    } catch (error: any) {
+      console.error('Error saving company:', error);
+      alert(`Falha ao salvar dados: ${error.message}`);
+    } finally {
+      setSavingCompany(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      setSavingProfile(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          full_name: profileForm.fullName,
+          phone: profileForm.phone
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      setIsEditingProfile(false);
+      await refreshProfile();
+      router.refresh();
+      alert("Perfil atualizado com sucesso!");
+    } catch (error: any) {
+      console.error('Error saving profile:', error);
+      alert(`Falha ao salvar perfil: ${error.message}`);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [newLogoPreview, setNewLogoPreview] = useState<string | null>(null);
@@ -339,6 +446,13 @@ export default function SettingsClient() {
         {/* Navigation Sidebar */}
         <div className="space-y-2">
             <NavButton 
+              active={activeTab === 'profile'} 
+              onClick={() => setActiveTab('profile')}
+              icon={User}
+            >
+              Meu Perfil
+            </NavButton>
+            <NavButton 
               active={activeTab === 'clinic'} 
               onClick={() => setActiveTab('clinic')}
               icon={Building2}
@@ -386,7 +500,80 @@ export default function SettingsClient() {
         {/* Main Content Areas */}
         <div className="lg:col-span-3 space-y-10">
           
-          {activeTab === 'clinic' ? (
+          {activeTab === 'profile' ? (
+            <Card className="bg-white border-[#E5E0D8] rounded-3xl overflow-hidden shadow-sm">
+              <CardHeader className="bg-[#FAF6E9] border-b border-[#E5E0D8] p-8">
+                <div className="flex items-center justify-between">
+                   <div>
+                      <CardTitle className="text-lg font-bold text-[#2C2825]">Meu Perfil</CardTitle>
+                      <p className="text-xs text-[#5C5855] mt-1">Suas informações pessoais de acesso.</p>
+                   </div>
+                    <div className="flex items-center gap-4">
+                       {isEditingProfile ? (
+                          <Button 
+                             onClick={handleSaveProfile}
+                             disabled={savingProfile}
+                             className="bg-[#D4AF37] hover:bg-[#B5952F] text-white font-bold rounded-xl h-10 px-6 active:scale-[0.98] transition-all"
+                          >
+                             {savingProfile ? "Salvando..." : "Salvar Alterações"}
+                          </Button>
+                       ) : (
+                          <Button 
+                             variant="outline"
+                             onClick={() => setIsEditingProfile(true)}
+                             className="border-[#E5E0D8] text-[#5C5855] hover:text-[#2C2825] hover:bg-[#FAF6E9] font-bold rounded-xl h-10 px-6 active:scale-[0.98] transition-all"
+                          >
+                             <Edit3 className="h-4 w-4 mr-2" />
+                             Editar Dados
+                          </Button>
+                       )}
+                    </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Nome Completo</label>
+                    <Input 
+                      value={profileForm.fullName}
+                      onChange={(e) => setProfileForm(prev => ({ ...prev, fullName: e.target.value }))}
+                      readOnly={!isEditingProfile}
+                      className={cn(
+                        "bg-[#FDFBF7] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] font-bold transition-all",
+                        !isEditingProfile && "opacity-60 cursor-not-allowed border-transparent bg-transparent"
+                      )} 
+                    />
+                 </div>
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Telefone</label>
+                    <Input 
+                      value={profileForm.phone}
+                      onChange={(e) => setProfileForm(prev => ({ ...prev, phone: e.target.value }))}
+                      readOnly={!isEditingProfile}
+                      className={cn(
+                        "bg-[#FDFBF7] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] font-bold transition-all",
+                        !isEditingProfile && "opacity-60 cursor-not-allowed border-transparent bg-transparent"
+                      )} 
+                    />
+                 </div>
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">E-mail (Acesso)</label>
+                    <Input 
+                      value={profile?.email || ''}
+                      readOnly
+                      className="bg-transparent border-transparent opacity-60 cursor-not-allowed h-12 rounded-xl text-[#2C2825] font-bold"
+                    />
+                 </div>
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Nível de Permissão</label>
+                    <Input 
+                      value={profile?.role === 'admin' ? 'Administrador' : profile?.role === 'chefe' ? 'Chefe/Sócio' : 'Funcionário'}
+                      readOnly
+                      className="bg-transparent border-transparent opacity-60 cursor-not-allowed h-12 rounded-xl text-[#2C2825] font-bold"
+                    />
+                 </div>
+              </CardContent>
+            </Card>
+          ) : activeTab === 'clinic' ? (
             <>
               {/* Company Section */}
               <Card className="bg-white border-[#E5E0D8] rounded-3xl overflow-hidden shadow-sm">
@@ -399,10 +586,11 @@ export default function SettingsClient() {
                       <div className="flex items-center gap-4">
                          {isEditingCompany ? (
                             <Button 
-                               onClick={() => setIsEditingCompany(false)}
+                               onClick={handleSaveCompany}
+                               disabled={savingCompany}
                                className="bg-[#D4AF37] hover:bg-[#B5952F] text-white font-bold rounded-xl h-10 px-6 active:scale-[0.98] transition-all"
                             >
-                               Salvar Alterações
+                               {savingCompany ? "Salvando..." : "Salvar Alterações"}
                             </Button>
                          ) : (
                             <Button 
@@ -418,50 +606,55 @@ export default function SettingsClient() {
                   </div>
                 </CardHeader>
                 <CardContent className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Nome Fantasia</label>
-                      <Input 
-                        defaultValue="Clinica Jamily Premium" 
-                        readOnly={!isEditingCompany}
-                        className={cn(
-                          "bg-[#FDFBF7] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] font-bold transition-all",
-                          !isEditingCompany && "opacity-60 cursor-not-allowed border-transparent bg-transparent"
-                        )} 
-                      />
-                   </div>
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Telefone Principal</label>
-                      <Input 
-                        defaultValue="(11) 98765-4321" 
-                        readOnly={!isEditingCompany}
-                        className={cn(
-                          "bg-[#FDFBF7] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] font-bold transition-all",
-                          !isEditingCompany && "opacity-60 cursor-not-allowed border-transparent bg-transparent"
-                        )} 
-                      />
-                   </div>
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">CNPJ / CPF Especialista</label>
-                      <Input 
-                        placeholder="00.000.000/0001-00" 
-                        readOnly={!isEditingCompany}
-                        className={cn(
-                          "bg-[#FDFBF7] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] font-bold transition-all",
-                          !isEditingCompany && "opacity-60 cursor-not-allowed border-transparent bg-transparent"
-                        )} 
-                      />
-                   </div>
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Cidade / Estado</label>
-                      <Input 
-                        defaultValue="São Paulo, SP" 
-                        readOnly={!isEditingCompany}
-                        className={cn(
-                          "bg-[#FDFBF7] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] font-bold transition-all",
-                          !isEditingCompany && "opacity-60 cursor-not-allowed border-transparent bg-transparent"
-                        )} 
-                      />
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Nome Fantasia</label>
+                       <Input 
+                         value={companyForm.name} 
+                         onChange={(e) => setCompanyForm(prev => ({ ...prev, name: e.target.value }))}
+                         readOnly={!isEditingCompany}
+                         className={cn(
+                           "bg-[#FDFBF7] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] font-bold transition-all",
+                           !isEditingCompany && "opacity-60 cursor-not-allowed border-transparent bg-transparent"
+                         )} 
+                       />
                     </div>
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Telefone Principal</label>
+                       <Input 
+                         value={companyForm.phone} 
+                         onChange={(e) => setCompanyForm(prev => ({ ...prev, phone: e.target.value }))}
+                         readOnly={!isEditingCompany}
+                         className={cn(
+                           "bg-[#FDFBF7] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] font-bold transition-all",
+                           !isEditingCompany && "opacity-60 cursor-not-allowed border-transparent bg-transparent"
+                         )} 
+                       />
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">CNPJ / CPF Especialista</label>
+                       <Input 
+                         placeholder="00.000.000/0001-00" 
+                         value={companyForm.cnpj} 
+                         onChange={(e) => setCompanyForm(prev => ({ ...prev, cnpj: e.target.value }))}
+                         readOnly={!isEditingCompany}
+                         className={cn(
+                           "bg-[#FDFBF7] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] font-bold transition-all",
+                           !isEditingCompany && "opacity-60 cursor-not-allowed border-transparent bg-transparent"
+                         )} 
+                       />
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Cidade / Estado</label>
+                       <Input 
+                         value={companyForm.cityState} 
+                         onChange={(e) => setCompanyForm(prev => ({ ...prev, cityState: e.target.value }))}
+                         readOnly={!isEditingCompany}
+                         className={cn(
+                           "bg-[#FDFBF7] border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] font-bold transition-all",
+                           !isEditingCompany && "opacity-60 cursor-not-allowed border-transparent bg-transparent"
+                         )} 
+                       />
+                     </div>
                                      {/* Branding Area */}
                      <div className="col-span-full space-y-6 pt-8 border-t border-[#E5E0D8]">
                        <div className="flex items-center gap-2 mb-2">

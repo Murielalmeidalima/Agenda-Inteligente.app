@@ -1,8 +1,34 @@
+'use client';
+
 import { Bell, Search } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage, Button } from '@projeto/ui';
 import NotificationBell from './notification-bell';
+import { useProfile } from '@/providers/profile-provider';
 
 export function Header() {
+  const { profile } = useProfile();
+
+  const getInitials = (name: string | null | undefined): string => {
+    if (!name) return '?';
+    const parts = name.trim().split(' ');
+    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  };
+
+  const getRoleLabel = (role?: string) => {
+    if (!role) return 'Usuário';
+    const roles: Record<string, string> = {
+      admin: 'Administrador(a)',
+      chefe: 'Sócio/Chefe',
+      funcionario: 'Funcionário(a)',
+      recepcao: 'Recepção',
+      financeiro: 'Financeiro',
+      professional: 'Profissional',
+      receptionist: 'Recepcionista'
+    };
+    return roles[role] || role;
+  };
+
   return (
     <header className="h-20 bg-background/80 backdrop-blur-xl border-b border-border px-8 flex items-center justify-between sticky top-0 z-10 transition-colors duration-300">
       {/* Search Bar - Modern & Minimal */}
@@ -24,14 +50,24 @@ export function Header() {
         
         <div className="flex items-center gap-4 pl-2 group cursor-pointer">
           <div className="text-right hidden lg:block">
-            <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">Jamily Guimarães</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-tighter font-bold">Administradora</p>
+            <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+              {profile?.full_name || 'Usuário'}
+            </p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-tighter font-bold">
+              {getRoleLabel(profile?.role)}
+            </p>
           </div>
           <div className="relative">
              <div className="absolute inset-0 bg-primary rounded-full blur-md opacity-0 group-hover:opacity-20 transition-opacity" />
              <Avatar className="h-10 w-10 border-2 border-border group-hover:border-primary/50 transition-colors relative z-10">
-               <AvatarImage src="" />
-               <AvatarFallback className="bg-gradient-to-br from-[#D4AF37] to-[#B5952F] text-white font-bold">J</AvatarFallback>
+               {profile?.companies?.logo_url ? (
+                 <AvatarImage src={profile.companies.logo_url} alt={profile.full_name || 'Avatar'} className="object-cover" />
+               ) : (
+                 <AvatarImage src="" />
+               )}
+               <AvatarFallback className="bg-gradient-to-br from-[#D4AF37] to-[#B5952F] text-white font-bold">
+                 {getInitials(profile?.full_name)}
+               </AvatarFallback>
              </Avatar>
           </div>
         </div>
@@ -39,3 +75,4 @@ export function Header() {
     </header>
   );
 }
+
