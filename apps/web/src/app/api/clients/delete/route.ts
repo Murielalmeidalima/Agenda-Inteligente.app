@@ -1,9 +1,20 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { createServerClient } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
+import { rateLimit, RATE_LIMITS, createRateLimitHeaders } from '@/lib/rate-limit';
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const rateLimitResult = rateLimit(req, RATE_LIMITS.PER_MINUTE);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: 'Muitas requisições de exclusão de cliente. Tente novamente mais tarde.' },
+        { 
+          status: 429,
+          headers: createRateLimitHeaders(rateLimitResult),
+        }
+      );
+    }
     const userSupabase = createServerClient();
     const { data: { session }, error: sessionErr } = await userSupabase.auth.getSession();
 

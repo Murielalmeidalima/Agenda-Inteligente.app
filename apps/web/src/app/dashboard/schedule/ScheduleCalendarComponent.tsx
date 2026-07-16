@@ -54,6 +54,11 @@ interface ScheduleCalendarProps {
   blockHolidays: boolean;
   professionals?: any[];
   procedures?: any[];
+  currentDate: Date;
+  setCurrentDate: (date: Date) => void;
+  view: CalendarViewType;
+  setView: (view: CalendarViewType) => void;
+  loading?: boolean;
 }
 
 // ----------------------------------------------------------------------
@@ -69,11 +74,13 @@ export default function ScheduleCalendarComponent({
   onOpenBlocks,
   blockHolidays,
   professionals = [],
-  procedures = []
+  procedures = [],
+  currentDate,
+  setCurrentDate,
+  view,
+  setView,
+  loading = false
 }: ScheduleCalendarProps) {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [view, setView] = useState<CalendarViewType>('week');
-
   const isDateInPast = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -86,7 +93,7 @@ export default function ScheduleCalendarComponent({
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
       setView('day');
     }
-  }, []);
+  }, [setView]);
 
   const [filterPaymentStatus, setFilterPaymentStatus] = useState<string>('all');
   const [filterProfessional, setFilterProfessional] = useState<string>('all');
@@ -165,7 +172,10 @@ export default function ScheduleCalendarComponent({
   };
 
   return (
-    <div className="flex flex-col h-full space-y-6 animate-fade-in group/calendar">
+    <div className="flex flex-col h-full space-y-6 animate-fade-in group/calendar relative">
+      {loading && (
+        <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500 animate-pulse rounded-full z-50" />
+      )}
       {/* Calendar Header */}
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div className="flex items-center gap-6 text-slate-800">
@@ -288,7 +298,7 @@ export default function ScheduleCalendarComponent({
         </div>
 
         {/* Quick Filter Bar */}
-        <div className="flex items-center gap-2.5 w-full overflow-x-auto pb-2 scrollbar-none whitespace-nowrap md:overflow-x-visible md:pb-0 md:w-auto">
+        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
           <div className="text-[9px] font-black text-[#8A847C] uppercase tracking-widest flex items-center gap-1 mr-1">
             <Filter className="h-3.5 w-3.5 text-[#D4AF37]" />
             Filtrar:

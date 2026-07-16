@@ -21,7 +21,11 @@ export async function POST(request: NextRequest) {
 
     if (appError || !appointment) throw new Error('Agendamento não encontrado');
 
-    // 2. Se não exige anamnese, libera
+    // 2. Se for manutenção ou não exige anamnese, libera
+    if (appointment.is_maintenance) {
+        return NextResponse.json({ allow: true });
+    }
+
     const procedures = Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures;
     if (!procedures || !procedures.requires_anamnese) {
         return NextResponse.json({ allow: true });

@@ -385,8 +385,8 @@ export default function AnalyticsPage() {
             )}
           </CardHeader>
           <CardContent className="p-0">
-            <div className="grid grid-cols-1 md:grid-cols-12">
-               <div className="md:col-span-8 p-10 border-r border-slate-50">
+            <div className="grid grid-cols-1 lg:grid-cols-12">
+               <div className="lg:col-span-8 p-6 sm:p-10 border-b lg:border-b-0 lg:border-r border-slate-50">
                   {data.clientRanking.length > 0 ? (
                     <div className="space-y-8">
                        {data.clientRanking.map((client, idx) => (
@@ -429,7 +429,7 @@ export default function AnalyticsPage() {
                     <EmptyState message="Nenhum dado de cliente no período" />
                   )}
                </div>
-               <div className="md:col-span-4 bg-slate-50/30 p-10 flex flex-col justify-center gap-10">
+               <div className="lg:col-span-4 bg-slate-50/30 p-6 sm:p-10 flex flex-col justify-center gap-6 sm:gap-10">
                   <div className="space-y-4">
                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
                         <Activity className="h-3 w-3 text-rose-500" /> Retenção Média

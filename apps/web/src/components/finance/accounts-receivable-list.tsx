@@ -250,8 +250,9 @@ export function AccountsReceivableList({ companyId }: AccountsReceivableListProp
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-[2rem] overflow-hidden shadow-sm">
-        <Table>
+      <div className="bg-white border border-slate-100 rounded-2xl sm:rounded-[2rem] overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+        <Table className="min-w-[700px]">
           <TableHeader className="bg-slate-50/80 border-b border-slate-100">
             <TableRow className="hover:bg-transparent border-none">
               <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest py-5 pl-8">Data</TableHead>
@@ -356,6 +357,7 @@ export function AccountsReceivableList({ companyId }: AccountsReceivableListProp
             )}
           </TableBody>
         </Table>
+      </div>
       </div>
     </div>
   );

@@ -33,6 +33,20 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           )}
           ref={ref}
           {...props}
+          onChange={(e) => {
+            if (type === 'number' || props.inputMode === 'numeric' || props.inputMode === 'decimal') {
+              const val = e.target.value;
+              const cleanVal = val.replace(/^(-)?0+(?=\d)/, '$1');
+              e.target.value = cleanVal;
+            }
+            props.onChange?.(e);
+          }}
+          onFocus={(e) => {
+            if (type === 'number' || props.inputMode === 'numeric' || props.inputMode === 'decimal') {
+              e.target.select();
+            }
+            props.onFocus?.(e);
+          }}
         />
         {error && (
           <p className="mt-1.5 text-xs text-red-600">{error}</p>

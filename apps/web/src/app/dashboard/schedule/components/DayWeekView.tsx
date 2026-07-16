@@ -10,7 +10,8 @@ import {
 import { ptBR } from 'date-fns/locale';
 import { 
   Plus, 
-  Clock
+  Clock,
+  ShieldAlert
 } from 'lucide-react';
 import { cn } from '@projeto/ui';
 import { Appointment } from '@/types/database';
@@ -74,7 +75,7 @@ export const DayWeekView = ({
 
       // 1. Feriados
       if (block.type === 'holiday') {
-        const holidayDateStr = block.date_str || format(new Date(block.start_date), 'yyyy-MM-dd');
+        const holidayDateStr = block.date_str || block.start_date.substring(0, 10);
         return dateStr === holidayDateStr;
       }
 
@@ -86,8 +87,8 @@ export const DayWeekView = ({
       }
 
       // 3. Manual / Férias
-      const startStr = format(new Date(block.start_date), 'yyyy-MM-dd');
-      const endStr = block.end_date ? format(new Date(block.end_date), 'yyyy-MM-dd') : startStr;
+      const startStr = block.start_date.substring(0, 10);
+      const endStr = block.end_date ? block.end_date.substring(0, 10) : startStr;
 
       if (dateStr >= startStr && dateStr <= endStr) {
         if (block.is_full_day) return true;
@@ -98,7 +99,7 @@ export const DayWeekView = ({
     });
 
     if (found) {
-      const isBlocking = found.type === 'holiday' ? blockHolidays : true;
+      const isBlocking = blockHolidays;
       return { ...found, isBlocking };
     }
     return null;
@@ -150,7 +151,7 @@ export const DayWeekView = ({
       <div 
         className={cn(
           "grid flex-1 min-w-0",
-          view === 'day' ? "grid-cols-1" : "grid-cols-7 min-w-[950px] md:min-w-0"
+          view === 'day' ? "grid-cols-1" : "grid-cols-7 min-w-[950px] lg:min-w-0"
         )}
       >
         {visibleDays.map((day) => (
@@ -243,11 +244,15 @@ export const DayWeekView = ({
                 const blockedInfo = checkIsBlocked(startOfDay(day));
                 if (blockedInfo && blockedInfo.is_full_day && blockedInfo.isBlocking) {
                   return (
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-red-50/20 backdrop-blur-[1px] p-4 text-center pointer-events-none">
-                       <div className="bg-white/80 border border-red-100 p-4 rounded-2xl shadow-sm animate-in zoom-in-95 fade-in duration-300">
-                          <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-1">Não haverá atendimento</p>
-                          <p className="text-sm font-black text-red-600 leading-tight italic">{blockedInfo.title}</p>
+                    <div className="absolute inset-x-0 bottom-0 top-14 z-20 flex flex-col items-center justify-center bg-[#FAF6E9]/95 border-l border-r border-[#E5E0D8]/40 p-4 text-center animate-in fade-in duration-200">
+                       <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 mb-3 shadow-inner">
+                         <ShieldAlert className="h-5 w-5" />
                        </div>
+                       <p className="text-[10px] font-black text-red-600 uppercase tracking-widest mb-1">Dia Bloqueado</p>
+                       <p className="text-xs font-black text-neutral-700 leading-snug max-w-[140px] mb-2">{blockedInfo.title}</p>
+                       {blockedInfo.notes && (
+                         <p className="text-[9px] text-neutral-400 italic max-w-[120px]">{blockedInfo.notes}</p>
+                       )}
                     </div>
                   );
                 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ScheduleCalendar from './ScheduleCalendarComponent';
 import { 
   Dialog, 
@@ -16,7 +16,9 @@ import {
   SelectContent,
   SelectItem,
   Label,
-  TextArea
+  TextArea,
+  SearchableSelect,
+  cn
 } from '@projeto/ui';
 import { Appointment } from '@/types/database';
 import { createBrowserClient } from '@/lib/supabase-browser';
@@ -26,27 +28,49 @@ import { EditAppointmentModal } from './edit-appointment-modal';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BlockDaysModal } from './components/BlockDaysModal';
 import { showToast } from '@/lib/toast-helpers';
-import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { isWithinInterval, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from 'date-fns';
+import { useProfile } from '@/providers/profile-provider';
 
 interface ScheduleCalendarClientProps {
   initialAppointments: any[];
   clients: { id: string, full_name: string, phone?: string }[];
-  procedures: { id: string, name: string, duration_minutes: number, price: number }[];
+  procedures: { 
+    id: string; 
+    name: string; 
+    duration_minutes: number; 
+    price: number;
+    maintenance_required?: boolean;
+    maintenance_days_limit?: number;
+    maintenance_period_unit?: string;
+    maintenance_duration_minutes?: number;
+    maintenance_price?: number;
+  }[];
   professionals: { id: string, full_name: string }[];
   companyId: string;
 }
 
 export default function ScheduleCalendarClient({
   initialAppointments,
-  clients,
-  procedures,
-  professionals,
+  clients: initialClients = [],
+  procedures: initialProcedures = [],
+  professionals: initialProfessionals = [],
   companyId
 }: ScheduleCalendarClientProps) {
   const router = useRouter();
+  const { profile } = useProfile();
   const searchParams = useSearchParams();
   const filterParam = searchParams.get('filter');
   const [isOnlyMaintenance, setIsOnlyMaintenance] = useState(filterParam === 'maintenance');
+
+  // Promotions and Discount states
+  const [promotions, setPromotions] = useState<any[]>([]);
+  const [receptionistLimit, setReceptionistLimit] = useState<{ type: 'value' | 'percentage', limit: number } | null>(null);
+  const [isMaintenance, setIsMaintenance] = useState(false);
+  const [discountMethod, setDiscountMethod] = useState<'percentage' | 'value'>('percentage');
+  const [discountName, setDiscountName] = useState('');
+  const [discountValue, setDiscountValue] = useState('');
+  const [discountPercentage, setDiscountPercentage] = useState('');
+  const [discountNotes, setDiscountNotes] = useState('');
 
   useEffect(() => {
     if (filterParam === 'maintenance') {
@@ -56,16 +80,81 @@ export default function ScheduleCalendarClient({
     }
   }, [filterParam]);
 
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [view, setView] = useState<'day' | 'week' | 'month'>('week');
   const [appointments, setAppointments] = useState(initialAppointments);
+  const [loading, setLoading] = useState(false);
+  const cacheRef = useRef<Record<string, any[]>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [slotInterval, setSlotInterval] = useState<number>(30);
   
-  // local client list state to allow inline client registration
-  const [localClients, setLocalClients] = useState(clients);
+  const [localClients, setLocalClients] = useState<any[]>(initialClients || []);
+  const [localProcedures, setLocalProcedures] = useState<any[]>(initialProcedures || []);
+  const [localProfessionals, setLocalProfessionals] = useState<any[]>(initialProfessionals || []);
+
+  const clients = localClients;
+  const procedures = localProcedures;
+  const professionals = localProfessionals;
+
   useEffect(() => {
-    setLocalClients(clients);
-  }, [clients]);
+    if (typeof window !== 'undefined') {
+      const cachedClients = localStorage.getItem('calendar_clients_cache');
+      const cachedProcedures = localStorage.getItem('calendar_procedures_cache');
+      const cachedProfessionals = localStorage.getItem('calendar_professionals_cache');
+      
+      if (cachedClients) {
+        try { setLocalClients(JSON.parse(cachedClients)); } catch (e) {}
+      }
+      if (cachedProcedures) {
+        try { setLocalProcedures(JSON.parse(cachedProcedures)); } catch (e) {}
+      }
+      if (cachedProfessionals) {
+        try { setLocalProfessionals(JSON.parse(cachedProfessionals)); } catch (e) {}
+      }
+    }
+
+    async function loadMetadata() {
+      try {
+        const supabase = createBrowserClient();
+        const [clientsRes, proceduresRes, professionalsRes] = await Promise.all([
+          supabase
+            .from('clients')
+            .select('id, full_name, birth_date, phone')
+            .eq('company_id', companyId)
+            .order('full_name'),
+          supabase
+            .from('procedures')
+            .select('id, name, duration_minutes, price, maintenance_required, maintenance_days_limit, maintenance_period_unit, maintenance_duration_minutes, maintenance_price')
+            .eq('company_id', companyId)
+            .order('name'),
+          supabase
+            .from('profiles')
+            .select('id, full_name')
+            .eq('company_id', companyId)
+            .in('role', ['admin', 'professional'])
+            .order('full_name')
+        ]);
+
+        if (clientsRes.data) {
+          setLocalClients(clientsRes.data);
+          localStorage.setItem('calendar_clients_cache', JSON.stringify(clientsRes.data));
+        }
+        if (proceduresRes.data) {
+          setLocalProcedures(proceduresRes.data);
+          localStorage.setItem('calendar_procedures_cache', JSON.stringify(proceduresRes.data));
+        }
+        if (professionalsRes.data) {
+          setLocalProfessionals(professionalsRes.data);
+          localStorage.setItem('calendar_professionals_cache', JSON.stringify(professionalsRes.data));
+        }
+      } catch (err) {
+        console.error('Error fetching calendar metadata:', err);
+      }
+    }
+
+    loadMetadata();
+  }, [companyId]);
 
   // inline client registration states
   const [isCreatingClient, setIsCreatingClient] = useState(false);
@@ -98,8 +187,8 @@ export default function ScheduleCalendarClient({
   };
 
   useEffect(() => {
-    setAppointments(initialAppointments);
-  }, [initialAppointments]);
+    fetchLatestAppointments();
+  }, [currentDate, view]);
 
   const [formData, setFormData] = useState({
     clientId: '',
@@ -155,6 +244,104 @@ export default function ScheduleCalendarClient({
   const calculatedTotalDuration = selectedProceduresList.reduce((sum, p) => sum + p.duration_minutes, 0);
   const calculatedTotalPrice = selectedProceduresList.reduce((sum, p) => sum + p.price, 0);
 
+  const calculatePrices = () => {
+    const mainProc = procedures.find(p => p.id === formData.procedureId);
+    
+    if (!mainProc) {
+      return {
+        originalBasePrice: 0,
+        suggestedBasePrice: 0,
+        manualDiscountVal: 0,
+        finalPrice: 0,
+        ruleApplied: 'original_price',
+        ruleAppliedDetails: 'Nenhum procedimento selecionado'
+      };
+    }
+
+    let originalBasePrice = Number(mainProc.price || 0);
+    let suggestedBasePrice = originalBasePrice;
+    let ruleApplied = 'original_price';
+    let ruleAppliedDetails = 'Preço Original';
+
+    // Apply hierarchy:
+    // A. Maintenance Price (if checkbox is checked and maintenance_price is set)
+    if (isMaintenance && mainProc.maintenance_price && Number(mainProc.maintenance_price) > 0) {
+      suggestedBasePrice = Number(mainProc.maintenance_price);
+      ruleApplied = 'maintenance';
+      ruleAppliedDetails = `Preço de Retorno/Manutenção (R$ ${suggestedBasePrice.toFixed(2)})`;
+    } 
+    // B. Promotion Price (if there is an active promotion valid on the selected date)
+    else if (formData.startTime) {
+      const startDT = new Date(formData.startTime);
+      const activePromo = promotions.find(p => {
+        if (p.procedure_id !== mainProc.id || !p.is_active) return false;
+        const start = new Date(p.start_date);
+        const end = new Date(p.end_date);
+        return startDT >= start && startDT <= end;
+      });
+
+      if (activePromo) {
+        ruleApplied = 'promotion';
+        if (activePromo.type === 'value') {
+          suggestedBasePrice = Number(activePromo.value);
+          ruleAppliedDetails = `Promoção: ${activePromo.name} (Preço Fixo R$ ${suggestedBasePrice.toFixed(2)})`;
+        } else {
+          const discountAmt = originalBasePrice * (Number(activePromo.value) / 100);
+          suggestedBasePrice = Math.max(0, originalBasePrice - discountAmt);
+          ruleAppliedDetails = `Promoção: ${activePromo.name} (${activePromo.value}% desc. - R$ ${suggestedBasePrice.toFixed(2)})`;
+        }
+      }
+    }
+
+    // Now add additional procedures to the calculation
+    let additionalProceduresTotal = 0;
+    additionalProcedureIds.forEach(id => {
+      const extraProc = procedures.find(p => p.id === id);
+      if (extraProc) {
+        additionalProceduresTotal += Number(extraProc.price || 0);
+        originalBasePrice += Number(extraProc.price || 0);
+      }
+    });
+
+    const totalSuggestedPrice = suggestedBasePrice + additionalProceduresTotal;
+
+    // Apply manual discounts
+    let manualDiscountVal = 0;
+    if (discountName || discountValue || discountPercentage) {
+      if (discountMethod === 'value' && discountValue) {
+        manualDiscountVal = parseFloat(discountValue.replace(',', '.')) || 0;
+      } else if (discountMethod === 'percentage' && discountPercentage) {
+        const pct = parseFloat(discountPercentage.replace(',', '.')) || 0;
+        manualDiscountVal = totalSuggestedPrice * (pct / 100);
+      }
+    }
+
+    const finalPrice = Math.max(0, totalSuggestedPrice - manualDiscountVal);
+
+    return {
+      originalBasePrice,
+      suggestedBasePrice: totalSuggestedPrice,
+      manualDiscountVal,
+      finalPrice,
+      ruleApplied,
+      ruleAppliedDetails
+    };
+  };
+
+  const handleDiscountValueChange = (val: string) => {
+    if (val === '' || /^[0-9]*[.,]?[0-9]*$/.test(val)) {
+      setDiscountValue(val);
+      setDiscountPercentage('');
+    }
+  };
+
+  const handleDiscountPercentageChange = (val: string) => {
+    if (val === '' || /^[0-9]*[.,]?[0-9]*$/.test(val)) {
+      setDiscountPercentage(val);
+      setDiscountValue('');
+    }
+  };
+
   // Edit Modal State
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -166,6 +353,21 @@ export default function ScheduleCalendarClient({
   const [showHolidays, setShowHolidays] = useState(false);
   const [blockHolidays, setBlockHolidays] = useState(false);
 
+  const fetchPromotions = async () => {
+    try {
+      const supabase = createBrowserClient();
+      const { data, error } = await supabase
+        .from('procedure_promotions')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('is_active', true);
+      if (error) throw error;
+      setPromotions(data || []);
+    } catch (err) {
+      console.error('Error fetching promotions:', err);
+    }
+  };
+
   const fetchSettings = async () => {
     const supabase = createBrowserClient();
     const { data } = await supabase
@@ -176,10 +378,39 @@ export default function ScheduleCalendarClient({
     if (data?.settings) {
       setShowHolidays(data.settings.show_holidays || false);
       setBlockHolidays(data.settings.block_holidays || false);
+      if (data.settings.receptionist_discount_limit) {
+        setReceptionistLimit(data.settings.receptionist_discount_limit);
+      } else {
+        setReceptionistLimit({ type: 'percentage', limit: 15 });
+      }
+    } else {
+      setReceptionistLimit({ type: 'percentage', limit: 15 });
     }
   };
 
-  const fetchLatestAppointments = async () => {
+  const fetchLatestAppointments = async (bypassCache = false) => {
+    // Calculate date range based on view
+    let start = startOfDay(currentDate);
+    let end = endOfDay(currentDate);
+    
+    if (view === 'week') {
+      const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
+      start = startOfDay(weekStart);
+      end = endOfDay(addDays(weekStart, 6));
+    } else if (view === 'month') {
+      const monthStart = startOfMonth(currentDate);
+      const monthEnd = endOfMonth(currentDate);
+      start = startOfWeek(monthStart, { weekStartsOn: 0 });
+      end = endOfWeek(monthEnd, { weekStartsOn: 0 });
+    }
+
+    const cacheKey = `${start.toISOString()}_${end.toISOString()}`;
+    if (!bypassCache && cacheRef.current[cacheKey]) {
+      setAppointments(cacheRef.current[cacheKey]);
+      return;
+    }
+
+    setLoading(true);
     try {
       const supabase = createBrowserClient();
       const { data: appData, error: appError } = await supabase
@@ -187,10 +418,12 @@ export default function ScheduleCalendarClient({
         .select(`
           *,
           clients!inner(full_name, birth_date),
-          procedures!inner(name, color, duration_minutes, price, maintenance_required, maintenance_days_limit, maintenance_period_unit, maintenance_duration_minutes),
+          procedures!inner(name, color, duration_minutes, price, maintenance_required, maintenance_days_limit, maintenance_period_unit, maintenance_duration_minutes, maintenance_price),
           profiles:professional_id(full_name)
         `)
-        .eq('company_id', companyId);
+        .eq('company_id', companyId)
+        .gte('start_time', start.toISOString())
+        .lte('start_time', end.toISOString());
 
       if (appError) throw appError;
 
@@ -250,9 +483,12 @@ export default function ScheduleCalendarClient({
         };
       }) || [];
 
+      cacheRef.current[cacheKey] = hydrated;
       setAppointments(hydrated);
     } catch (err) {
       console.error('Error fetching latest appointments:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -262,8 +498,14 @@ export default function ScheduleCalendarClient({
       const nextYear = currentYear + 1;
       
       const fetchYear = async (y: number) => {
-        const response = await fetch(`https://brasilapi.com.br/api/feriados/v1/${y}`);
-        return await response.json();
+        try {
+          const response = await fetch(`https://brasilapi.com.br/api/feriados/v1/${y}`);
+          if (!response.ok) return [];
+          return await response.json();
+        } catch (e) {
+          console.error(`Failed to fetch holidays for year ${y}:`, e);
+          return [];
+        }
       };
 
       const [dataCurrent, dataNext] = await Promise.all([fetchYear(currentYear), fetchYear(nextYear)]);
@@ -300,12 +542,16 @@ export default function ScheduleCalendarClient({
     fetchBlocks();
     fetchSettings();
     fetchHolidays();
+    fetchPromotions();
   }, [companyId]);
 
   const handleNewAppointment = (date: Date) => {
     // block scheduling in the past
     const now = new Date();
-    if (date < new Date(now.getTime() - 2 * 60 * 1000)) {
+    // Allow if it is the same day (today) or in the future
+    const isPastDay = startOfDay(date) < startOfDay(now);
+    
+    if (isPastDay) {
       showToast.error(
         'Operação não permitida', 
         'Não é possível criar um agendamento em uma data ou horário que já passou. Caso este atendimento tenha sido realizado sem agendamento prévio, utilize a opção \'Lançar Atendimento\'.'
@@ -369,6 +615,9 @@ export default function ScheduleCalendarClient({
   };
 
   const checkIsBlocked = (date: Date) => {
+    // Se o interruptor mestre estiver desligado, nenhum bloqueio é aplicado
+    if (!blockHolidays) return undefined;
+
     const dayOfWeek = date.getDay();
     const dateStr = format(date, 'yyyy-MM-dd');
     const currentTime = format(date, 'HH:mm');
@@ -379,11 +628,8 @@ export default function ScheduleCalendarClient({
 
       // 1. Feriados (BrasilAPI usa formato 'yyyy-MM-dd')
       if (block.type === 'holiday') {
-        const holidayDateStr = block.date_str || format(new Date(block.start_date), 'yyyy-MM-dd');
-        const matches = dateStr === holidayDateStr;
-        // Se for feriado e não estivermos bloqueando, mostramos mas não bloqueamos
-        if (matches && !blockHolidays) return false;
-        return matches;
+        const holidayDateStr = block.date_str || block.start_date.substring(0, 10);
+        return dateStr === holidayDateStr;
       }
 
       // 2. Recorrente (Semanal)
@@ -394,13 +640,11 @@ export default function ScheduleCalendarClient({
       }
 
       // 3. Manual / Férias
-      const startStr = format(new Date(block.start_date), 'yyyy-MM-dd');
-      const endStr = block.end_date ? format(new Date(block.end_date), 'yyyy-MM-dd') : startStr;
+      const startStr = block.start_date.substring(0, 10);
+      const endStr = block.end_date ? block.end_date.substring(0, 10) : startStr;
 
       if (dateStr >= startStr && dateStr <= endStr) {
         if (block.is_full_day) return true;
-        
-        // Bloqueio parcial apenas se o dia for o dia atual do loop
         return currentTime >= (block.start_time || '00:00') && currentTime <= (block.end_time || '23:59');
       }
 
@@ -447,6 +691,40 @@ export default function ScheduleCalendarClient({
           setIsSubmitting(false);
           return;
         }
+
+        // Check if any part of the appointment overlaps with a schedule block
+        let checkTime = new Date(start.getTime());
+        let overlapsBlock = false;
+        let blockedBlockObj: any = null;
+        
+        while (checkTime < end) {
+          const blocked = checkIsBlocked(checkTime);
+          if (blocked) {
+            overlapsBlock = true;
+            blockedBlockObj = blocked;
+            break;
+          }
+          checkTime = new Date(checkTime.getTime() + 15 * 60 * 1000);
+        }
+        
+        // Also check exact end boundary
+        if (!overlapsBlock) {
+          const blockedEnd = checkIsBlocked(new Date(end.getTime() - 1000));
+          if (blockedEnd) {
+            overlapsBlock = true;
+            blockedBlockObj = blockedEnd;
+          }
+        }
+        
+        if (overlapsBlock) {
+          if (blockedBlockObj?.is_full_day) {
+            showToast.error('Erro', 'Esta data foi bloqueada pela clínica e não está disponível para novos agendamentos.');
+          } else {
+            showToast.error('Erro', 'O horário selecionado está indisponível devido a um bloqueio da agenda.');
+          }
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       // Bypass conflict checks for completed launched appointments
@@ -465,7 +743,30 @@ export default function ScheduleCalendarClient({
         throw new Error('Conflito de Horário');
       }
 
-      const priceVal = isLaunching ? Number(launchingPrice) : calculatedTotalPrice;
+      const prices = calculatePrices();
+      
+      // Receptionist discount limit check
+      if (profile?.role !== 'admin' && profile?.role !== 'chefe' && (discountValue || discountPercentage) && prices.manualDiscountVal > 0) {
+        const limitType = receptionistLimit?.type || 'percentage';
+        const limitVal = receptionistLimit?.limit || 15;
+        
+        if (limitType === 'percentage') {
+          const pct = (prices.manualDiscountVal / prices.suggestedBasePrice) * 100;
+          if (pct > limitVal) {
+            showToast.error('Limite de Desconto Excedido', `O limite de desconto configurado para recepcionistas é de ${limitVal}%.`);
+            setIsSubmitting(false);
+            return;
+          }
+        } else if (limitType === 'value') {
+          if (prices.manualDiscountVal > limitVal) {
+            showToast.error('Limite de Desconto Excedido', `O limite de desconto configurado para recepcionistas é de R$ ${limitVal.toFixed(2)}.`);
+            setIsSubmitting(false);
+            return;
+          }
+        }
+      }
+
+      const priceVal = isLaunching ? (Number(launchingPrice) || prices.finalPrice) : prices.finalPrice;
 
       const { data, error } = await supabase
         .from('appointments')
@@ -479,7 +780,15 @@ export default function ScheduleCalendarClient({
           start_time: start.toISOString(),
           end_time: end.toISOString(),
           notes: formData.notes,
-          status: isLaunching ? 'completed' : 'scheduled'
+          status: isLaunching ? 'completed' : 'scheduled',
+          original_price: prices.originalBasePrice,
+          discount_type: discountMethod || null,
+          discount_name: discountName || null,
+          discount_value: prices.manualDiscountVal || null,
+          discount_percentage: discountPercentage ? parseFloat(discountPercentage.replace(',', '.')) : null,
+          discount_notes: discountNotes || null,
+          rule_applied: prices.ruleApplied,
+          is_maintenance: isMaintenance
         })
         .select(`
           *,
@@ -578,7 +887,7 @@ export default function ScheduleCalendarClient({
 
       // Refresh the page data from server to get all hydrated properties properly
       router.refresh();
-      fetchLatestAppointments();
+      fetchLatestAppointments(true);
       
       setIsModalOpen(false);
       setFormData({
@@ -641,6 +950,11 @@ export default function ScheduleCalendarClient({
         blockHolidays={blockHolidays}
         professionals={professionals}
         procedures={procedures}
+        currentDate={currentDate}
+        setCurrentDate={setCurrentDate}
+        view={view}
+        setView={setView}
+        loading={loading}
       />
 
       <EditAppointmentModal 
@@ -652,7 +966,7 @@ export default function ScheduleCalendarClient({
         clients={localClients}
         onUpdate={() => {
            router.refresh();
-           fetchLatestAppointments();
+           fetchLatestAppointments(true);
         }}
       />
 
@@ -699,16 +1013,60 @@ export default function ScheduleCalendarClient({
           </DialogHeader>
           
           <form onSubmit={handleSaveAppointment} className="p-8 space-y-6">
+            {/* Barra de Atalhos Rápidos - Touch friendly & premium */}
+            <div className="bg-[#FAF9F6] border border-[#E5E0D8] rounded-2xl p-3.5 space-y-2">
+              <span className="text-[9px] font-black text-neutral-500 uppercase tracking-widest block ml-1">Ações e Atalhos Rápidos</span>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingClient(!isCreatingClient)}
+                  className={cn(
+                    "flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all active:scale-[0.98] h-16",
+                    isCreatingClient 
+                      ? "bg-rose-500 text-white border-rose-500 shadow-sm" 
+                      : "bg-white text-[#2C2825] border-[#E5E0D8] hover:bg-[#FAF6EE] hover:border-[#D4AF37]/45"
+                  )}
+                >
+                  <span className="text-lg mb-1">{isCreatingClient ? '❌' : '👤'}</span>
+                  <span className="text-[9px] font-black uppercase tracking-wider leading-none">
+                    {isCreatingClient ? 'Cancelar' : 'Novo Cliente'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsManualDateTime(!isManualDateTime)}
+                  className={cn(
+                    "flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all active:scale-[0.98] h-16",
+                    isManualDateTime 
+                      ? "bg-[#D4AF37] text-white border-[#D4AF37] shadow-sm" 
+                      : "bg-white text-[#2C2825] border-[#E5E0D8] hover:bg-[#FAF6EE] hover:border-[#D4AF37]/45"
+                  )}
+                >
+                  <span className="text-lg mb-1">✍️</span>
+                  <span className="text-[9px] font-black uppercase tracking-wider leading-none">Data Manual</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (formData.procedureId) {
+                      setAdditionalProcedureIds([...additionalProcedureIds, '']);
+                    } else {
+                      showToast.error('Selecione primeiro o procedimento principal');
+                    }
+                  }}
+                  className="flex flex-col items-center justify-center p-2.5 rounded-xl border bg-white text-[#2C2825] border-[#E5E0D8] hover:bg-[#FAF6EE] hover:border-[#D4AF37]/45 text-center transition-all active:scale-[0.98] h-16"
+                >
+                  <span className="text-lg mb-1">➕</span>
+                  <span className="text-[9px] font-black uppercase tracking-wider leading-none">Proced. Extra</span>
+                </button>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <div className="flex justify-between items-center ml-1">
                 <label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest">Cliente</label>
-                <button 
-                  type="button" 
-                  onClick={() => setIsCreatingClient(!isCreatingClient)}
-                  className="text-[9px] font-black text-[#D4AF37] uppercase tracking-wider hover:underline"
-                >
-                  {isCreatingClient ? '❌ Cancelar' : '➕ Novo Cliente'}
-                </button>
               </div>
               
               {isCreatingClient ? (
@@ -740,65 +1098,52 @@ export default function ScheduleCalendarClient({
                   </Button>
                 </div>
               ) : (
-                <Select 
-                  onValueChange={(val) => setFormData({...formData, clientId: val})}
+                <SearchableSelect
+                  options={localClients.map(c => ({ value: c.id, label: c.full_name }))}
                   value={formData.clientId}
-                >
-                  <SelectTrigger className="bg-white border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] focus:ring-primary-500/10">
-                    <SelectValue placeholder="Selecione o cliente" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-[#E5E0D8] text-[#2C2825]">
-                    {localClients.map(c => (
-                      <SelectItem key={c.id} value={c.id} className="hover:bg-primary-500/10 focus:bg-primary-500/10">{c.full_name}</SelectItem>
-                    ))}
-                    {localClients.length === 0 && (
-                       <div className="p-4 text-center text-xs text-neutral-600 italic">Nenhum cliente cadastrado</div>
-                    )}
-                  </SelectContent>
-                </Select>
+                  onChange={(val) => setFormData({...formData, clientId: val})}
+                  placeholder="Selecione o cliente"
+                  searchPlaceholder="Buscar por nome..."
+                />
               )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Procedimento</label>
-                <Select 
-                  onValueChange={(val) => setFormData({...formData, procedureId: val})}
+                <SearchableSelect
+                  options={procedures.map(p => ({ value: p.id, label: p.name }))}
                   value={formData.procedureId}
-                >
-                  <SelectTrigger className="bg-white border-[#E5E0D8] h-12 rounded-xl text-[#2C2825]">
-                    <SelectValue placeholder="O que fará?" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-[#E5E0D8] text-[#2C2825]">
-                    {procedures.map(p => (
-                      <SelectItem key={p.id} value={p.id} className="hover:bg-primary-500/10 focus:bg-primary-500/10">{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={(val) => {
+                    setFormData({...formData, procedureId: val});
+                    const proc = procedures.find(p => p.id === val);
+                    if (proc?.maintenance_required && proc?.maintenance_price && Number(proc.maintenance_price) > 0) {
+                      setIsMaintenance(true);
+                    } else {
+                      setIsMaintenance(false);
+                    }
+                  }}
+                  placeholder="O que fará?"
+                  searchPlaceholder="Buscar procedimento..."
+                />
 
                 {/* List of additional procedures */}
                 {additionalProcedureIds.map((extraId, idx) => (
                   <div key={idx} className="flex items-center gap-2 mt-2">
-                    <Select 
-                      onValueChange={(val) => {
+                    <SearchableSelect
+                      options={procedures
+                        .filter(p => p.id !== formData.procedureId && !additionalProcedureIds.includes(p.id) || p.id === extraId)
+                        .map(p => ({ value: p.id, label: p.name }))}
+                      value={extraId}
+                      onChange={(val) => {
                         const updated = [...additionalProcedureIds];
                         updated[idx] = val;
                         setAdditionalProcedureIds(updated);
                       }}
-                      value={extraId}
-                    >
-                      <SelectTrigger className="bg-white border-[#E5E0D8] h-12 rounded-xl text-[#2C2825] flex-1">
-                        <SelectValue placeholder="Outro procedimento..." />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border-[#E5E0D8] text-[#2C2825]">
-                        {procedures
-                          .filter(p => p.id !== formData.procedureId && !additionalProcedureIds.includes(p.id) || p.id === extraId)
-                          .map(p => (
-                            <SelectItem key={p.id} value={p.id} className="hover:bg-primary-500/10 focus:bg-primary-500/10">{p.name}</SelectItem>
-                          ))
-                        }
-                      </SelectContent>
-                    </Select>
+                      placeholder="Outro procedimento..."
+                      searchPlaceholder="Buscar procedimento..."
+                      className="flex-1"
+                    />
                     <Button 
                       type="button" 
                       variant="ghost" 
@@ -812,49 +1157,24 @@ export default function ScheduleCalendarClient({
                   </div>
                 ))}
 
-                {/* Add Procedure button */}
-                {formData.procedureId && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      setAdditionalProcedureIds([...additionalProcedureIds, '']);
-                    }}
-                    className="mt-2 text-xs font-bold text-[#D4AF37] hover:text-[#B5952F] hover:bg-[#D4AF37]/5 px-3 py-1.5 h-auto rounded-lg flex items-center gap-1.5"
-                  >
-                    <span>➕ Adicionar outro procedimento</span>
-                  </Button>
-                )}
+
               </div>
 
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Profissional</label>
-                <Select 
-                  onValueChange={(val) => setFormData({...formData, professionalId: val})}
+                <SearchableSelect
+                  options={professionals.map(p => ({ value: p.id, label: p.full_name }))}
                   value={formData.professionalId}
-                >
-                  <SelectTrigger className="bg-white border-[#E5E0D8] h-12 rounded-xl text-[#2C2825]">
-                    <SelectValue placeholder="Quem atende?" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-[#E5E0D8] text-[#2C2825]">
-                    {professionals.map(p => (
-                      <SelectItem key={p.id} value={p.id} className="hover:bg-primary-500/10 focus:bg-primary-500/10">{p.full_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={(val) => setFormData({...formData, professionalId: val})}
+                  placeholder="Quem atende?"
+                  searchPlaceholder="Buscar profissional..."
+                />
               </div>
             </div>
 
             <div className="space-y-2">
               <div className="flex justify-between items-center ml-1">
                 <label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest">Data e Horário</label>
-                <button 
-                  type="button" 
-                  onClick={() => setIsManualDateTime(!isManualDateTime)}
-                  className="text-[9px] font-black text-[#D4AF37] uppercase tracking-wider hover:underline"
-                >
-                  {isManualDateTime ? '📅 Usar Calendário' : '✍️ Digitar Manualmente'}
-                </button>
               </div>
               
               {isManualDateTime ? (
@@ -972,20 +1292,153 @@ export default function ScheduleCalendarClient({
               />
             </div>
 
-            {selectedProceduresList.length > 1 && (
+            {/* Seção de Descontos e Promoções */}
+            <div className="space-y-4 pt-4 border-t border-[#E5E0D8]">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-black text-neutral-600 uppercase tracking-widest">Descontos e Promoções</h4>
+                
+                {/* Checkbox de Manutenção (Apenas se o procedimento principal exigir manutenção) */}
+                {procedures.find(p => p.id === formData.procedureId)?.maintenance_required && (
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="checkbox"
+                      id="is_maintenance_booking"
+                      checked={isMaintenance}
+                      onChange={(e) => setIsMaintenance(e.target.checked)}
+                      className="w-4 h-4 rounded border-[#E5E0D8] text-[#D4AF37] focus:ring-[#D4AF37]"
+                    />
+                    <label htmlFor="is_maintenance_booking" className="text-xs font-bold text-[#5C5855] cursor-pointer">É Manutenção/Retorno</label>
+                  </div>
+                )}
+              </div>
+
+              {/* Informar a regra de preço aplicada */}
+              {formData.procedureId && (
+                <div className="bg-[#FAF6E9] border border-[#E5E0D8] rounded-xl p-3 text-xs text-[#765928] font-bold">
+                  ⚡ Regra de preço aplicada: <span className="underline">{calculatePrices().ruleAppliedDetails}</span>
+                </div>
+              )}
+
+              {/* Controles de Desconto Manual (apenas se não for Profissional) */}
+              {profile?.role !== 'professional' ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Nome do Desconto</label>
+                      <Input 
+                        placeholder="Ex: VIP, Fidelidade, Campanha..."
+                        value={discountName}
+                        onChange={(e) => setDiscountName(e.target.value)}
+                        className="bg-white border-[#E5E0D8] h-10 rounded-xl text-xs font-bold"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Método de Desconto</label>
+                      <div className="flex bg-[#F0EBE0]/60 p-1 rounded-xl gap-1 h-10">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDiscountMethod('percentage');
+                            setDiscountValue('');
+                          }}
+                          className={cn(
+                            "flex-1 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all",
+                            discountMethod === 'percentage' 
+                              ? "bg-white text-[#D4AF37] shadow-xs" 
+                              : "text-[#5C5855] hover:text-[#2C2825]"
+                          )}
+                        >
+                          % Porcentagem
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDiscountMethod('value');
+                            setDiscountPercentage('');
+                          }}
+                          className={cn(
+                            "flex-1 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all",
+                            discountMethod === 'value' 
+                              ? "bg-white text-[#D4AF37] shadow-xs" 
+                              : "text-[#5C5855] hover:text-[#2C2825]"
+                          )}
+                        >
+                          R$ Dinheiro
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">
+                        {discountMethod === 'percentage' ? 'Desconto (%)' : 'Valor do Desconto (R$)'}
+                      </label>
+                      <Input 
+                        placeholder="0"
+                        value={discountMethod === 'percentage' ? discountPercentage : discountValue}
+                        onChange={(e) => {
+                          if (discountMethod === 'percentage') {
+                            handleDiscountPercentageChange(e.target.value);
+                          } else {
+                            handleDiscountValueChange(e.target.value);
+                          }
+                        }}
+                        className="bg-white border-[#E5E0D8] h-10 rounded-xl text-xs font-bold"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Observações do Desconto</label>
+                      <Input 
+                        placeholder="Motivo do desconto..."
+                        value={discountNotes}
+                        onChange={(e) => setDiscountNotes(e.target.value)}
+                        className="bg-white border-[#E5E0D8] h-10 rounded-xl text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[10px] text-neutral-400 italic">Profissionais não possuem permissão para aplicar descontos manuais.</p>
+              )}
+            </div>
+
+            {/* Recibo/Resumo Financeiro Completo */}
+            {formData.procedureId && (
               <div className="bg-[#FAF6E9]/45 border border-[#E5E0D8] rounded-2xl p-4 space-y-2 text-xs">
-                <p className="font-black text-[#2C2825] uppercase tracking-widest text-[9px] mb-1 text-neutral-600">Resumo dos Procedimentos</p>
+                <p className="font-black text-[#2C2825] uppercase tracking-widest text-[9px] mb-1 text-neutral-600">Demonstrativo de Valores</p>
+                
                 {selectedProceduresList.map((p, i) => (
-                  <div key={p.id} className="flex justify-between items-center text-neutral-800">
-                    <span className="font-bold">{i + 1}. {p.name}</span>
-                    <span className="font-medium text-[#8A847C]">{p.duration_minutes} min • R$ {p.price.toFixed(2)}</span>
+                  <div key={p.id} className="flex justify-between items-center text-neutral-500 text-[11px] italic">
+                    <span>{i + 1}. {p.name}:</span>
+                    <span>R$ {p.price.toFixed(2)}</span>
                   </div>
                 ))}
+                
+                <div className="border-t border-[#E5E0D8]/40 my-1"></div>
+
+                <div className="flex justify-between items-center text-neutral-800">
+                  <span>Valor Original Total:</span>
+                  <span className="font-mono">R$ {calculatePrices().originalBasePrice.toFixed(2)}</span>
+                </div>
+                {calculatePrices().suggestedBasePrice !== calculatePrices().originalBasePrice && (
+                  <div className="flex justify-between items-center text-neutral-800 font-bold">
+                    <span>Valor Sugerido (Promoção/Manutenção):</span>
+                    <span className="font-mono">R$ {calculatePrices().suggestedBasePrice.toFixed(2)}</span>
+                  </div>
+                )}
+                {calculatePrices().manualDiscountVal > 0 && (
+                  <div className="flex justify-between items-center text-rose-600 font-bold">
+                    <span>Desconto Manual Aplicado:</span>
+                    <span className="font-mono">- R$ {calculatePrices().manualDiscountVal.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="border-t border-[#E5E0D8] pt-2 mt-2 flex justify-between font-black text-sm text-[#2C2825]">
-                  <span>Total ({selectedProceduresList.length} itens)</span>
-                  <span className="text-[#D4AF37]">
-                    {Math.floor(calculatedTotalDuration / 60) > 0 ? `${Math.floor(calculatedTotalDuration / 60)}h ` : ''}
-                    {calculatedTotalDuration % 60}m • R$ {calculatedTotalPrice.toFixed(2)}
+                  <span>Valor Efetivo Final:</span>
+                  <span className="text-[#D4AF37] font-mono">
+                    R$ {calculatePrices().finalPrice.toFixed(2)}
                   </span>
                 </div>
               </div>

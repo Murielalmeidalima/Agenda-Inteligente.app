@@ -30,7 +30,7 @@ interface CategoryData {
 
 export function CashFlowChart({ data }: { data: FlowData[] }) {
   return (
-    <div className="h-[300px] w-full">
+    <div className="h-[220px] sm:h-[260px] lg:h-[300px] w-full min-w-0 overflow-hidden">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data}>
           <defs>
@@ -95,7 +95,7 @@ export function CashFlowChart({ data }: { data: FlowData[] }) {
 
 export function ExpensesByCategoryChart({ data }: { data: CategoryData[] }) {
   return (
-    <div className="h-[300px] w-full">
+    <div className="h-[220px] sm:h-[260px] lg:h-[300px] w-full min-w-0 overflow-hidden">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
@@ -132,7 +132,7 @@ export function ProfitGrowthChart({ data }: { data: FlowData[] }) {
   }, []);
 
   return (
-    <div className="h-[300px] w-full">
+    <div className="h-[220px] sm:h-[260px] lg:h-[300px] w-full min-w-0 overflow-hidden">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={growthData}>
           <defs>

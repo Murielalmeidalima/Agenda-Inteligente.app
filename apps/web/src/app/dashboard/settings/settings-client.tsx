@@ -444,7 +444,7 @@ export default function SettingsClient() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* Navigation Sidebar */}
-        <div className="space-y-2">
+        <div className="flex flex-row lg:flex-col gap-2 overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 whitespace-nowrap lg:whitespace-normal shrink-0">
             <NavButton 
               active={activeTab === 'profile'} 
               onClick={() => setActiveTab('profile')}
@@ -484,7 +484,7 @@ export default function SettingsClient() {
               </NavButton>
             )}
 
-            <div className="pt-4 mt-4 border-t border-[#E5E0D8]">
+            <div className="pt-0 mt-0 lg:pt-4 lg:mt-4 border-t-0 lg:border-t border-[#E5E0D8] shrink-0">
                <button 
                   onClick={handleSignOut}
                   className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-red-500 hover:bg-red-50 transition-all font-bold text-sm group"
@@ -961,7 +961,7 @@ function NavButton({
       <button 
         onClick={onClick}
         className={cn(
-         "w-full flex items-center justify-between px-6 py-4 rounded-2xl transition-all duration-300 group font-bold text-sm",
+         "w-auto lg:w-full shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 rounded-2xl transition-all duration-300 group font-bold text-xs sm:text-sm",
          active 
             ? "bg-[#D4AF37]/10 text-[#D4AF37] shadow-sm" 
             : "text-[#5C5855] hover:text-[#2C2825] hover:bg-[#FAF6E9]"
@@ -975,7 +975,7 @@ function NavButton({
             </div>
             {children}
          </div>
-         {active && <ArrowRight className="h-4 w-4" />}
+         {active && <ArrowRight className="h-4 w-4 hidden lg:block" />}
       </button>
    );
 }

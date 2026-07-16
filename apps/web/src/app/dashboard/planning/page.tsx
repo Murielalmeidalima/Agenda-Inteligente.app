@@ -60,6 +60,13 @@ export default function PlanningPage() {
     procedures: 0,
     products: 0
   });
+  const [ratios, setRatios] = useState({
+    procedureRatio: 0.85,
+    productRatio: 0.15,
+    avgProcedurePrice: 150,
+    avgProductPrice: 50,
+    avgProceduresPerAppointment: 1.0
+  });
 
   const [isEditing, setIsEditing] = useState(false);
   const [editingGoals, setEditingGoals] = useState<any[]>([]);
@@ -155,6 +162,75 @@ export default function PlanningPage() {
       const products = invRes?.reduce((sum, i) => sum + Number(i.quantity), 0) || 0;
 
       setActuals({ revenue, appointments, procedures, products });
+
+      // Fetch dynamic ratios and prices for the smart goals calculator
+      const [proceduresList, productsList, pastApps, pastInv] = await Promise.all([
+        supabase.from('procedures').select('price').eq('company_id', profile?.company_id),
+        supabase.from('products').select('sale_price, price').eq('company_id', profile?.company_id),
+        supabase.from('appointments').select('id, price_override, procedures(price), additional_procedure_ids').eq('company_id', profile?.company_id).eq('status', 'completed').gte('start_time', subMonths(new Date(), 6).toISOString()),
+        supabase.from('inventory_transactions').select('quantity, products(sale_price, price)').eq('company_id', profile?.company_id).eq('type', 'out').gte('created_at', subMonths(new Date(), 6).toISOString())
+      ]);
+
+      let avgProcedurePrice = 150;
+      if (proceduresList.data && proceduresList.data.length > 0) {
+        const validPrices = proceduresList.data.map((p: any) => Number(p.price)).filter(p => p > 0);
+        if (validPrices.length > 0) {
+          avgProcedurePrice = validPrices.reduce((sum, p) => sum + p, 0) / validPrices.length;
+        }
+      }
+
+      let avgProductPrice = 50;
+      if (productsList.data && productsList.data.length > 0) {
+        const validPrices = productsList.data.map((p: any) => Number(p.sale_price || p.price || 0)).filter(p => p > 0);
+        if (validPrices.length > 0) {
+          avgProductPrice = validPrices.reduce((sum, p) => sum + p, 0) / validPrices.length;
+        }
+      }
+
+      let avgProceduresPerAppointment = 1.0;
+      if (pastApps.data && pastApps.data.length > 0) {
+        let totalProcedures = 0;
+        pastApps.data.forEach((a: any) => {
+          let count = Array.isArray(a.procedures) ? a.procedures.length : a.procedures ? 1 : 0;
+          if (Array.isArray(a.additional_procedure_ids)) {
+            count += a.additional_procedure_ids.length;
+          }
+          totalProcedures += count;
+        });
+        avgProceduresPerAppointment = totalProcedures / pastApps.data.length;
+      }
+
+      let totalProcedureRevenue = 0;
+      if (pastApps.data && pastApps.data.length > 0) {
+        pastApps.data.forEach((a: any) => {
+          const price = Number(a.price_override || (Array.isArray(a.procedures) ? a.procedures[0]?.price : a.procedures?.price) || 0);
+          totalProcedureRevenue += price;
+        });
+      }
+
+      let totalProductRevenue = 0;
+      if (pastInv.data && pastInv.data.length > 0) {
+        pastInv.data.forEach((i: any) => {
+          const price = Number(i.products?.sale_price || i.products?.price || 0);
+          totalProductRevenue += Number(i.quantity) * price;
+        });
+      }
+
+      let procedureRatio = 0.85;
+      let productRatio = 0.15;
+      const totalRev = totalProcedureRevenue + totalProductRevenue;
+      if (totalRev > 0) {
+        procedureRatio = totalProcedureRevenue / totalRev;
+        productRatio = totalProductRevenue / totalRev;
+      }
+
+      setRatios({
+        procedureRatio,
+        productRatio,
+        avgProcedurePrice,
+        avgProductPrice,
+        avgProceduresPerAppointment
+      });
     } catch (err: any) {
       console.error('Error fetching planning data:', err);
       if (err?.code !== '42P01' && !(err?.message?.includes('Could not find the table'))) {
@@ -222,6 +298,74 @@ export default function PlanningPage() {
     setIsEditing(true);
   }
 
+  const handleGoalEdit = (category: GoalCategory, value: number) => {
+    const newGoals = [...editingGoals];
+    const { procedureRatio, productRatio, avgProcedurePrice, avgProductPrice, avgProceduresPerAppointment } = ratios;
+
+    const updateGoalValue = (goalsList: any[], cat: GoalCategory, val: number) => {
+      const goal = goalsList.find(g => g.category === cat);
+      if (goal) {
+        goal.target_value = val;
+      } else {
+        goalsList.push({ category: cat, target_value: val });
+      }
+    };
+
+    if (category === 'revenue') {
+      const revenue = value;
+      const procedureRevenue = revenue * procedureRatio;
+      const productRevenue = revenue * productRatio;
+
+      const procedures = Math.round(procedureRevenue / (avgProcedurePrice || 150));
+      const products = Math.round(productRevenue / (avgProductPrice || 50));
+      const appointments = Math.round(procedures / (avgProceduresPerAppointment || 1));
+
+      updateGoalValue(newGoals, 'revenue', revenue);
+      updateGoalValue(newGoals, 'procedures', procedures);
+      updateGoalValue(newGoals, 'products', products);
+      updateGoalValue(newGoals, 'appointments', appointments);
+    } 
+    else if (category === 'procedures') {
+      const procedures = value;
+      const appointments = Math.round(procedures / (avgProceduresPerAppointment || 1));
+      const procedureRevenue = procedures * avgProcedurePrice;
+      
+      const currentProducts = editingGoals.find(g => g.category === 'products')?.target_value || 0;
+      const productRevenue = currentProducts * avgProductPrice;
+      const revenue = procedureRevenue + productRevenue;
+
+      updateGoalValue(newGoals, 'procedures', procedures);
+      updateGoalValue(newGoals, 'appointments', appointments);
+      updateGoalValue(newGoals, 'revenue', revenue);
+    } 
+    else if (category === 'products') {
+      const products = value;
+      const productRevenue = products * avgProductPrice;
+
+      const currentProcedures = editingGoals.find(g => g.category === 'procedures')?.target_value || 0;
+      const procedureRevenue = currentProcedures * avgProcedurePrice;
+      const revenue = procedureRevenue + productRevenue;
+
+      updateGoalValue(newGoals, 'products', products);
+      updateGoalValue(newGoals, 'revenue', revenue);
+    } 
+    else if (category === 'appointments') {
+      const appointments = value;
+      const procedures = Math.round(appointments * avgProceduresPerAppointment);
+      const procedureRevenue = procedures * avgProcedurePrice;
+
+      const currentProducts = editingGoals.find(g => g.category === 'products')?.target_value || 0;
+      const productRevenue = currentProducts * avgProductPrice;
+      const revenue = procedureRevenue + productRevenue;
+
+      updateGoalValue(newGoals, 'appointments', appointments);
+      updateGoalValue(newGoals, 'procedures', procedures);
+      updateGoalValue(newGoals, 'revenue', revenue);
+    }
+
+    setEditingGoals(newGoals);
+  };
+
   return (
     <div className="space-y-8 animate-fade-in pb-16">
       {/* Header */}
@@ -282,7 +426,8 @@ export default function PlanningPage() {
           color="emerald"
           isCurrency
           isEditing={isEditing}
-          onEdit={(val: number) => setEditingGoals(prev => prev.map(g => g.category === 'revenue' ? { ...g, target_value: val } : g))}
+          onEdit={(val: number) => handleGoalEdit('revenue', val)}
+          helperText={isEditing ? `Dividido em: ${(ratios.procedureRatio * 100).toFixed(0)}% serv. / ${(ratios.productRatio * 100).toFixed(0)}% prod.` : undefined}
         />
         <PlanningCard 
           title="Atendimentos" 
@@ -292,7 +437,8 @@ export default function PlanningPage() {
           icon={Calendar}
           color="blue"
           isEditing={isEditing}
-          onEdit={(val: number) => setEditingGoals(prev => prev.map(g => g.category === 'appointments' ? { ...g, target_value: val } : g))}
+          onEdit={(val: number) => handleGoalEdit('appointments', val)}
+          helperText={isEditing ? `Média: ${(ratios.avgProceduresPerAppointment).toFixed(1)} procedimentos/atendimento.` : undefined}
         />
         <PlanningCard 
           title="Procedimentos" 
@@ -302,7 +448,8 @@ export default function PlanningPage() {
           icon={Activity}
           color="rose"
           isEditing={isEditing}
-          onEdit={(val: number) => setEditingGoals(prev => prev.map(g => g.category === 'procedures' ? { ...g, target_value: val } : g))}
+          onEdit={(val: number) => handleGoalEdit('procedures', val)}
+          helperText={isEditing ? `Preço médio do procedimento: R$ ${ratios.avgProcedurePrice.toFixed(0)}.` : undefined}
         />
         <PlanningCard 
           title="Venda de Produtos" 
@@ -312,7 +459,8 @@ export default function PlanningPage() {
           icon={Package}
           color="amber"
           isEditing={isEditing}
-          onEdit={(val: number) => setEditingGoals(prev => prev.map(g => g.category === 'products' ? { ...g, target_value: val } : g))}
+          onEdit={(val: number) => handleGoalEdit('products', val)}
+          helperText={isEditing ? `Preço médio do produto: R$ ${ratios.avgProductPrice.toFixed(0)}.` : undefined}
         />
       </div>
 
@@ -385,7 +533,7 @@ export default function PlanningPage() {
   );
 }
 
-function PlanningCard({ title, loading, actual, target, icon: Icon, color, isCurrency, isEditing, onEdit }: any) {
+function PlanningCard({ title, loading, actual, target, icon: Icon, color, isCurrency, isEditing, onEdit, helperText }: any) {
   const progress = target > 0 ? Math.min(Math.round((actual / target) * 100), 100) : 0;
   
   const colors = {
@@ -432,17 +580,24 @@ function PlanningCard({ title, loading, actual, target, icon: Icon, color, isCur
          <div>
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Meta</p>
             {isEditing ? (
-              <div className="relative">
-                 {isCurrency && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">R$</span>}
-                 <Input 
-                   type="number" 
-                   value={target} 
-                   onChange={(e) => onEdit(Number(e.target.value))}
-                   className={cn(
-                     "h-10 bg-slate-50 border-slate-200 rounded-xl font-black text-slate-900",
-                     isCurrency ? "pl-9" : ""
-                   )}
-                 />
+              <div className="space-y-2">
+                <div className="relative">
+                   {isCurrency && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">R$</span>}
+                   <Input 
+                     type="number" 
+                     value={target} 
+                     onChange={(e) => onEdit(Number(e.target.value))}
+                     className={cn(
+                       "h-10 bg-slate-50 border-slate-200 rounded-xl font-black text-slate-900",
+                       isCurrency ? "pl-9" : ""
+                     )}
+                   />
+                </div>
+                {helperText && (
+                  <p className="text-[10px] font-medium text-amber-600 italic bg-amber-50/50 px-2.5 py-1 rounded-lg border border-amber-100/30">
+                    {helperText}
+                  </p>
+                )}
               </div>
             ) : (
               loading ? <div className="h-7 w-20 bg-slate-100 animate-pulse rounded" /> : <h4 className="text-xl font-black text-slate-300 italic">{formatValue(target)}</h4>

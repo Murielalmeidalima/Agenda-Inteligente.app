@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { rateLimit, RATE_LIMITS, createRateLimitHeaders } from '@/lib/rate-limit';
 
 // Inicializar cliente admin para ignorar RLS e verificar duplicidades em toda a base
 const getSupabaseAdmin = () => {
@@ -11,8 +12,18 @@ const getSupabaseAdmin = () => {
   return createClient(url, key);
 };
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const rateLimitResult = rateLimit(req, RATE_LIMITS.STANDARD);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: 'Muitas requisições de validação de cadastro. Tente novamente mais tarde.' },
+        { 
+          status: 429,
+          headers: createRateLimitHeaders(rateLimitResult),
+        }
+      );
+    }
     const body = await req.json();
     const { email, cpf, phone, cnpj, deviceFingerprint } = body;
 

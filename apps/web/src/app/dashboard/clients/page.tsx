@@ -55,6 +55,20 @@ export default function ClientsPage() {
   const [futureWarning, setFutureWarning] = useState<{ count: number; message: string } | null>(null);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('clinic_clients_cache');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setClients(parsed);
+            setLoading(false);
+          }
+        } catch (e) {
+          console.error('Error parsing clients cache:', e);
+        }
+      }
+    }
     fetchClients();
   }, []);
 
@@ -139,7 +153,11 @@ export default function ClientsPage() {
         }
       });
 
-      setClients(Array.from(uniqueMap.values()));
+      const uniqueClients = Array.from(uniqueMap.values());
+      setClients(uniqueClients);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('clinic_clients_cache', JSON.stringify(uniqueClients));
+      }
     } catch (err: any) {
       console.error('Error fetching clients:', err);
     } finally {
@@ -205,7 +223,7 @@ export default function ClientsPage() {
       {/* Clients Table Card */}
       <Card className="rounded-[24px] overflow-hidden border-[#E5E0D8] shadow-sm">
         <CardContent className="p-0">
-          <div className="hidden md:block">
+          <div className="hidden md:block overflow-x-auto">
             <Table>
             <TableHeader className="bg-[#FAF9F6] border-b border-[#E5E0D8]">
               <TableRow className="hover:bg-transparent border-none">

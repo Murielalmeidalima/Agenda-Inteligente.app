@@ -123,9 +123,29 @@ export default function EditClientPage(props: { params: Promise<{ id: string }> 
 
       if (updateError) throw updateError;
 
-      router.push(`/dashboard/clients/${params.id}`);
+      // Update local storage cache to reflect changes instantly on back navigation
+      if (typeof window !== 'undefined') {
+        const cached = localStorage.getItem('clinic_clients_cache');
+        if (cached) {
+          try {
+            const list = JSON.parse(cached);
+            const updatedList = list.map((c: any) => 
+              c.id === params.id ? { 
+                ...c, 
+                full_name: sanitizedData.full_name || c.full_name, 
+                phone: sanitizedData.phone || c.phone, 
+                email: sanitizedData.email || c.email 
+              } : c
+            );
+            localStorage.setItem('clinic_clients_cache', JSON.stringify(updatedList));
+          } catch (e) {
+            console.error('Error updating cache in client edit:', e);
+          }
+        }
+      }
+
+      router.push('/dashboard/clients'); // Redirect directly to list after edit
       router.refresh();
-      router.push('/dashboard/clients'); // Redirect to list after edit
     } catch (err: any) {
       console.error('Error updating client:', err);
       setError(err.message || 'Erro ao salvar alterações. Tente novamente.');

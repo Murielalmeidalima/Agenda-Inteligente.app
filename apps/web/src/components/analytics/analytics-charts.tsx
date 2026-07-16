@@ -28,7 +28,7 @@ interface EvolutionData {
 
 export function RankingChart({ data, color = "#B5952F" }: { data: RankingData[], color?: string }) {
   return (
-    <div className="h-[300px] w-full">
+    <div className="h-[300px] w-full min-w-0 overflow-hidden">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={data}
@@ -60,7 +60,7 @@ export function RankingChart({ data, color = "#B5952F" }: { data: RankingData[],
 
 export function EvolutionChart({ data }: { data: EvolutionData[] }) {
   return (
-    <div className="h-[300px] w-full">
+    <div className="h-[300px] w-full min-w-0 overflow-hidden">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data}>
           <defs>

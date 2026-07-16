@@ -130,7 +130,7 @@ export default function StockTable({
       </div>
 
       {/* Desktop view: Table layout */}
-      <div className="hidden md:block bg-white">
+      <div className="hidden md:block bg-white overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50/50 border-b border-neutral-100 hover:bg-transparent">

@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { createServerClient } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { sendEmail, emailTemplates } from '@/services/email-service';
+import { rateLimit, RATE_LIMITS, createRateLimitHeaders } from '@/lib/rate-limit';
 
 let hasObservationsColumn: boolean | null = null;
 
@@ -19,8 +20,18 @@ async function checkObservationsColumn(supabase: any) {
   return hasObservationsColumn;
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const rateLimitResult = rateLimit(req, RATE_LIMITS.STANDARD);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: 'Muitas requisições de convite de funcionário. Tente novamente mais tarde.' },
+        { 
+          status: 429,
+          headers: createRateLimitHeaders(rateLimitResult),
+        }
+      );
+    }
     const userClient = createServerClient();
     
     // 1. Authenticate caller

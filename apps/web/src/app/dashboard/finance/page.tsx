@@ -386,20 +386,20 @@ function FinancePageContent() {
   }
 
   return (
-    <div className="space-y-8 animate-fade-in pb-20">
+    <div className="space-y-6 sm:space-y-8 animate-fade-in pb-20">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-[#D4AF37]/10 rounded-2xl border border-[#D4AF37]/20 shadow-sm">
             <Wallet className="h-8 w-8 text-[#D4AF37]" />
           </div>
           <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Gestão Financeira</h1>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 tracking-tight">Gestão Financeira</h1>
             <p className="text-slate-500 text-sm font-medium">Controle total do seu fluxo de caixa e previsões</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          <div className="flex items-center gap-1 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
             {(['today', 'week', 'month', 'year'] as const).map((p) => (
               <Button
                 key={p}
@@ -407,7 +407,7 @@ function FinancePageContent() {
                 size="sm"
                 onClick={() => setPeriod(p)}
                 className={cn(
-                  "h-9 px-5 text-[10px] font-black uppercase rounded-xl transition-all",
+                  "h-9 px-3 sm:px-5 text-[10px] font-black uppercase rounded-xl transition-all whitespace-nowrap",
                   period === p ? "bg-slate-900 text-white shadow-md shadow-slate-200" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
                 )}
               >
@@ -415,8 +415,8 @@ function FinancePageContent() {
               </Button>
             ))}
           </div>
-          <Link href="/dashboard/finance/new?type=income">
-            <Button className="h-12 px-8 bg-slate-950 hover:bg-black text-white font-black rounded-2xl shadow-xl shadow-slate-200 flex items-center gap-3 transition-all hover:scale-[1.02] active:scale-95">
+          <Link href="/dashboard/finance/new?type=income" className="w-full sm:w-auto">
+            <Button className="h-11 sm:h-12 px-5 sm:px-8 w-full sm:w-auto bg-slate-950 hover:bg-black text-white font-black rounded-2xl shadow-xl shadow-slate-200 flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 text-xs sm:text-sm">
               <Plus className="h-5 w-5 text-rose-500" />
               Lançar Receita
             </Button>
@@ -430,7 +430,7 @@ function FinancePageContent() {
           <TrendingUp className="h-4 w-4 text-emerald-500" />
           <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Desempenho de Caixa (Realizado)</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <FinanceCard label="Recebido Hoje" value={data.stats.receivedToday} loading={loading} icon={Banknote} color="emerald" subtitle="Hoje" />
           <FinanceCard label="Recebido Mês" value={data.stats.receivedMonth} loading={loading} icon={Calendar} color="emerald" subtitle="Este mês" />
           <FinanceCard label="Recebido Ano" value={data.stats.receivedYear} loading={loading} icon={TrendingUp} color="emerald" subtitle="Este ano" />
@@ -444,7 +444,7 @@ function FinancePageContent() {
           <ClockIcon className="h-4 w-4 text-amber-500" />
           <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Cobrança e Previsões (A Receber)</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6">
           <FinanceCard label="Pagamentos Pendentes" value={data.stats.pendingPayments} loading={loading} icon={ClockIcon} color="amber" subtitle="Futuros pendentes" />
           <FinanceCard label="Pagamentos Parciais" value={data.stats.partialPayments} loading={loading} icon={TrendingUp} color="amber" subtitle="Saldos de parciais" />
           <FinanceCard label="Pagamentos em Atraso" value={data.stats.overduePayments} loading={loading} icon={AlertCircle} color="red" subtitle="Vencidos e não pagos" onClick={() => setActiveTab('receivables')} />
@@ -470,8 +470,8 @@ function FinancePageContent() {
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-100">
-        <div className="flex items-center gap-8">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-6 border-b border-slate-100">
+        <div className="flex items-center gap-4 sm:gap-8 overflow-x-auto pb-0 md:pb-0 -mb-px">
           <button 
             onClick={() => setActiveTab('overview')} 
             className={cn(
@@ -504,29 +504,29 @@ function FinancePageContent() {
           </button>
         </div>
 
-        <div className="flex items-center gap-6 pb-4">
+        <div className="hidden sm:flex items-center gap-4 md:gap-6 pb-4">
            <div className="flex flex-col items-end">
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Média Diária</span>
-              <span className="text-sm font-black text-emerald-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.stats.avgIncome)}</span>
+              <span className="text-xs sm:text-sm font-black text-emerald-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.stats.avgIncome)}</span>
            </div>
            <div className="w-px h-8 bg-slate-100" />
            <div className="flex flex-col items-end">
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Lucro Médio/Dia</span>
-              <span className="text-sm font-black text-blue-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.stats.avgProfit)}</span>
+              <span className="text-xs sm:text-sm font-black text-blue-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.stats.avgProfit)}</span>
            </div>
         </div>
       </div>
 
       {activeTab === 'overview' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
         {/* Cash Flow Chart */}
         <Card className="lg:col-span-2 bg-white border-slate-100 rounded-3xl shadow-xl shadow-slate-200/50 overflow-hidden">
-          <CardHeader className="border-b border-slate-50 px-8 py-6 flex flex-row items-center justify-between">
+          <CardHeader className="border-b border-slate-50 px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
               <CardTitle className="text-lg font-black text-slate-900 tracking-tight">Fluxo de Caixa e Lucratividade</CardTitle>
               <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Comparativo de entradas vs saídas e margem de lucro</p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                   <span className="text-[10px] font-black text-slate-500 uppercase">Entradas</span>
@@ -541,7 +541,7 @@ function FinancePageContent() {
                </div>
             </div>
           </CardHeader>
-          <CardContent className="p-8">
+          <CardContent className="p-3 sm:p-6 lg:p-8">
             <CashFlowChart data={data.flowData} />
           </CardContent>
         </Card>
@@ -601,7 +601,7 @@ function FinancePageContent() {
             <CardTitle className="text-lg font-black text-slate-900 tracking-tight">Crescimento Financeiro</CardTitle>
             <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Trajetória do lucro acumulado no período</p>
           </CardHeader>
-          <CardContent className="p-8">
+          <CardContent className="p-3 sm:p-6 lg:p-8">
             <ProfitGrowthChart data={data.flowData} />
           </CardContent>
         </Card>
@@ -632,14 +632,15 @@ function FinancePageContent() {
 
         {/* Recent Activity Table (Full Width) */}
         <Card className="lg:col-span-3 bg-white border-slate-100 rounded-3xl shadow-xl shadow-slate-200/50 overflow-hidden">
-            <CardHeader className="px-8 py-6 border-b border-slate-50 flex flex-row items-center justify-between">
+            <CardHeader className="px-4 sm:px-6 lg:px-8 py-4 sm:py-6 border-b border-slate-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-xl font-black text-slate-900 tracking-tight">Movimentações Recentes</CardTitle>
+                <CardTitle className="text-base sm:text-lg lg:text-xl font-black text-slate-900 tracking-tight">Movimentações Recentes</CardTitle>
                 <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Últimos lançamentos confirmados</p>
               </div>
-              <Button variant="outline" className="h-9 rounded-xl text-[10px] font-black uppercase">Ver Extrato Completo</Button>
+              <Button variant="outline" className="h-9 rounded-xl text-[10px] font-black uppercase w-full sm:w-auto">Ver Extrato Completo</Button>
             </CardHeader>
-            <Table>
+            <div className="overflow-x-auto">
+            <Table className="min-w-[600px]">
                 <TableHeader className="bg-slate-50/50 border-b border-slate-100">
                     <TableRow className="hover:bg-transparent border-none">
                         <TableHead className="text-slate-400 font-black uppercase text-[10px] tracking-widest pl-8 py-4">Lançamento</TableHead>
@@ -700,6 +701,7 @@ function FinancePageContent() {
                   )}
                 </TableBody>
             </Table>
+            </div>
         </Card>
       </div>
       ) : activeTab === 'receivables' ? (
@@ -804,22 +806,22 @@ function FinanceCard({ label, value, loading, icon: Icon, color, subtitle, onCli
   return (
     <Card 
       className={cn(
-        "border rounded-[2rem] p-8 relative overflow-hidden group shadow-xl shadow-slate-200/40 transition-all duration-300 border-slate-100 hover:-translate-y-1 hover:shadow-2xl", 
+        "border rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 lg:p-8 relative overflow-hidden group shadow-lg sm:shadow-xl shadow-slate-200/40 transition-all duration-300 border-slate-100 hover:-translate-y-1 hover:shadow-2xl", 
         styles[color as keyof typeof styles],
         onClick && "cursor-pointer active:scale-95"
       )}
       onClick={onClick}
     >
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-3 sm:mb-4 lg:mb-6">
         <div className="flex flex-col">
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
           <span className="text-[9px] font-bold text-slate-300 uppercase mt-1">{subtitle}</span>
         </div>
-        <div className={cn("p-3 rounded-2xl border border-transparent transition-colors duration-500 group-hover:border-current/10", iconStyles[color as keyof typeof iconStyles])}>
-          <Icon className="h-6 w-6" />
+        <div className={cn("p-2 sm:p-3 rounded-xl sm:rounded-2xl border border-transparent transition-colors duration-500 group-hover:border-current/10", iconStyles[color as keyof typeof iconStyles])}>
+          <Icon className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
         </div>
       </div>
-      <div className={cn("text-3xl font-black italic tracking-tighter truncate", textStyles[color as keyof typeof textStyles])}>
+      <div className={cn("text-lg sm:text-xl lg:text-3xl font-black italic tracking-tighter truncate", textStyles[color as keyof typeof textStyles])}>
         {loading ? (
            <div className="h-9 w-32 bg-slate-100/80 animate-pulse rounded-xl mt-1" />
         ) : (

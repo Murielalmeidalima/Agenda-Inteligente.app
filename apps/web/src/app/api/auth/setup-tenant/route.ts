@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { createServerClient } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { AsaasService } from '@/lib/asaas';
 import { z } from 'zod';
 import crypto from 'crypto';
+import { rateLimit, RATE_LIMITS, createRateLimitHeaders } from '@/lib/rate-limit';
 
 // Validação dos dados com Zod (Segurança / Parameter Tampering)
 const setupSchema = z.object({
@@ -35,8 +36,18 @@ const getSupabaseAdmin = () => {
   return createClient(url, key);
 };
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const rateLimitResult = rateLimit(req, RATE_LIMITS.STANDARD);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: 'Muitas requisições de configuração de clínica. Tente novamente mais tarde.' },
+        { 
+          status: 429,
+          headers: createRateLimitHeaders(rateLimitResult),
+        }
+      );
+    }
     const userClient = createServerClient();
     
     // Validar se o usuário está autenticado

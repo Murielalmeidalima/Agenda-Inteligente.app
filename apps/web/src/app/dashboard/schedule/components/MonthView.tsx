@@ -38,7 +38,7 @@ export const MonthView = ({
 
       // 1. Feriados
       if (block.type === 'holiday') {
-        const holidayDateStr = block.date_str || format(new Date(block.start_date), 'yyyy-MM-dd');
+        const holidayDateStr = block.date_str || block.start_date.substring(0, 10);
         return dateStr === holidayDateStr;
       }
 
@@ -48,14 +48,14 @@ export const MonthView = ({
       }
 
       // 3. Manual / Férias
-      const startStr = format(new Date(block.start_date), 'yyyy-MM-dd');
-      const endStr = block.end_date ? format(new Date(block.end_date), 'yyyy-MM-dd') : startStr;
+      const startStr = block.start_date.substring(0, 10);
+      const endStr = block.end_date ? block.end_date.substring(0, 10) : startStr;
 
       return dateStr >= startStr && dateStr <= endStr;
     });
 
     if (found) {
-      const isBlocking = found.type === 'holiday' ? blockHolidays : true;
+      const isBlocking = blockHolidays;
       return { ...found, isBlocking };
     }
     return null;

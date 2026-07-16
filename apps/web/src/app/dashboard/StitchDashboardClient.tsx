@@ -34,7 +34,7 @@ import {
 interface StitchDashboardClientProps {
   profile: any;
   company: any;
-  metrics: {
+  metrics?: {
     todayAppointmentsCount: number;
     attendedCount: number;
     predictedRevenue: number;
@@ -46,7 +46,7 @@ interface StitchDashboardClientProps {
     pendingReviewsCount: number;
     maintenancesCount: number;
   };
-  financialSummary: {
+  financialSummary?: {
     entries: number;
     exits: number;
     profit: number;
@@ -54,32 +54,85 @@ interface StitchDashboardClientProps {
     toPay: number;
   };
   weeklyRevenue?: number[];
-  nextAppointment: any | null;
-  upcomingAppointments: any[];
+  nextAppointment?: any | null;
+  upcomingAppointments?: any[];
   popularProcedures?: { name: string; count: number; percentage: number }[];
 }
 
 export function StitchDashboardClient({
   profile,
   company,
-  metrics,
-  financialSummary,
-  weeklyRevenue = [0, 0, 0, 0, 0, 0, 0],
-  nextAppointment,
-  upcomingAppointments,
-  popularProcedures = []
+  metrics: initialMetrics,
+  financialSummary: initialFinancialSummary,
+  weeklyRevenue: initialWeeklyRevenue,
+  nextAppointment: initialNextAppointment,
+  upcomingAppointments: initialUpcomingAppointments,
+  popularProcedures: initialPopularProcedures
 }: StitchDashboardClientProps) {
   const router = useRouter();
+  
+  const [metrics, setMetrics] = useState<any>(initialMetrics || null);
+  const [financialSummary, setFinancialSummary] = useState<any>(initialFinancialSummary || null);
+  const [weeklyRevenue, setWeeklyRevenue] = useState<number[]>(initialWeeklyRevenue || [0, 0, 0, 0, 0, 0, 0]);
+  const [nextAppointment, setNextAppointment] = useState<any>(initialNextAppointment || null);
+  const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>(initialUpcomingAppointments || []);
+  const [popularProcedures, setPopularProcedures] = useState<any[]>(initialPopularProcedures || []);
+  const [loading, setLoading] = useState(!initialMetrics);
+
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDateStr, setCurrentDateStr] = useState<string>('');
   const [greeting, setGreeting] = useState<string>('Boa tarde');
   const [isCalendarExpanded, setIsCalendarExpanded] = useState(false);
   const [initialDay] = useState<number>(() => new Date().getDate());
 
-  // Force-refresh server data on component mount to bypass Next.js client router caching
+  // Load from cache and fetch from API in background
   useEffect(() => {
-    router.refresh();
-  }, [router]);
+    if (initialMetrics) return;
+
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('dashboard_data_cache');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setMetrics(parsed.metrics);
+          setFinancialSummary(parsed.financialSummary);
+          setWeeklyRevenue(parsed.weeklyRevenue || [0, 0, 0, 0, 0, 0, 0]);
+          setNextAppointment(parsed.nextAppointment);
+          setUpcomingAppointments(parsed.upcomingAppointments || []);
+          setPopularProcedures(parsed.popularProcedures || []);
+          setLoading(false);
+        } catch (e) {
+          console.error('Error parsing dashboard cache:', e);
+        }
+      }
+    }
+
+    fetch('/api/dashboard/data')
+      .then(res => res.json())
+      .then(res => {
+        if (res.success) {
+          setMetrics(res.metrics);
+          setFinancialSummary(res.financialSummary);
+          setWeeklyRevenue(res.weeklyRevenue || [0, 0, 0, 0, 0, 0, 0]);
+          setNextAppointment(res.nextAppointment);
+          setUpcomingAppointments(res.upcomingAppointments || []);
+          setPopularProcedures(res.popularProcedures || []);
+
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('dashboard_data_cache', JSON.stringify({
+              metrics: res.metrics,
+              financialSummary: res.financialSummary,
+              weeklyRevenue: res.weeklyRevenue,
+              nextAppointment: res.nextAppointment,
+              upcomingAppointments: res.upcomingAppointments,
+              popularProcedures: res.popularProcedures
+            }));
+          }
+        }
+      })
+      .catch(err => console.error('Error fetching dashboard metrics:', err))
+      .finally(() => setLoading(false));
+  }, [initialMetrics]);
 
   useEffect(() => {
     const updateDateTime = () => {
@@ -110,6 +163,28 @@ export function StitchDashboardClient({
     return () => clearInterval(interval);
   }, [initialDay]);
 
+  if (!metrics || !financialSummary) {
+    return (
+      <div className="min-h-screen bg-[#F7F1E8] text-[#3D2C28] -m-6 p-6 sm:p-10 font-sans space-y-10">
+        <header className="h-24 bg-[#FFF8F6]/80 animate-pulse rounded-2xl border border-[#D1C5B5]/20" />
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+          {Array(10).fill(0).map((_, i) => (
+            <div key={i} className="bg-white h-24 rounded-2xl animate-pulse border border-[#D1C5B5]/20" />
+          ))}
+        </section>
+        <div className="grid grid-cols-12 gap-8">
+          <div className="col-span-12 lg:col-span-8 space-y-8">
+            <div className="bg-white h-64 rounded-2xl animate-pulse border border-[#D1C5B5]/20" />
+            <div className="bg-white h-96 rounded-2xl animate-pulse border border-[#D1C5B5]/20" />
+          </div>
+          <div className="col-span-12 lg:col-span-4 space-y-8">
+            <div className="bg-white h-[32rem] rounded-2xl animate-pulse border border-[#D1C5B5]/20" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const userName = profile?.full_name 
     ? profile.full_name
     : (profile?.role === 'admin' ? 'Gestor' : 'Profissional');
@@ -135,7 +210,7 @@ export function StitchDashboardClient({
   return (
     <div className="min-h-screen bg-[#F7F1E8] text-[#3D2C28] -m-6 p-6 sm:p-10 font-sans">
       {/* TopAppBar / Header (Glassmorphism Aesthetica Pro) */}
-      <header className="sticky top-0 z-30 bg-[#FFF8F6]/80 backdrop-blur-md px-6 sm:px-10 py-6 border-b border-[#D1C5B5]/30 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 rounded-2xl mb-8 shadow-sm">
+      <header className="sticky top-0 z-30 bg-[#FFF8F6]/80 backdrop-blur-md px-6 sm:px-10 py-6 border-b border-[#D1C5B5]/30 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 rounded-2xl mb-8 shadow-sm">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-[#3D2C28] tracking-tight">
             {greeting}, {userName}
@@ -153,7 +228,7 @@ export function StitchDashboardClient({
           </div>
         </div>
 
-        <div className="flex items-center gap-6 self-end md:self-auto">
+        <div className="flex items-center gap-6 self-end lg:self-auto">
           <Link href="/dashboard/communications" className="relative group">
             <button className="w-10 h-10 flex items-center justify-center rounded-full bg-white border border-[#D1C5B5]/30 hover:bg-[#FFF0ED] transition-all shadow-sm">
               <Bell className="w-5 h-5 text-[#4E463A]" />
@@ -180,7 +255,7 @@ export function StitchDashboardClient({
 
       <div className="space-y-10">
         {/* Metrics Grid (10 Cards - 2 Rows of 5) Cards com redirecionamento interativo */}
-        <section className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           {/* Row 1 */}
           <div 
             onClick={() => {
@@ -457,7 +532,7 @@ export function StitchDashboardClient({
             </div>
 
             {/* Charts Section (Visual apenas sem redirecionar ao clicar) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-[#D1C5B5]/30">
                 <h4 className="text-xs font-bold text-[#3D2C28] uppercase tracking-wider mb-6">
                   Faturamento Semanal
@@ -518,7 +593,7 @@ export function StitchDashboardClient({
             </div>
 
             {/* Financial Summary (Sem redirecionar ao clicar, mantendo apenas exibição visual) */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               <div className="bg-white p-4 rounded-xl border border-[#D1C5B5]/20 shadow-xs transition-all">
                 <p className="text-[10px] text-[#4E463A] uppercase font-bold">Entradas</p>
                 <p className="text-sm font-bold text-emerald-600">{formatMoney(financialSummary?.entries)}</p>

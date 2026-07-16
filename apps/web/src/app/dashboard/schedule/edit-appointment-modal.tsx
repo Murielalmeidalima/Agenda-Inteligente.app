@@ -16,12 +16,14 @@ import {
   Label,
   TextArea,
   Input,
-  cn
+  cn,
+  SearchableSelect
 } from '@projeto/ui';
-import { Edit2, CheckCircle2, XCircle, AlertCircle, Banknote } from 'lucide-react';
+import { Edit2, CheckCircle2, XCircle, AlertCircle, Banknote, User, UserCheck, Sparkles } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { toast } from 'sonner';
 import { format, addDays, addWeeks, addMonths, isSaturday, isSunday, subDays } from 'date-fns';
+import { useProfile } from '@/providers/profile-provider';
 
 interface EditAppointmentModalProps {
   isOpen: boolean;
@@ -34,11 +36,22 @@ interface EditAppointmentModalProps {
 }
 
 export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, professionals, procedures = [], clients = [] }: EditAppointmentModalProps) {
+  const { profile } = useProfile();
   const [status, setStatus] = useState(appointment?.status || 'scheduled');
   const [notes, setNotes] = useState(appointment?.notes || '');
   const [loading, setLoading] = useState(false);
   const [checkingAnamnese, setCheckingAnamnese] = useState(false);
   const [sendingLink, setSendingLink] = useState(false);
+
+  // Discount states
+  const [editIsMaintenance, setEditIsMaintenance] = useState(false);
+  const [editDiscountMethod, setEditDiscountMethod] = useState<'percentage' | 'value'>('percentage');
+  const [editDiscountName, setEditDiscountName] = useState('');
+  const [editDiscountValue, setEditDiscountValue] = useState('');
+  const [editDiscountPercentage, setEditDiscountPercentage] = useState('');
+  const [editDiscountNotes, setEditDiscountNotes] = useState('');
+  const [promotions, setPromotions] = useState<any[]>([]);
+  const [receptionistLimit, setReceptionistLimit] = useState<{ type: 'value' | 'percentage', limit: number } | null>(null);
 
   // Ficha de Atendimento
   const [clinicalNotes, setClinicalNotes] = useState('');
@@ -50,12 +63,57 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
   const [isEditing, setIsEditing] = useState(false);
   const [editClientId, setEditClientId] = useState('');
   const [editProfessionalId, setEditProfessionalId] = useState('');
+  const [editAdditionalProcedureIds, setEditAdditionalProcedureIds] = useState<string[]>([]);
   const [editProcedureId, setEditProcedureId] = useState('');
   const [editStartTime, setEditStartTime] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
   // Finance integration
   const isOriginallyCompleted = appointment?.status === 'completed';
+
+  // Blocks state variables
+  const [scheduleBlocks, setScheduleBlocks] = useState<any[]>([]);
+  const [showHolidays, setShowHolidays] = useState(false);
+  const [blockHolidays, setBlockHolidays] = useState(false);
+  const [holidays, setHolidays] = useState<any[]>([]);
+
+  const checkIsBlocked = (date: Date) => {
+    // Se o interruptor mestre estiver desligado, nenhum bloqueio é aplicado
+    if (!blockHolidays) return undefined;
+
+    const dayOfWeek = date.getDay();
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const currentTime = format(date, 'HH:mm');
+    const allBlocks = [...scheduleBlocks, ...(showHolidays ? holidays : [])];
+
+    return allBlocks.find(block => {
+      if (!block.is_active) return false;
+
+      // 1. Feriados
+      if (block.type === 'holiday') {
+        const holidayDateStr = block.date_str || block.start_date.substring(0, 10);
+        return dateStr === holidayDateStr;
+      }
+
+      // 2. Recorrente
+      if (block.type === 'recurring') {
+        if (block.recurring_day !== dayOfWeek) return false;
+        if (block.is_full_day) return true;
+        return currentTime >= (block.start_time || '00:00') && currentTime <= (block.end_time || '23:59');
+      }
+
+      // 3. Manual / Férias
+      const startStr = block.start_date.substring(0, 10);
+      const endStr = block.end_date ? block.end_date.substring(0, 10) : startStr;
+
+      if (dateStr >= startStr && dateStr <= endStr) {
+        if (block.is_full_day) return true;
+        return currentTime >= (block.start_time || '00:00') && currentTime <= (block.end_time || '23:59');
+      }
+
+      return false;
+    });
+  };
 
   // Adições para o Histórico Financeiro
   const [transactionsList, setTransactionsList] = useState<any[]>([]);
@@ -87,6 +145,41 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
     }
   };
 
+  const fetchPromotionsAndSettings = async () => {
+    if (!appointment?.company_id) return;
+    const supabase = createBrowserClient();
+    
+    // fetch promotions
+    const { data: promoData } = await supabase
+      .from('procedure_promotions')
+      .select('*')
+      .eq('company_id', appointment.company_id)
+      .eq('is_active', true);
+    if (promoData) setPromotions(promoData);
+
+    // fetch settings
+    const { data: compData } = await supabase
+      .from('companies')
+      .select('settings')
+      .eq('id', appointment.company_id)
+      .single();
+    if (compData?.settings) {
+      if (compData.settings.receptionist_discount_limit) {
+        setReceptionistLimit(compData.settings.receptionist_discount_limit);
+      } else {
+        setReceptionistLimit({ type: 'percentage', limit: 15 });
+      }
+    } else {
+      setReceptionistLimit({ type: 'percentage', limit: 15 });
+    }
+  };
+
+  useEffect(() => {
+    if (appointment?.company_id) {
+      fetchPromotionsAndSettings();
+    }
+  }, [appointment?.company_id]);
+
   useEffect(() => {
     if (appointment) {
       setStatus(appointment.status);
@@ -94,9 +187,16 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
 
       setEditClientId(appointment.client_id || '');
       setEditProfessionalId(appointment.professional_id || '');
+      setEditAdditionalProcedureIds(appointment.additional_procedure_ids || []);
       setEditProcedureId(appointment.procedure_id || '');
       setEditStartTime(appointment.start_time ? format(new Date(appointment.start_time), "yyyy-MM-dd'T'HH:mm") : '');
       setEditNotes(appointment.notes || '');
+      setEditIsMaintenance(appointment.is_maintenance || false);
+      setEditDiscountMethod(appointment.discount_type || 'percentage');
+      setEditDiscountName(appointment.discount_name || '');
+      setEditDiscountValue(appointment.discount_value !== undefined && appointment.discount_value !== null ? appointment.discount_value.toString() : '');
+      setEditDiscountPercentage(appointment.discount_percentage !== undefined && appointment.discount_percentage !== null ? appointment.discount_percentage.toString() : '');
+      setEditDiscountNotes(appointment.discount_notes || '');
       setIsEditing(false);
 
       const fetchMedicalRecord = async () => {
@@ -118,10 +218,145 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
            setComplications('');
         }
       }
+      const fetchBlocksAndSettings = async () => {
+        const supabase = createBrowserClient();
+        const { data: blocks } = await supabase
+          .from('schedule_blocks')
+          .select('*')
+          .eq('company_id', appointment.company_id);
+        setScheduleBlocks(blocks || []);
+
+        const { data: company } = await supabase
+          .from('companies')
+          .select('settings')
+          .eq('id', appointment.company_id)
+          .single();
+        if (company?.settings) {
+          setShowHolidays(company.settings.show_holidays || false);
+          setBlockHolidays(company.settings.block_holidays || false);
+        }
+      };
+      
+      const fetchHolidays = async () => {
+        try {
+          const res = await fetch(`https://brasilapi.com.br/api/feriados/v1/${new Date().getFullYear()}`);
+          if (res.ok) {
+            const data = await res.json();
+            setHolidays(data.map((h: any) => ({
+              id: h.name,
+              title: h.name,
+              type: 'holiday',
+              start_date: `${h.date}T00:00:00.000Z`,
+              date_str: h.date,
+              is_active: true
+            })));
+          }
+        } catch (err) {
+          console.error('Error fetching holidays in edit modal:', err);
+        }
+      };
+
       fetchMedicalRecord();
       fetchTransactions();
+      fetchBlocksAndSettings();
+      fetchHolidays();
     }
   }, [appointment]);
+
+  const calculatePrices = () => {
+    const mainProc = procedures?.find(p => p.id === editProcedureId);
+    
+    if (!mainProc) {
+      return {
+        originalBasePrice: 0,
+        suggestedBasePrice: 0,
+        manualDiscountVal: 0,
+        finalPrice: 0,
+        ruleApplied: 'original_price',
+        ruleAppliedDetails: 'Nenhum procedimento selecionado'
+      };
+    }
+
+    let originalBasePrice = Number(mainProc.price || 0);
+    let suggestedBasePrice = originalBasePrice;
+    let ruleApplied = 'original_price';
+    let ruleAppliedDetails = 'Preço Original';
+
+    if (editIsMaintenance && mainProc.maintenance_price && Number(mainProc.maintenance_price) > 0) {
+      suggestedBasePrice = Number(mainProc.maintenance_price);
+      ruleApplied = 'maintenance';
+      ruleAppliedDetails = `Preço de Retorno/Manutenção (R$ ${suggestedBasePrice.toFixed(2)})`;
+    } 
+    else if (editStartTime) {
+      const startDT = new Date(editStartTime);
+      const activePromo = promotions.find(p => {
+        if (p.procedure_id !== mainProc.id || !p.is_active) return false;
+        const start = new Date(p.start_date);
+        const end = new Date(p.end_date);
+        return startDT >= start && startDT <= end;
+      });
+
+      if (activePromo) {
+        ruleApplied = 'promotion';
+        if (activePromo.type === 'value') {
+          suggestedBasePrice = Number(activePromo.value);
+          ruleAppliedDetails = `Promoção: ${activePromo.name} (Preço Fixo R$ ${suggestedBasePrice.toFixed(2)})`;
+        } else {
+          const discountAmt = originalBasePrice * (Number(activePromo.value) / 100);
+          suggestedBasePrice = Math.max(0, originalBasePrice - discountAmt);
+          ruleAppliedDetails = `Promoção: ${activePromo.name} (${activePromo.value}% desc. - R$ ${suggestedBasePrice.toFixed(2)})`;
+        }
+      }
+    }
+
+    // Now add additional procedures to the calculation
+    let additionalProceduresTotal = 0;
+    editAdditionalProcedureIds.forEach((id: string) => {
+      const extraProc = procedures?.find(p => p.id === id);
+      if (extraProc) {
+        additionalProceduresTotal += Number(extraProc.price || 0);
+        originalBasePrice += Number(extraProc.price || 0);
+      }
+    });
+
+    const totalSuggestedPrice = suggestedBasePrice + additionalProceduresTotal;
+
+    // Apply manual discounts
+    let manualDiscountVal = 0;
+    if (editDiscountName || editDiscountValue || editDiscountPercentage) {
+      if (editDiscountMethod === 'value' && editDiscountValue) {
+        manualDiscountVal = parseFloat(editDiscountValue.replace(',', '.')) || 0;
+      } else if (editDiscountMethod === 'percentage' && editDiscountPercentage) {
+        const pct = parseFloat(editDiscountPercentage.replace(',', '.')) || 0;
+        manualDiscountVal = totalSuggestedPrice * (pct / 100);
+      }
+    }
+
+    const finalPrice = Math.max(0, totalSuggestedPrice - manualDiscountVal);
+
+    return {
+      originalBasePrice,
+      suggestedBasePrice: totalSuggestedPrice,
+      manualDiscountVal,
+      finalPrice,
+      ruleApplied,
+      ruleAppliedDetails
+    };
+  };
+
+  const handleDiscountValueChange = (val: string) => {
+    if (val === '' || /^[0-9]*[.,]?[0-9]*$/.test(val)) {
+      setEditDiscountValue(val);
+      setEditDiscountPercentage('');
+    }
+  };
+
+  const handleDiscountPercentageChange = (val: string) => {
+    if (val === '' || /^[0-9]*[.,]?[0-9]*$/.test(val)) {
+      setEditDiscountPercentage(val);
+      setEditDiscountValue('');
+    }
+  };
 
   const handleRegisterPaymentDirect = async (e: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -283,13 +518,81 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
         const duration = selectedProc?.duration_minutes || 60;
         const start = new Date(editStartTime);
         const end = new Date(start.getTime() + duration * 60 * 1000);
+
+        // Check if any part of the appointment overlaps with a schedule block
+        let checkTime = new Date(start.getTime());
+        let overlapsBlock = false;
+        let blockedBlockObj: any = null;
         
+        while (checkTime < end) {
+          const blocked = checkIsBlocked(checkTime);
+          if (blocked) {
+            overlapsBlock = true;
+            blockedBlockObj = blocked;
+            break;
+          }
+          checkTime = new Date(checkTime.getTime() + 15 * 60 * 1000);
+        }
+        
+        if (!overlapsBlock) {
+          const blockedEnd = checkIsBlocked(new Date(end.getTime() - 1000));
+          if (blockedEnd) {
+            overlapsBlock = true;
+            blockedBlockObj = blockedEnd;
+          }
+        }
+        
+        if (overlapsBlock) {
+          if (blockedBlockObj?.is_full_day) {
+            toast.error('Esta data foi bloqueada pela clínica e não está disponível para novos agendamentos.');
+          } else {
+            toast.error('O horário selecionado está indisponível devido a um bloqueio da agenda.');
+          }
+          setLoading(false);
+          return;
+        }
+        
+        const prices = calculatePrices();
+
+        // Receptionist discount limit check
+        if (profile?.role !== 'admin' && profile?.role !== 'chefe' && (editDiscountValue || editDiscountPercentage) && prices.manualDiscountVal > 0) {
+          const limitType = receptionistLimit?.type || 'percentage';
+          const limitVal = receptionistLimit?.limit || 15;
+          
+          if (limitType === 'percentage') {
+            const pct = (prices.manualDiscountVal / prices.suggestedBasePrice) * 100;
+            if (pct > limitVal) {
+              toast.error(`Limite de Desconto Excedido: O limite configurado para recepcionistas é de ${limitVal}%.`);
+              setLoading(false);
+              return;
+            }
+          } else if (limitType === 'value') {
+            if (prices.manualDiscountVal > limitVal) {
+              toast.error(`Limite de Desconto Excedido: O limite configurado para recepcionistas é de R$ ${limitVal.toFixed(2)}.`);
+              setLoading(false);
+              return;
+            }
+          }
+        }
+
         updatePayload.client_id = editClientId;
         updatePayload.professional_id = editProfessionalId;
         updatePayload.procedure_id = editProcedureId;
         updatePayload.start_time = start.toISOString();
         updatePayload.end_time = end.toISOString();
         updatePayload.notes = editNotes;
+        updatePayload.additional_procedure_ids = editAdditionalProcedureIds.filter(id => id !== '');
+
+        // Save discount details
+        updatePayload.original_price = prices.originalBasePrice;
+        updatePayload.discount_type = editDiscountMethod || null;
+        updatePayload.discount_name = editDiscountName || null;
+        updatePayload.discount_value = prices.manualDiscountVal || null;
+        updatePayload.discount_percentage = editDiscountPercentage ? parseFloat(editDiscountPercentage.replace(',', '.')) : null;
+        updatePayload.discount_notes = editDiscountNotes || null;
+        updatePayload.rule_applied = prices.ruleApplied;
+        updatePayload.is_maintenance = editIsMaintenance;
+        updatePayload.price_override = prices.finalPrice;
       } else {
         updatePayload.notes = notes;
       }
@@ -476,52 +779,122 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
         </DialogHeader>
 
         <div className="p-6 space-y-6">
-                {isEditing ? (
+                 {isEditing ? (
               <div className="space-y-4 bg-[#FAF9F6] p-4 rounded-2xl border border-[#E5E0D8]">
+                {/* Barra de Atalhos Rápidos - Touch friendly & premium */}
+                <div className="bg-white border border-[#E5E0D8] rounded-xl p-2.5 space-y-1.5 mb-2">
+                  <span className="text-[8px] font-black text-neutral-500 uppercase tracking-widest block ml-1">Atalhos Rápidos</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (editProcedureId) {
+                          setEditAdditionalProcedureIds([...editAdditionalProcedureIds, '']);
+                        } else {
+                          toast.error('Selecione primeiro o procedimento principal');
+                        }
+                      }}
+                      className="flex items-center justify-center gap-1.5 p-2 rounded-lg border bg-[#FAF9F6] text-[#2C2825] border-[#E5E0D8] hover:bg-[#FAF6EE] hover:border-[#D4AF37]/45 text-center transition-all active:scale-[0.98] h-10"
+                    >
+                      <span className="text-xs">➕</span>
+                      <span className="text-[9px] font-black uppercase tracking-wider">Proced. Extra</span>
+                    </button>
+
+                    {procedures?.find(p => p.id === editProcedureId)?.maintenance_required && (
+                      <button
+                        type="button"
+                        onClick={() => setEditIsMaintenance(!editIsMaintenance)}
+                        className={cn(
+                          "flex items-center justify-center gap-1.5 p-2 rounded-lg border text-center transition-all active:scale-[0.98] h-10",
+                          editIsMaintenance 
+                            ? "bg-[#D4AF37] text-white border-[#D4AF37] shadow-sm" 
+                            : "bg-[#FAF9F6] text-[#2C2825] border-[#E5E0D8] hover:bg-[#FAF6EE] hover:border-[#D4AF37]/45"
+                        )}
+                      >
+                        <span className="text-xs">🔁</span>
+                        <span className="text-[9px] font-black uppercase tracking-wider">Manutenção</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 {/* Cliente */}
                 <div className="space-y-1">
                   <Label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Cliente</Label>
-                  <Select value={editClientId} onValueChange={setEditClientId}>
-                    <SelectTrigger className="bg-white border-[#E5E0D8] h-10 rounded-xl text-[#2C2825]">
-                      <SelectValue placeholder="Selecione o cliente" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border-[#E5E0D8] text-[#2C2825]">
-                      {clients.map(c => (
-                        <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    options={clients.map(c => ({ value: c.id, label: c.full_name }))}
+                    value={editClientId}
+                    onChange={setEditClientId}
+                    placeholder="Selecione o cliente"
+                    searchPlaceholder="Buscar por nome..."
+                    triggerClassName="h-10 rounded-xl"
+                  />
                 </div>
 
                 {/* Profissional */}
                 <div className="space-y-1">
                   <Label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Profissional</Label>
-                  <Select value={editProfessionalId} onValueChange={setEditProfessionalId}>
-                    <SelectTrigger className="bg-white border-[#E5E0D8] h-10 rounded-xl text-[#2C2825]">
-                      <SelectValue placeholder="Selecione o profissional" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border-[#E5E0D8] text-[#2C2825]">
-                      {professionals?.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    options={(professionals || []).map(p => ({ value: p.id, label: p.full_name }))}
+                    value={editProfessionalId}
+                    onChange={setEditProfessionalId}
+                    placeholder="Selecione o profissional"
+                    searchPlaceholder="Buscar profissional..."
+                    triggerClassName="h-10 rounded-xl"
+                  />
                 </div>
 
                 {/* Procedimento */}
                 <div className="space-y-1">
                   <Label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Procedimento</Label>
-                  <Select value={editProcedureId} onValueChange={setEditProcedureId}>
-                    <SelectTrigger className="bg-white border-[#E5E0D8] h-10 rounded-xl text-[#2C2825]">
-                      <SelectValue placeholder="Selecione o procedimento" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border-[#E5E0D8] text-[#2C2825]">
-                      {procedures?.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    options={(procedures || []).map(p => ({ value: p.id, label: p.name }))}
+                    value={editProcedureId}
+                    onChange={(val) => {
+                      setEditProcedureId(val);
+                      const proc = procedures?.find(p => p.id === val);
+                      if (proc?.maintenance_required && proc?.maintenance_price && Number(proc.maintenance_price) > 0) {
+                        setEditIsMaintenance(true);
+                      } else {
+                        setEditIsMaintenance(false);
+                      }
+                    }}
+                    placeholder="Selecione o procedimento"
+                    searchPlaceholder="Buscar procedimento..."
+                    triggerClassName="h-10 rounded-xl"
+                  />
                 </div>
+
+                {/* List of edit additional procedures */}
+                {editAdditionalProcedureIds.map((extraId, idx) => (
+                  <div key={idx} className="flex items-center gap-2 mt-2">
+                    <SearchableSelect
+                      options={(procedures || [])
+                        .filter(p => p.id !== editProcedureId && !editAdditionalProcedureIds.includes(p.id) || p.id === extraId)
+                        .map(p => ({ value: p.id, label: p.name }))}
+                      value={extraId}
+                      onChange={(val) => {
+                        const updated = [...editAdditionalProcedureIds];
+                        updated[idx] = val;
+                        setEditAdditionalProcedureIds(updated);
+                      }}
+                      placeholder="Outro procedimento..."
+                      searchPlaceholder="Buscar procedimento..."
+                      className="flex-1"
+                      triggerClassName="h-10 rounded-xl"
+                    />
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      onClick={() => {
+                        setEditAdditionalProcedureIds(editAdditionalProcedureIds.filter((_, i) => i !== idx));
+                      }}
+                      className="h-10 px-3 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl shrink-0"
+                    >
+                      Remover
+                    </Button>
+                  </div>
+                ))}
 
                 {/* Data e Hora */}
                 <div className="space-y-1">
@@ -533,68 +906,226 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
                     className="bg-white h-10 rounded-xl text-[#2C2825] border-[#E5E0D8]"
                   />
                 </div>
+
+                {/* Descontos e Promoções (Edit Mode) */}
+                <div className="space-y-4 pt-3 border-t border-[#E5E0D8]/60 mt-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Descontos e Promoções</Label>
+                    
+                    {procedures?.find(p => p.id === editProcedureId)?.maintenance_required && (
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="checkbox"
+                          id="edit_is_maintenance_booking"
+                          checked={editIsMaintenance}
+                          onChange={(e) => setEditIsMaintenance(e.target.checked)}
+                          className="w-4 h-4 rounded border-[#E5E0D8] text-[#D4AF37] focus:ring-[#D4AF37]"
+                        />
+                        <label htmlFor="edit_is_maintenance_booking" className="text-xs font-bold text-[#5C5855] cursor-pointer">É Manutenção/Retorno</label>
+                      </div>
+                    )}
+                  </div>
+
+                  {editProcedureId && (
+                    <div className="bg-[#FAF6E9] border border-[#E5E0D8] rounded-xl p-2.5 text-[11px] text-[#765928] font-bold">
+                      ⚡ Regra de preço aplicada: <span className="underline">{calculatePrices().ruleAppliedDetails}</span>
+                    </div>
+                  )}
+
+                  {profile?.role !== 'professional' ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Nome do Desconto</label>
+                          <Input 
+                            placeholder="Ex: VIP, Fidelidade, Campanha..."
+                            value={editDiscountName}
+                            onChange={(e) => setEditDiscountName(e.target.value)}
+                            className="bg-white border-[#E5E0D8] h-9 rounded-lg text-xs font-bold"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Método de Desconto</label>
+                          <div className="flex bg-[#F0EBE0]/60 p-1 rounded-lg gap-1 h-9">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditDiscountMethod('percentage');
+                                setEditDiscountValue('');
+                              }}
+                              className={cn(
+                                "flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all",
+                                editDiscountMethod === 'percentage' 
+                                  ? "bg-white text-[#D4AF37] shadow-xs" 
+                                  : "text-[#5C5855] hover:text-[#2C2825]"
+                              )}
+                            >
+                              % Porcentagem
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditDiscountMethod('value');
+                                setEditDiscountPercentage('');
+                              }}
+                              className={cn(
+                                "flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all",
+                                editDiscountMethod === 'value' 
+                                  ? "bg-white text-[#D4AF37] shadow-xs" 
+                                  : "text-[#5C5855] hover:text-[#2C2825]"
+                              )}
+                            >
+                              R$ Dinheiro
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">
+                            {editDiscountMethod === 'percentage' ? 'Desconto (%)' : 'Valor do Desconto (R$)'}
+                          </label>
+                          <Input 
+                            placeholder="0"
+                            value={editDiscountMethod === 'percentage' ? editDiscountPercentage : editDiscountValue}
+                            onChange={(e) => {
+                              if (editDiscountMethod === 'percentage') {
+                                handleDiscountPercentageChange(e.target.value);
+                              } else {
+                                handleDiscountValueChange(e.target.value);
+                              }
+                            }}
+                            className="bg-white border-[#E5E0D8] h-9 rounded-lg text-xs font-bold"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Observações do Desconto</label>
+                          <Input 
+                            placeholder="Motivo..."
+                            value={editDiscountNotes}
+                            onChange={(e) => setEditDiscountNotes(e.target.value)}
+                            className="bg-white border-[#E5E0D8] h-9 rounded-lg text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[9px] text-neutral-400 italic">Profissionais não aplicam descontos.</p>
+                  )}
+                </div>
+
+                {/* Recibo/Resumo Financeiro (Edit Mode) */}
+                {editProcedureId && (
+                  <div className="bg-white border border-[#E5E0D8]/60 rounded-xl p-3 space-y-1.5 text-[11px] mt-3">
+                    <div className="flex justify-between items-center text-neutral-600">
+                      <span>Valor Original:</span>
+                      <span className="font-mono">R$ {calculatePrices().originalBasePrice.toFixed(2)}</span>
+                    </div>
+                    {calculatePrices().suggestedBasePrice !== calculatePrices().originalBasePrice && (
+                      <div className="flex justify-between items-center text-neutral-800 font-bold">
+                        <span>Sugerido (Promo/Manut):</span>
+                        <span className="font-mono">R$ {calculatePrices().suggestedBasePrice.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {calculatePrices().manualDiscountVal > 0 && (
+                      <div className="flex justify-between items-center text-rose-600 font-bold">
+                        <span>Desconto Manual:</span>
+                        <span className="font-mono">- R$ {calculatePrices().manualDiscountVal.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="border-t border-[#E5E0D8]/50 pt-1 mt-1 flex justify-between font-black text-[#2C2825]">
+                      <span>Valor Final:</span>
+                      <span className="text-[#D4AF37] font-mono">
+                        R$ {calculatePrices().finalPrice.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               /* Info Cards */
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                 <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800">
-                    <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest block mb-1">Cliente</Label>
-                    <p className="font-bold text-sm truncate text-white">{appointment.clients?.full_name}</p>
-                 </div>
-                 <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800">
-                    <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest block mb-1">Profissional</Label>
-                    <p className="font-bold text-sm truncate text-white">
-                      {appointment.profiles?.full_name || 'Não atribuído'}
-                    </p>
-                 </div>
-                 <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800 flex flex-col justify-between">
-                     <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest block mb-1">Procedimento(s)</Label>
-                     <div className="space-y-2 max-h-[120px] overflow-y-auto custom-scrollbar">
-                       {/* Primary Procedure */}
-                       <div>
-                         <p className="font-bold text-xs truncate text-white">{(Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures)?.name}</p>
-                         <p className="text-[#8A847C] text-[10px]">
-                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures)?.price || 0)}
-                         </p>
-                       </div>
-                       {/* Additional Procedures */}
-                       {Array.isArray(appointment.additional_procedure_ids) && appointment.additional_procedure_ids.map((id: string) => {
-                         const extraProc = procedures?.find((p: any) => p.id === id);
-                         if (!extraProc) return null;
-                         return (
-                           <div key={id} className="border-t border-neutral-800 pt-1 mt-1">
-                             <p className="font-bold text-xs truncate text-white">{extraProc.name}</p>
-                             <p className="text-[#8A847C] text-[10px]">
-                               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(extraProc.price || 0)}
-                             </p>
-                           </div>
-                         );
-                       })}
-                     </div>
-                     {/* Total Price */}
-                     <div className="border-t border-emerald-500/30 pt-1.5 mt-2 flex justify-between items-center">
-                       <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest leading-none">Total</span>
-                       <span className="text-emerald-400 text-xs font-black">
-                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                           (() => {
-                             if (appointment?.price_override !== null && appointment?.price_override !== undefined && Number(appointment.price_override) > 0) {
-                               return Number(appointment.price_override);
-                             }
-                             const proc = Array.isArray(appointment?.procedures) ? appointment.procedures[0] : appointment?.procedures;
-                             const primaryPrice = Number(proc?.price || 0);
-                             let extraPrice = 0;
-                             if (Array.isArray(appointment?.additional_procedure_ids)) {
-                               appointment.additional_procedure_ids.forEach((id: string) => {
-                                 const extraProc = procedures?.find((p: any) => p.id === id);
-                                 if (extraProc) extraPrice += Number(extraProc.price || 0);
-                               });
-                             }
-                             return primaryPrice + extraPrice;
-                           })()
-                         )}
-                       </span>
-                     </div>
+              <div className="bg-[#FAF9F6] border border-[#E5E0D8] rounded-2xl p-4 space-y-4">
+                {/* Cliente */}
+                <div className="flex items-center gap-3.5 pb-3 border-b border-[#E5E0D8]/60">
+                  <div className="h-9 w-9 rounded-xl bg-[#D4AF37]/10 flex items-center justify-center text-[#D4AF37] shrink-0">
+                    <User className="h-5 w-5" />
                   </div>
+                  <div>
+                    <span className="text-[9px] font-black text-[#8A847C] uppercase tracking-widest block">Cliente</span>
+                    <span className="font-bold text-sm text-[#2C2825]">{appointment.clients?.full_name}</span>
+                  </div>
+                </div>
+
+                {/* Profissional */}
+                <div className="flex items-center gap-3.5 pb-3 border-b border-[#E5E0D8]/60">
+                  <div className="h-9 w-9 rounded-xl bg-[#D4AF37]/10 flex items-center justify-center text-[#D4AF37] shrink-0">
+                    <UserCheck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black text-[#8A847C] uppercase tracking-widest block">Profissional</span>
+                    <span className="font-bold text-sm text-[#2C2825]">
+                      {appointment.profiles?.full_name || 'Não atribuído'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Procedimento(s) */}
+                <div className="flex items-start gap-3.5">
+                  <div className="h-9 w-9 rounded-xl bg-[#D4AF37]/10 flex items-center justify-center text-[#D4AF37] shrink-0 mt-0.5">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[9px] font-black text-[#8A847C] uppercase tracking-widest block mb-1">Procedimento(s)</span>
+                    <div className="space-y-2">
+                      {/* Primary Procedure */}
+                      <div className="flex justify-between items-center text-xs font-bold text-[#2C2825]">
+                        <span className="truncate">{(Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures)?.name}</span>
+                        <span className="font-mono text-[#8A847C]">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures)?.price || 0)}
+                        </span>
+                      </div>
+                      {/* Additional Procedures */}
+                      {Array.isArray(appointment.additional_procedure_ids) && appointment.additional_procedure_ids.map((id: string) => {
+                        const extraProc = procedures?.find((p: any) => p.id === id);
+                        if (!extraProc) return null;
+                        return (
+                          <div key={id} className="flex justify-between items-center text-xs font-bold text-[#2C2825] border-t border-[#E5E0D8]/45 pt-1.5 mt-1.5 font-medium">
+                            <span className="truncate">{extraProc.name}</span>
+                            <span className="font-mono text-[#8A847C]">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(extraProc.price || 0)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* Total Price */}
+                    <div className="border-t border-[#D4AF37]/30 pt-2.5 mt-3 flex justify-between items-center">
+                      <span className="text-[9px] font-black text-[#D4AF37] uppercase tracking-widest leading-none">Total</span>
+                      <span className="text-[#D4AF37] text-sm font-black font-mono">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                          (() => {
+                            if (appointment?.price_override !== null && appointment?.price_override !== undefined && Number(appointment.price_override) > 0) {
+                              return Number(appointment.price_override);
+                            }
+                            const proc = Array.isArray(appointment?.procedures) ? appointment.procedures[0] : appointment?.procedures;
+                            const primaryPrice = Number(proc?.price || 0);
+                            let extraPrice = 0;
+                            if (Array.isArray(appointment?.additional_procedure_ids)) {
+                              appointment.additional_procedure_ids.forEach((id: string) => {
+                                const extraProc = procedures?.find((p: any) => p.id === id);
+                                if (extraProc) extraPrice += Number(extraProc.price || 0);
+                              });
+                            }
+                            return primaryPrice + extraPrice;
+                          })()
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 

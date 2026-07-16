@@ -53,6 +53,13 @@ interface BlockDaysModalProps {
   onRefresh: () => void;
 }
 
+const parseUTCDate = (isoStr: string) => {
+  if (!isoStr) return new Date();
+  const datePart = isoStr.substring(0, 10);
+  const [year, month, day] = datePart.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
 export function BlockDaysModal({ isOpen, onClose, companyId, onRefresh }: BlockDaysModalProps) {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,8 +164,8 @@ export function BlockDaysModal({ isOpen, onClose, companyId, onRefresh }: BlockD
         company_id: companyId,
         title: formData.title,
         type: formData.type,
-        start_date: new Date(formData.start_date).toISOString(),
-        end_date: formData.end_date ? new Date(formData.end_date).toISOString() : null,
+        start_date: `${formData.start_date}T00:00:00.000Z`,
+        end_date: formData.end_date ? `${formData.end_date}T00:00:00.000Z` : null,
         start_time: formData.is_full_day ? null : formData.start_time,
         end_time: formData.is_full_day ? null : formData.end_time,
         is_full_day: formData.is_full_day,
@@ -201,6 +208,8 @@ export function BlockDaysModal({ isOpen, onClose, companyId, onRefresh }: BlockD
       onRefresh();
     }
   }
+
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -362,23 +371,21 @@ export function BlockDaysModal({ isOpen, onClose, companyId, onRefresh }: BlockD
                   />
                 </div>
 
-                {showHolidays && (
-                  <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center justify-between animate-in slide-in-from-top-2">
-                    <div className="flex gap-3">
-                      <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
-                        <ShieldAlert className="h-5 w-5 text-red-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-red-900">Bloquear Agendamentos?</p>
-                        <p className="text-[10px] text-red-700 uppercase font-black tracking-widest">Impedir marcações nestes dias</p>
-                      </div>
+                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center justify-between animate-in slide-in-from-top-2">
+                  <div className="flex gap-3">
+                    <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                      <ShieldAlert className="h-5 w-5 text-red-600" />
                     </div>
-                    <Switch 
-                      checked={blockHolidays}
-                      onCheckedChange={handleToggleBlockHolidays}
-                    />
+                    <div>
+                      <p className="text-sm font-bold text-red-900">Bloquear Agendamentos?</p>
+                      <p className="text-[10px] text-red-700 uppercase font-black tracking-widest">Impedir marcações nestes dias</p>
+                    </div>
                   </div>
-                )}
+                  <Switch 
+                    checked={blockHolidays}
+                    onCheckedChange={handleToggleBlockHolidays}
+                  />
+                </div>
               </div>
 
               {/* Lista de Bloqueios */}
@@ -409,9 +416,9 @@ export function BlockDaysModal({ isOpen, onClose, companyId, onRefresh }: BlockD
                               {block.type === 'recurring' ? (
                                 `Toda ${['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][block.recurring_day || 0]}`
                               ) : block.type === 'vacation' ? (
-                                `${format(new Date(block.start_date), 'dd/MM/yy')} até ${format(new Date(block.end_date || ''), 'dd/MM/yy')}`
+                                `${format(parseUTCDate(block.start_date), 'dd/MM/yy')} até ${format(parseUTCDate(block.end_date || ''), 'dd/MM/yy')}`
                               ) : (
-                                format(new Date(block.start_date), 'dd/MM/yy')
+                                format(parseUTCDate(block.start_date), 'dd/MM/yy')
                               )}
                             </p>
                           </div>

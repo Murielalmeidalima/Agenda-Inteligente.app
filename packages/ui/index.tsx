@@ -71,6 +71,9 @@ export {
   SelectScrollDownButton,
 } from './components/select';
 
+export { SearchableSelect } from './components/searchable-select';
+export type { SearchableSelectOption } from './components/searchable-select';
+
 export {
   Tabs,
   TabsList,
