@@ -18,6 +18,7 @@ import {
   Label,
   TextArea,
   SearchableSelect,
+  Badge,
   cn
 } from '@projeto/ui';
 import { Appointment } from '@/types/database';
@@ -28,6 +29,7 @@ import { EditAppointmentModal } from './edit-appointment-modal';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BlockDaysModal } from './components/BlockDaysModal';
 import { showToast } from '@/lib/toast-helpers';
+import { evaluateClientMaintenanceCycle, shouldGenerateMaintenanceOnCreate, createMaintenanceAppointment } from '@/lib/maintenance-logic';
 import { isWithinInterval, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { useProfile } from '@/providers/profile-provider';
 
@@ -71,6 +73,7 @@ export default function ScheduleCalendarClient({
   const [discountValue, setDiscountValue] = useState('');
   const [discountPercentage, setDiscountPercentage] = useState('');
   const [discountNotes, setDiscountNotes] = useState('');
+  const [showDiscountForm, setShowDiscountForm] = useState(false);
 
   useEffect(() => {
     if (filterParam === 'maintenance') {
@@ -250,7 +253,9 @@ export default function ScheduleCalendarClient({
     if (!mainProc) {
       return {
         originalBasePrice: 0,
+        usedBasePrice: 0,
         suggestedBasePrice: 0,
+        priceType: 'normal' as 'normal' | 'maintenance' | 'promotion',
         manualDiscountVal: 0,
         finalPrice: 0,
         ruleApplied: 'original_price',
@@ -258,19 +263,30 @@ export default function ScheduleCalendarClient({
       };
     }
 
-    let originalBasePrice = Number(mainProc.price || 0);
-    let suggestedBasePrice = originalBasePrice;
-    let ruleApplied = 'original_price';
-    let ruleAppliedDetails = 'Preço Original';
+    // Avaliar o Ciclo de Manutenção do Cliente para o procedimento selecionado
+    const targetDate = formData.startTime ? new Date(formData.startTime) : new Date();
+    const clientAppts = appointments.filter(a => a.client_id === formData.clientId);
+    const cycleEval = evaluateClientMaintenanceCycle(
+      clientAppts,
+      mainProc.id,
+      targetDate,
+      mainProc.maintenance_days_limit
+    );
 
-    // Apply hierarchy:
-    // A. Maintenance Price (if checkbox is checked and maintenance_price is set)
-    if (isMaintenance && mainProc.maintenance_price && Number(mainProc.maintenance_price) > 0) {
-      suggestedBasePrice = Number(mainProc.maintenance_price);
+    let originalBasePrice = Number(mainProc.price || 0);
+    let usedBasePrice = originalBasePrice;
+    let priceType: 'normal' | 'maintenance' | 'promotion' = 'normal';
+    let ruleApplied = 'original_price';
+    let ruleAppliedDetails = cycleEval.ruleLabel;
+
+    // A. Manutenção Fixo (se o ciclo estiver ativo e houver maintenance_price cadastrado)
+    if (cycleEval.isMaintenanceEligible && mainProc.maintenance_price && Number(mainProc.maintenance_price) > 0) {
+      usedBasePrice = Number(mainProc.maintenance_price);
+      priceType = 'maintenance';
       ruleApplied = 'maintenance';
-      ruleAppliedDetails = `Preço de Retorno/Manutenção (R$ ${suggestedBasePrice.toFixed(2)})`;
+      ruleAppliedDetails = 'Preço aplicado: Manutenção ativa';
     } 
-    // B. Promotion Price (if there is an active promotion valid on the selected date)
+    // B. Preço Promocional
     else if (formData.startTime) {
       const startDT = new Date(formData.startTime);
       const activePromo = promotions.find(p => {
@@ -281,19 +297,20 @@ export default function ScheduleCalendarClient({
       });
 
       if (activePromo) {
+        priceType = 'promotion';
         ruleApplied = 'promotion';
         if (activePromo.type === 'value') {
-          suggestedBasePrice = Number(activePromo.value);
-          ruleAppliedDetails = `Promoção: ${activePromo.name} (Preço Fixo R$ ${suggestedBasePrice.toFixed(2)})`;
+          usedBasePrice = Number(activePromo.value);
+          ruleAppliedDetails = `Promoção: ${activePromo.name} (R$ ${usedBasePrice.toFixed(2)})`;
         } else {
           const discountAmt = originalBasePrice * (Number(activePromo.value) / 100);
-          suggestedBasePrice = Math.max(0, originalBasePrice - discountAmt);
-          ruleAppliedDetails = `Promoção: ${activePromo.name} (${activePromo.value}% desc. - R$ ${suggestedBasePrice.toFixed(2)})`;
+          usedBasePrice = Math.max(0, originalBasePrice - discountAmt);
+          ruleAppliedDetails = `Promoção: ${activePromo.name} (${activePromo.value}%)`;
         }
       }
     }
 
-    // Now add additional procedures to the calculation
+    // Procedimentos adicionais
     let additionalProceduresTotal = 0;
     additionalProcedureIds.forEach(id => {
       const extraProc = procedures.find(p => p.id === id);
@@ -303,24 +320,26 @@ export default function ScheduleCalendarClient({
       }
     });
 
-    const totalSuggestedPrice = suggestedBasePrice + additionalProceduresTotal;
+    const totalUsedBasePrice = usedBasePrice + additionalProceduresTotal;
 
-    // Apply manual discounts
+    // Desconto manual opcional
     let manualDiscountVal = 0;
     if (discountName || discountValue || discountPercentage) {
       if (discountMethod === 'value' && discountValue) {
         manualDiscountVal = parseFloat(discountValue.replace(',', '.')) || 0;
       } else if (discountMethod === 'percentage' && discountPercentage) {
         const pct = parseFloat(discountPercentage.replace(',', '.')) || 0;
-        manualDiscountVal = totalSuggestedPrice * (pct / 100);
+        manualDiscountVal = totalUsedBasePrice * (pct / 100);
       }
     }
 
-    const finalPrice = Math.max(0, totalSuggestedPrice - manualDiscountVal);
+    const finalPrice = Math.max(0, totalUsedBasePrice - manualDiscountVal);
 
     return {
       originalBasePrice,
-      suggestedBasePrice: totalSuggestedPrice,
+      usedBasePrice: totalUsedBasePrice,
+      suggestedBasePrice: totalUsedBasePrice,
+      priceType,
       manualDiscountVal,
       finalPrice,
       ruleApplied,
@@ -768,6 +787,16 @@ export default function ScheduleCalendarClient({
 
       const priceVal = isLaunching ? (Number(launchingPrice) || prices.finalPrice) : prices.finalPrice;
 
+      // Equalização dos campos de pagamento na tabela appointments
+      let mappedPaymentStatus = 'pending';
+      let mappedPaymentMethod: string | null = null;
+      if (isLaunching) {
+        mappedPaymentStatus = launchingPaymentStatus; // 'paid' | 'partial' | 'pending'
+        if (launchingPaymentStatus !== 'pending') {
+          mappedPaymentMethod = launchingPaymentMethod;
+        }
+      }
+
       const { data, error } = await supabase
         .from('appointments')
         .insert({
@@ -798,6 +827,26 @@ export default function ScheduleCalendarClient({
         .single();
 
       if (error) throw error;
+
+      // Geração Automática Imediata de Manutenção no ato do agendamento
+      const procObj = procedures.find(p => p.id === formData.procedureId);
+      if (shouldGenerateMaintenanceOnCreate(procObj, isLaunching, isMaintenance)) {
+        const { created, futureDate } = await createMaintenanceAppointment(
+          supabase,
+          {
+            id: data.id,
+            company_id: companyId,
+            client_id: formData.clientId,
+            professional_id: formData.professionalId,
+            procedure_id: formData.procedureId,
+            start_time: start.toISOString()
+          },
+          procObj
+        );
+        if (created && futureDate) {
+          showToast.success('Agendamento Criado!', `Próxima manutenção agendada automaticamente para ${format(futureDate, 'dd/MM/yyyy')}`);
+        }
+      }
 
       // Se for Lançamento e o pagamento não for Pendente, cria a transação e atualiza a conta
       if (isLaunching && launchingPaymentStatus !== 'pending') {
@@ -1292,157 +1341,172 @@ export default function ScheduleCalendarClient({
               />
             </div>
 
-            {/* Seção de Descontos e Promoções */}
+            {/* Reestruturação da Seção de Preços: Bloco 1, Bloco 2 e Bloco 3 */}
             <div className="space-y-4 pt-4 border-t border-[#E5E0D8]">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-black text-neutral-600 uppercase tracking-widest">Descontos e Promoções</h4>
-                
-                {/* Checkbox de Manutenção (Apenas se o procedimento principal exigir manutenção) */}
-                {procedures.find(p => p.id === formData.procedureId)?.maintenance_required && (
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="checkbox"
-                      id="is_maintenance_booking"
-                      checked={isMaintenance}
-                      onChange={(e) => setIsMaintenance(e.target.checked)}
-                      className="w-4 h-4 rounded border-[#E5E0D8] text-[#D4AF37] focus:ring-[#D4AF37]"
-                    />
-                    <label htmlFor="is_maintenance_booking" className="text-xs font-bold text-[#5C5855] cursor-pointer">É Manutenção/Retorno</label>
-                  </div>
-                )}
-              </div>
-
-              {/* Informar a regra de preço aplicada */}
+              {/* BLOCO 1: Valor Fixo do Atendimento */}
               {formData.procedureId && (
-                <div className="bg-[#FAF6E9] border border-[#E5E0D8] rounded-xl p-3 text-xs text-[#765928] font-bold">
-                  ⚡ Regra de preço aplicada: <span className="underline">{calculatePrices().ruleAppliedDetails}</span>
+                <div className="bg-[#FAF6E9]/70 border border-[#E5E0D8] rounded-2xl p-4 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-[#8A847C]">Valor Fixo do Atendimento</span>
+                    <Badge className="bg-[#D4AF37]/15 text-[#2C2825] border-[#D4AF37]/40 font-bold px-2.5 py-0.5 text-[10px] rounded-md shadow-xs">
+                      {calculatePrices().ruleAppliedDetails}
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs font-bold text-[#2C2825] pt-1">
+                    <span>Procedimento: {procedures.find(p => p.id === formData.procedureId)?.name}</span>
+                    <span className="font-mono text-neutral-900 bg-white px-3 py-1 rounded-lg border border-[#E5E0D8]">
+                      R$ {calculatePrices().usedBasePrice.toFixed(2)}
+                    </span>
+                  </div>
                 </div>
               )}
 
-              {/* Controles de Desconto Manual (apenas se não for Profissional) */}
-              {profile?.role !== 'professional' ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Nome do Desconto</label>
-                      <Input 
-                        placeholder="Ex: VIP, Fidelidade, Campanha..."
-                        value={discountName}
-                        onChange={(e) => setDiscountName(e.target.value)}
-                        className="bg-white border-[#E5E0D8] h-10 rounded-xl text-xs font-bold"
-                      />
+              {/* BLOCO 2: Desconto Manual (Opcional) */}
+              {formData.procedureId && profile?.role !== 'professional' && (
+                <div className="border border-[#E5E0D8] rounded-2xl p-4 space-y-3 bg-white">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-[#2C2825]">Desconto Manual (Opcional)</h4>
+                      <p className="text-[10px] text-neutral-500">Conceder benefício adicional neste atendimento</p>
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Método de Desconto</label>
-                      <div className="flex bg-[#F0EBE0]/60 p-1 rounded-xl gap-1 h-10">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDiscountMethod('percentage');
-                            setDiscountValue('');
-                          }}
-                          className={cn(
-                            "flex-1 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all",
-                            discountMethod === 'percentage' 
-                              ? "bg-white text-[#D4AF37] shadow-xs" 
-                              : "text-[#5C5855] hover:text-[#2C2825]"
-                          )}
-                        >
-                          % Porcentagem
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDiscountMethod('value');
-                            setDiscountPercentage('');
-                          }}
-                          className={cn(
-                            "flex-1 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all",
-                            discountMethod === 'value' 
-                              ? "bg-white text-[#D4AF37] shadow-xs" 
-                              : "text-[#5C5855] hover:text-[#2C2825]"
-                          )}
-                        >
-                          R$ Dinheiro
-                        </button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (showDiscountForm) {
+                          setDiscountName('');
+                          setDiscountValue('');
+                          setDiscountPercentage('');
+                          setDiscountNotes('');
+                        }
+                        setShowDiscountForm(!showDiscountForm);
+                      }}
+                      className="h-8 rounded-xl text-xs font-bold border-[#E5E0D8] hover:bg-neutral-50"
+                    >
+                      {showDiscountForm ? '✕ Remover Desconto' : '🏷️ + Aplicar Desconto'}
+                    </Button>
+                  </div>
+
+                  {showDiscountForm && (
+                    <div className="space-y-4 pt-3 border-t border-[#E5E0D8]/60 animate-fade-in">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Nome do Desconto</label>
+                          <Input 
+                            placeholder="Ex: VIP, Fidelidade, Parceria..."
+                            value={discountName}
+                            onChange={(e) => setDiscountName(e.target.value)}
+                            className="bg-white border-[#E5E0D8] h-10 rounded-xl text-xs font-bold"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Método de Desconto</label>
+                          <div className="flex bg-[#F0EBE0]/60 p-1 rounded-xl gap-1 h-10">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDiscountMethod('percentage');
+                                setDiscountValue('');
+                              }}
+                              className={cn(
+                                "flex-1 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all",
+                                discountMethod === 'percentage' 
+                                  ? "bg-white text-[#D4AF37] shadow-xs" 
+                                  : "text-[#5C5855] hover:text-[#2C2825]"
+                              )}
+                            >
+                              % Porcentagem
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDiscountMethod('value');
+                                setDiscountPercentage('');
+                              }}
+                              className={cn(
+                                "flex-1 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all",
+                                discountMethod === 'value' 
+                                  ? "bg-white text-[#D4AF37] shadow-xs" 
+                                  : "text-[#5C5855] hover:text-[#2C2825]"
+                              )}
+                            >
+                              R$ Dinheiro
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">
+                            {discountMethod === 'percentage' ? 'Desconto (%)' : 'Valor do Desconto (R$)'}
+                          </label>
+                          <Input 
+                            placeholder="0"
+                            value={discountMethod === 'percentage' ? discountPercentage : discountValue}
+                            onChange={(e) => {
+                              if (discountMethod === 'percentage') {
+                                handleDiscountPercentageChange(e.target.value);
+                              } else {
+                                handleDiscountValueChange(e.target.value);
+                              }
+                            }}
+                            className="bg-white border-[#E5E0D8] h-10 rounded-xl text-xs font-bold"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Observações do Desconto</label>
+                          <Input 
+                            placeholder="Motivo..."
+                            value={discountNotes}
+                            onChange={(e) => setDiscountNotes(e.target.value)}
+                            className="bg-white border-[#E5E0D8] h-10 rounded-xl text-xs"
+                          />
+                        </div>
                       </div>
                     </div>
+                  )}
+                </div>
+              )}
+
+              {/* BLOCO 3: Resumo Financeiro Completo */}
+              {formData.procedureId && (
+                <div className="bg-[#FAF6E9]/80 border border-[#E5E0D8] rounded-2xl p-4 space-y-2 text-xs">
+                  <p className="font-black text-[#2C2825] uppercase tracking-widest text-[9px] mb-1">Resumo Financeiro do Agendamento</p>
+                  
+                  <div className="flex justify-between items-center text-neutral-600">
+                    <span>Valor Original do Procedimento:</span>
+                    <span className="font-mono">R$ {calculatePrices().originalBasePrice.toFixed(2)}</span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">
-                        {discountMethod === 'percentage' ? 'Desconto (%)' : 'Valor do Desconto (R$)'}
-                      </label>
-                      <Input 
-                        placeholder="0"
-                        value={discountMethod === 'percentage' ? discountPercentage : discountValue}
-                        onChange={(e) => {
-                          if (discountMethod === 'percentage') {
-                            handleDiscountPercentageChange(e.target.value);
-                          } else {
-                            handleDiscountValueChange(e.target.value);
-                          }
-                        }}
-                        className="bg-white border-[#E5E0D8] h-10 rounded-xl text-xs font-bold"
-                      />
-                    </div>
+                  <div className="flex justify-between items-center text-neutral-800 font-bold">
+                    <span>Valor Fixo Utilizado:</span>
+                    <span className="font-mono text-[#2C2825]">
+                      R$ {calculatePrices().usedBasePrice.toFixed(2)} {calculatePrices().priceType === 'maintenance' ? '(Manutenção)' : '(Normal)'}
+                    </span>
+                  </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Observações do Desconto</label>
-                      <Input 
-                        placeholder="Motivo do desconto..."
-                        value={discountNotes}
-                        onChange={(e) => setDiscountNotes(e.target.value)}
-                        className="bg-white border-[#E5E0D8] h-10 rounded-xl text-xs"
-                      />
+                  {calculatePrices().manualDiscountVal > 0 && (
+                    <div className="flex justify-between items-center text-rose-600 font-bold">
+                      <span>Desconto Manual Aplicado:</span>
+                      <span className="font-mono">- R$ {calculatePrices().manualDiscountVal.toFixed(2)}</span>
                     </div>
+                  )}
+
+                  <div className="border-t border-[#E5E0D8] pt-2 mt-2 flex justify-between font-black text-sm text-[#2C2825]">
+                    <span>Valor Final do Atendimento:</span>
+                    <span className="text-[#D4AF37] font-mono text-base">
+                      R$ {calculatePrices().finalPrice.toFixed(2)}
+                    </span>
                   </div>
                 </div>
-              ) : (
-                <p className="text-[10px] text-neutral-400 italic">Profissionais não possuem permissão para aplicar descontos manuais.</p>
               )}
             </div>
-
-            {/* Recibo/Resumo Financeiro Completo */}
-            {formData.procedureId && (
-              <div className="bg-[#FAF6E9]/45 border border-[#E5E0D8] rounded-2xl p-4 space-y-2 text-xs">
-                <p className="font-black text-[#2C2825] uppercase tracking-widest text-[9px] mb-1 text-neutral-600">Demonstrativo de Valores</p>
-                
-                {selectedProceduresList.map((p, i) => (
-                  <div key={p.id} className="flex justify-between items-center text-neutral-500 text-[11px] italic">
-                    <span>{i + 1}. {p.name}:</span>
-                    <span>R$ {p.price.toFixed(2)}</span>
-                  </div>
-                ))}
-                
-                <div className="border-t border-[#E5E0D8]/40 my-1"></div>
-
-                <div className="flex justify-between items-center text-neutral-800">
-                  <span>Valor Original Total:</span>
-                  <span className="font-mono">R$ {calculatePrices().originalBasePrice.toFixed(2)}</span>
-                </div>
-                {calculatePrices().suggestedBasePrice !== calculatePrices().originalBasePrice && (
-                  <div className="flex justify-between items-center text-neutral-800 font-bold">
-                    <span>Valor Sugerido (Promoção/Manutenção):</span>
-                    <span className="font-mono">R$ {calculatePrices().suggestedBasePrice.toFixed(2)}</span>
-                  </div>
-                )}
-                {calculatePrices().manualDiscountVal > 0 && (
-                  <div className="flex justify-between items-center text-rose-600 font-bold">
-                    <span>Desconto Manual Aplicado:</span>
-                    <span className="font-mono">- R$ {calculatePrices().manualDiscountVal.toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="border-t border-[#E5E0D8] pt-2 mt-2 flex justify-between font-black text-sm text-[#2C2825]">
-                  <span>Valor Efetivo Final:</span>
-                  <span className="text-[#D4AF37] font-mono">
-                    R$ {calculatePrices().finalPrice.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            )}
 
             <div className="flex gap-4 pt-4">
               <Button 

@@ -5,7 +5,9 @@ import {
   Dialog, 
   DialogContent, 
   DialogHeader, 
-  DialogTitle, 
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
   Button,
   Select,
   SelectTrigger,
@@ -22,8 +24,14 @@ import {
 import { Edit2, CheckCircle2, XCircle, AlertCircle, Banknote, User, UserCheck, Sparkles } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { toast } from 'sonner';
-import { format, addDays, addWeeks, addMonths, isSaturday, isSunday, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import { useProfile } from '@/providers/profile-provider';
+import { 
+  shouldGenerateAutomaticMaintenance, 
+  shouldGenerateNextRecurringMaintenance,
+  createMaintenanceAppointment,
+  evaluateClientMaintenanceCycle
+} from '@/lib/maintenance-logic';
 
 interface EditAppointmentModalProps {
   isOpen: boolean;
@@ -42,6 +50,22 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
   const [loading, setLoading] = useState(false);
   const [checkingAnamnese, setCheckingAnamnese] = useState(false);
   const [sendingLink, setSendingLink] = useState(false);
+  const [clientAppointments, setClientAppointments] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isOpen && appointment?.client_id) {
+      const fetchClientHistory = async () => {
+        const supabase = createBrowserClient();
+        const { data } = await supabase
+          .from('appointments')
+          .select('id, procedure_id, start_time, status, is_maintenance, parent_appointment_id')
+          .eq('client_id', appointment.client_id)
+          .eq('company_id', appointment.company_id);
+        setClientAppointments(data || []);
+      };
+      fetchClientHistory();
+    }
+  }, [isOpen, appointment?.client_id]);
 
   // Discount states
   const [editIsMaintenance, setEditIsMaintenance] = useState(false);
@@ -50,8 +74,14 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
   const [editDiscountValue, setEditDiscountValue] = useState('');
   const [editDiscountPercentage, setEditDiscountPercentage] = useState('');
   const [editDiscountNotes, setEditDiscountNotes] = useState('');
+  const [showDiscountForm, setShowDiscountForm] = useState(false);
   const [promotions, setPromotions] = useState<any[]>([]);
   const [receptionistLimit, setReceptionistLimit] = useState<{ type: 'value' | 'percentage', limit: number } | null>(null);
+
+  // Cancellation dialog states
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancellationReasonOption, setCancellationReasonOption] = useState<string>('Cliente desistiu');
+  const [customCancellationReason, setCustomCancellationReason] = useState<string>('');
 
   // Ficha de Atendimento
   const [clinicalNotes, setClinicalNotes] = useState('');
@@ -197,6 +227,7 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
       setEditDiscountValue(appointment.discount_value !== undefined && appointment.discount_value !== null ? appointment.discount_value.toString() : '');
       setEditDiscountPercentage(appointment.discount_percentage !== undefined && appointment.discount_percentage !== null ? appointment.discount_percentage.toString() : '');
       setEditDiscountNotes(appointment.discount_notes || '');
+      setShowDiscountForm(!!(appointment.discount_name || appointment.discount_value || appointment.discount_percentage));
       setIsEditing(false);
 
       const fetchMedicalRecord = async () => {
@@ -269,7 +300,9 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
     if (!mainProc) {
       return {
         originalBasePrice: 0,
+        usedBasePrice: 0,
         suggestedBasePrice: 0,
+        priceType: 'normal' as 'normal' | 'maintenance' | 'promotion',
         manualDiscountVal: 0,
         finalPrice: 0,
         ruleApplied: 'original_price',
@@ -277,16 +310,29 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
       };
     }
 
-    let originalBasePrice = Number(mainProc.price || 0);
-    let suggestedBasePrice = originalBasePrice;
-    let ruleApplied = 'original_price';
-    let ruleAppliedDetails = 'Preço Original';
+    // Avaliar o Ciclo de Manutenção do Cliente
+    const targetDate = editStartTime ? new Date(editStartTime) : new Date(appointment.start_time);
+    const cycleEval = evaluateClientMaintenanceCycle(
+      clientAppointments || [],
+      mainProc.id,
+      targetDate,
+      mainProc.maintenance_days_limit
+    );
 
-    if (editIsMaintenance && mainProc.maintenance_price && Number(mainProc.maintenance_price) > 0) {
-      suggestedBasePrice = Number(mainProc.maintenance_price);
+    let originalBasePrice = Number(mainProc.price || 0);
+    let usedBasePrice = originalBasePrice;
+    let priceType: 'normal' | 'maintenance' | 'promotion' = 'normal';
+    let ruleApplied = 'original_price';
+    let ruleAppliedDetails = cycleEval.ruleLabel;
+
+    // A. Manutenção Fixo (se editIsMaintenance for verdadeiro ou ciclo ativo)
+    if ((editIsMaintenance || cycleEval.isMaintenanceEligible) && mainProc.maintenance_price && Number(mainProc.maintenance_price) > 0) {
+      usedBasePrice = Number(mainProc.maintenance_price);
+      priceType = 'maintenance';
       ruleApplied = 'maintenance';
-      ruleAppliedDetails = `Preço de Retorno/Manutenção (R$ ${suggestedBasePrice.toFixed(2)})`;
+      ruleAppliedDetails = 'Preço aplicado: Manutenção ativa';
     } 
+    // B. Preço Promocional
     else if (editStartTime) {
       const startDT = new Date(editStartTime);
       const activePromo = promotions.find(p => {
@@ -297,19 +343,20 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
       });
 
       if (activePromo) {
+        priceType = 'promotion';
         ruleApplied = 'promotion';
         if (activePromo.type === 'value') {
-          suggestedBasePrice = Number(activePromo.value);
-          ruleAppliedDetails = `Promoção: ${activePromo.name} (Preço Fixo R$ ${suggestedBasePrice.toFixed(2)})`;
+          usedBasePrice = Number(activePromo.value);
+          ruleAppliedDetails = `Promoção: ${activePromo.name} (R$ ${usedBasePrice.toFixed(2)})`;
         } else {
           const discountAmt = originalBasePrice * (Number(activePromo.value) / 100);
-          suggestedBasePrice = Math.max(0, originalBasePrice - discountAmt);
-          ruleAppliedDetails = `Promoção: ${activePromo.name} (${activePromo.value}% desc. - R$ ${suggestedBasePrice.toFixed(2)})`;
+          usedBasePrice = Math.max(0, originalBasePrice - discountAmt);
+          ruleAppliedDetails = `Promoção: ${activePromo.name} (${activePromo.value}%)`;
         }
       }
     }
 
-    // Now add additional procedures to the calculation
+    // Procedimentos adicionais
     let additionalProceduresTotal = 0;
     editAdditionalProcedureIds.forEach((id: string) => {
       const extraProc = procedures?.find(p => p.id === id);
@@ -319,24 +366,26 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
       }
     });
 
-    const totalSuggestedPrice = suggestedBasePrice + additionalProceduresTotal;
+    const totalUsedBasePrice = usedBasePrice + additionalProceduresTotal;
 
-    // Apply manual discounts
+    // Desconto manual opcional
     let manualDiscountVal = 0;
     if (editDiscountName || editDiscountValue || editDiscountPercentage) {
       if (editDiscountMethod === 'value' && editDiscountValue) {
         manualDiscountVal = parseFloat(editDiscountValue.replace(',', '.')) || 0;
       } else if (editDiscountMethod === 'percentage' && editDiscountPercentage) {
         const pct = parseFloat(editDiscountPercentage.replace(',', '.')) || 0;
-        manualDiscountVal = totalSuggestedPrice * (pct / 100);
+        manualDiscountVal = totalUsedBasePrice * (pct / 100);
       }
     }
 
-    const finalPrice = Math.max(0, totalSuggestedPrice - manualDiscountVal);
+    const finalPrice = Math.max(0, totalUsedBasePrice - manualDiscountVal);
 
     return {
       originalBasePrice,
-      suggestedBasePrice: totalSuggestedPrice,
+      usedBasePrice: totalUsedBasePrice,
+      suggestedBasePrice: totalUsedBasePrice,
+      priceType,
       manualDiscountVal,
       finalPrice,
       ruleApplied,
@@ -604,61 +653,52 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
 
       if (error) throw error;
 
-      if (status === 'completed') {
-          // Lógica de Manutenção Automática
-          const proc = appointment.procedures;
-          // Note that appointment.procedures might be an array if fetched weirdly, but in page.tsx we already did `Array.isArray(app.procedures) ? app.procedures[0] : app.procedures;`
-          // So it's an object. Let's handle arrays just in case it's raw.
-          const procObj = Array.isArray(proc) ? proc[0] : proc;
-          
-          if (!isOriginallyCompleted && procObj?.maintenance_required && procObj?.maintenance_days_limit) {
-            const unit = procObj.maintenance_period_unit || 'days';
-            const amount = procObj.maintenance_days_limit;
-            
-            let futureDate = new Date(appointment.start_time);
-            if (unit === 'months') {
-              futureDate = addMonths(futureDate, amount);
-            } else if (unit === 'weeks') {
-              futureDate = addWeeks(futureDate, amount);
-            } else {
-              futureDate = addDays(futureDate, amount);
-            }
+      // Lógica de Manutenção Automática (Agendamento normal ou Manutenção recorrente)
+      const activeProcedureId = editProcedureId || appointment.procedure_id;
+      const procObj = procedures?.find((p: any) => p.id === activeProcedureId) || 
+        (Array.isArray(appointment.procedures) ? appointment.procedures[0] : appointment.procedures);
 
-            // Pular finais de semana (sempre para antes do vencimento)
-            if (isSaturday(futureDate)) {
-              futureDate = subDays(futureDate, 1); // Antecipa para Sexta-feira
-            } else if (isSunday(futureDate)) {
-              futureDate = subDays(futureDate, 2); // Antecipa para Sexta-feira
-            }
+      const effectiveStartTime = isEditing && editStartTime ? editStartTime : appointment.start_time;
 
-            const labelUnit = unit === 'months' ? (amount === 1 ? 'mês' : 'meses') : unit === 'weeks' ? (amount === 1 ? 'semana' : 'semanas') : (amount === 1 ? 'dia' : 'dias');
-            const confirmMsg = `O procedimento ${procObj.name} prevê manutenção/retorno em ${amount} ${labelUnit}.\n\nDeseja agendar automaticamente a manutenção para o dia ${format(futureDate, 'dd/MM/yyyy')} no mesmo horário?`;
-            
-            if (window.confirm(confirmMsg)) {
-              const futureEnd = new Date(futureDate);
-              futureEnd.setMinutes(futureEnd.getMinutes() + (procObj.maintenance_duration_minutes || procObj.duration_minutes || 60));
+      const isMaintenanceApt = editIsMaintenance !== undefined ? editIsMaintenance : (appointment.is_maintenance || false);
+      const isOriginallyConfirmedOrCompleted = appointment.status === 'confirmed' || appointment.status === 'completed';
 
-              const { error: maintError } = await supabase.from('appointments').insert({
-                company_id: appointment.company_id,
-                client_id: appointment.client_id,
-                professional_id: appointment.professional_id,
-                procedure_id: appointment.procedure_id, // keep same procedure for maintenance
-                start_time: futureDate.toISOString(),
-                end_time: futureEnd.toISOString(),
-                status: 'scheduled',
-                is_maintenance: true,
-                parent_appointment_id: appointment.id,
-                notes: 'Agendamento automático de manutenção/retorno.'
-              });
-
-              if (maintError) {
-                console.error('Erro ao criar manutenção:', maintError);
-                toast.error('Erro ao agendar manutenção.');
-              } else {
-                toast.success(`Manutenção agendada para ${format(futureDate, 'dd/MM/yyyy')}`);
-              }
-            }
-          }
+      // 1. Se for uma manutenção sendo confirmada ou concluída -> gera a próxima manutenção recorrente
+      if (shouldGenerateNextRecurringMaintenance(procObj, isMaintenanceApt, status, isOriginallyConfirmedOrCompleted)) {
+        const { created, futureDate } = await createMaintenanceAppointment(
+          supabase,
+          {
+            id: appointment.id,
+            company_id: appointment.company_id,
+            client_id: editClientId || appointment.client_id,
+            professional_id: editProfessionalId || appointment.professional_id,
+            procedure_id: activeProcedureId,
+            start_time: effectiveStartTime
+          },
+          procObj
+        );
+        if (created && futureDate) {
+          toast.success(`Manutenção confirmada! Próxima manutenção recorrente agendada para ${format(futureDate, 'dd/MM/yyyy')}`);
+        }
+      } 
+      // 2. Se for um agendamento normal sendo concluído/confirmado -> gera a manutenção se ainda não tiver
+      else if (shouldGenerateAutomaticMaintenance(procObj, isOriginallyCompleted, status)) {
+        const { created, futureDate } = await createMaintenanceAppointment(
+          supabase,
+          {
+            id: appointment.id,
+            company_id: appointment.company_id,
+            client_id: editClientId || appointment.client_id,
+            professional_id: editProfessionalId || appointment.professional_id,
+            procedure_id: activeProcedureId,
+            start_time: effectiveStartTime
+          },
+          procObj
+        );
+        if (created && futureDate) {
+          toast.success(`Atendimento finalizado! Próxima manutenção agendada para ${format(futureDate, 'dd/MM/yyyy')}`);
+        }
+      }
 
          // Registra ficha médica
          if (recordId) {
@@ -682,7 +722,6 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
                   complications
                });
          }
-      }
 
       toast.success('Agendamento atualizado!');
       onUpdate();
@@ -703,26 +742,112 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm('Tem certeza que deseja cancelar este agendamento?')) return;
-    
+  const handleHardDelete = async () => {
+    if (paidConfirmed > 0) {
+      toast.error('Exclusão Bloqueada: Lançamentos Financeiros Vinculados', {
+        description: `Este agendamento possui R$ ${paidConfirmed.toFixed(2)} em pagamentos. Para manter o histórico financeiro, utilize a opção "Cancelar Agendamento".`
+      });
+      return;
+    }
+
+    if (!confirm('Tem certeza que deseja excluir este agendamento? Esta ação removerá definitivamente o agendamento e liberará o horário para novos atendimentos.')) {
+      return;
+    }
+
+    setLoading(true);
+    const supabase = createBrowserClient();
+
+    try {
+      // 1. Desvincular agendamentos filhos de manutenção (parent_appointment_id)
+      await supabase
+        .from('appointments')
+        .update({ parent_appointment_id: null })
+        .eq('parent_appointment_id', appointment.id);
+
+      // 2. Limpar tabelas com FK para appointment_id
+      try { await supabase.from('appointment_medical_records').delete().eq('appointment_id', appointment.id); } catch(e) {}
+      try { await supabase.from('message_queue').delete().eq('appointment_id', appointment.id); } catch(e) {}
+      try { await supabase.from('notifications').delete().eq('appointment_id', appointment.id); } catch(e) {}
+      try { await supabase.from('reviews').delete().eq('appointment_id', appointment.id); } catch(e) {}
+      try { await supabase.from('anamnese_responses').delete().eq('appointment_id', appointment.id); } catch(e) {}
+
+      // 3. Excluir agendamento da base de dados
+      const { error } = await supabase
+        .from('appointments')
+        .delete()
+        .eq('id', appointment.id);
+
+      if (error) {
+        console.error('Supabase Delete Error:', error);
+        throw new Error(error.message || error.details || 'Falha ao excluir agendamento do banco de dados');
+      }
+
+      // 4. Registrar log de auditoria
+      const clientName = appointment.clients?.full_name || 'Cliente';
+      const procName = procObj?.name || 'Procedimento';
+      try {
+        await supabase.from('audit_logs').insert({
+          company_id: appointment.company_id,
+          user_id: profile?.id || null,
+          action_type: 'DELETE',
+          table_name: 'appointments',
+          record_id: appointment.id,
+          description: `Exclusão definitiva de agendamento (Cliente: ${clientName}, Procedimento: ${procName})`
+        });
+      } catch(e) {}
+
+      toast.success('Agendamento excluído definitivamente. Horário liberado!');
+      onUpdate();
+      onClose();
+    } catch (error: any) {
+      console.error('Erro ao excluir agendamento:', error);
+      const msg = typeof error === 'string' ? error : (error.message || error.details || 'Erro ao excluir agendamento');
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmCancel = async () => {
+    const reason = cancellationReasonOption === 'Outro' 
+      ? (customCancellationReason.trim() || 'Outro')
+      : cancellationReasonOption;
+
     setLoading(true);
     const supabase = createBrowserClient();
 
     try {
       const { error } = await supabase
         .from('appointments')
-        .update({ status: 'cancelled' })
+        .update({
+          status: 'cancelled',
+          cancellation_reason: reason,
+          cancelled_at: new Date().toISOString(),
+          cancelled_by: profile?.id || null
+        })
         .eq('id', appointment.id);
 
       if (error) throw error;
 
-      toast.success('Agendamento cancelado.');
+      // Log de auditoria
+      const clientName = appointment.clients?.full_name || 'Cliente';
+      const procName = procObj?.name || 'Procedimento';
+      await supabase.from('audit_logs').insert({
+        company_id: appointment.company_id,
+        user_id: profile?.id || null,
+        action_type: 'UPDATE',
+        table_name: 'appointments',
+        record_id: appointment.id,
+        description: `Cancelamento de agendamento (Cliente: ${clientName}, Procedimento: ${procName}, Motivo: ${reason})`
+      });
+
+      toast.success('Agendamento cancelado. Horário liberado para novos clientes!');
+      setShowCancelDialog(false);
       onUpdate();
       onClose();
-    } catch (error) {
-      console.error(error);
-      toast.error('Erro ao cancelar');
+    } catch (error: any) {
+      console.error('Erro ao cancelar agendamento:', error);
+      toast.error(error.message || 'Erro ao cancelar agendamento');
     } finally {
       setLoading(false);
     }
@@ -757,13 +882,20 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
                     <Edit2 className="h-5 w-5" />
                  </button>
                  <div>
-                    <DialogTitle className="text-lg font-black text-[#2C2825]">
-                      {isEditing ? 'Editar Agendamento' : 'Gerenciar Agendamento'}
-                    </DialogTitle>
-                    <p className="text-[10px] text-[#8A847C] uppercase font-black tracking-widest mt-0.5">
-                       {format(new Date(appointment.start_time), 'dd/MM/yyyy HH:mm')}
-                    </p>
-                 </div>
+                     <div className="flex items-center gap-2">
+                       <DialogTitle className="text-lg font-black text-[#2C2825]">
+                         {isEditing ? 'Editar Agendamento' : 'Gerenciar Agendamento'}
+                       </DialogTitle>
+                       {appointment?.is_maintenance && (
+                         <Badge className="bg-purple-100 text-purple-800 border border-purple-300 font-bold text-[10px]">
+                           🔄 Manutenção
+                         </Badge>
+                       )}
+                     </div>
+                     <p className="text-[10px] text-[#8A847C] uppercase font-black tracking-widest mt-0.5">
+                        {format(new Date(appointment.start_time), 'dd/MM/yyyy HH:mm')}
+                     </p>
+                  </div>
               </div>
               
               {isEditing && (
@@ -907,143 +1039,174 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
                   />
                 </div>
 
-                {/* Descontos e Promoções (Edit Mode) */}
+                {/* Reestruturação da Seção de Preços (Edit Mode): Bloco 1, Bloco 2 e Bloco 3 */}
                 <div className="space-y-4 pt-3 border-t border-[#E5E0D8]/60 mt-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Descontos e Promoções</Label>
-                    
-                    {procedures?.find(p => p.id === editProcedureId)?.maintenance_required && (
-                      <div className="flex items-center gap-2">
-                        <input 
-                          type="checkbox"
-                          id="edit_is_maintenance_booking"
-                          checked={editIsMaintenance}
-                          onChange={(e) => setEditIsMaintenance(e.target.checked)}
-                          className="w-4 h-4 rounded border-[#E5E0D8] text-[#D4AF37] focus:ring-[#D4AF37]"
-                        />
-                        <label htmlFor="edit_is_maintenance_booking" className="text-xs font-bold text-[#5C5855] cursor-pointer">É Manutenção/Retorno</label>
-                      </div>
-                    )}
-                  </div>
-
+                  {/* BLOCO 1: Valor Fixo do Atendimento */}
                   {editProcedureId && (
-                    <div className="bg-[#FAF6E9] border border-[#E5E0D8] rounded-xl p-2.5 text-[11px] text-[#765928] font-bold">
-                      ⚡ Regra de preço aplicada: <span className="underline">{calculatePrices().ruleAppliedDetails}</span>
+                    <div className="bg-[#FAF6E9]/70 border border-[#E5E0D8] rounded-xl p-3 space-y-2 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A847C]">Valor Fixo do Atendimento</span>
+                        <Badge className="bg-[#D4AF37]/15 text-[#2C2825] border-[#D4AF37]/40 font-bold px-2.5 py-0.5 text-[10px] rounded-md shadow-xs">
+                          {calculatePrices().ruleAppliedDetails}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs font-bold text-[#2C2825] pt-0.5">
+                        <span>Procedimento: {procedures?.find(p => p.id === editProcedureId)?.name}</span>
+                        <span>
+                          <span className="font-mono text-neutral-900 bg-white px-2.5 py-0.5 rounded-md border border-[#E5E0D8]">
+                            R$ {calculatePrices().usedBasePrice.toFixed(2)}
+                          </span>
+                        </span>
+                      </div>
                     </div>
                   )}
 
-                  {profile?.role !== 'professional' ? (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Nome do Desconto</label>
-                          <Input 
-                            placeholder="Ex: VIP, Fidelidade, Campanha..."
-                            value={editDiscountName}
-                            onChange={(e) => setEditDiscountName(e.target.value)}
-                            className="bg-white border-[#E5E0D8] h-9 rounded-lg text-xs font-bold"
-                          />
+                  {/* BLOCO 2: Desconto Manual (Opcional) */}
+                  {editProcedureId && profile?.role !== 'professional' && (
+                    <div className="border border-[#E5E0D8] rounded-xl p-3 space-y-3 bg-white">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-xs font-black uppercase tracking-wider text-[#2C2825]">Desconto Manual (Opcional)</h4>
+                          <p className="text-[10px] text-neutral-500">Conceder benefício adicional neste atendimento</p>
                         </div>
 
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Método de Desconto</label>
-                          <div className="flex bg-[#F0EBE0]/60 p-1 rounded-lg gap-1 h-9">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditDiscountMethod('percentage');
-                                setEditDiscountValue('');
-                              }}
-                              className={cn(
-                                "flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all",
-                                editDiscountMethod === 'percentage' 
-                                  ? "bg-white text-[#D4AF37] shadow-xs" 
-                                  : "text-[#5C5855] hover:text-[#2C2825]"
-                              )}
-                            >
-                              % Porcentagem
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditDiscountMethod('value');
-                                setEditDiscountPercentage('');
-                              }}
-                              className={cn(
-                                "flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all",
-                                editDiscountMethod === 'value' 
-                                  ? "bg-white text-[#D4AF37] shadow-xs" 
-                                  : "text-[#5C5855] hover:text-[#2C2825]"
-                              )}
-                            >
-                              R$ Dinheiro
-                            </button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (showDiscountForm) {
+                              setEditDiscountName('');
+                              setEditDiscountValue('');
+                              setEditDiscountPercentage('');
+                              setEditDiscountNotes('');
+                            }
+                            setShowDiscountForm(!showDiscountForm);
+                          }}
+                          className="h-7 rounded-lg text-[11px] font-bold border-[#E5E0D8] hover:bg-neutral-50"
+                        >
+                          {showDiscountForm ? '✕ Remover Desconto' : '🏷️ + Aplicar Desconto'}
+                        </Button>
+                      </div>
+
+                      {showDiscountForm && (
+                        <div className="space-y-3 pt-2.5 border-t border-[#E5E0D8]/60 animate-fade-in">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Nome do Desconto</label>
+                              <Input 
+                                placeholder="Ex: VIP, Fidelidade, Campanha..."
+                                value={editDiscountName}
+                                onChange={(e) => setEditDiscountName(e.target.value)}
+                                className="bg-white border-[#E5E0D8] h-9 rounded-lg text-xs font-bold"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Método de Desconto</label>
+                              <div className="flex bg-[#F0EBE0]/60 p-1 rounded-lg gap-1 h-9">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditDiscountMethod('percentage');
+                                    setEditDiscountValue('');
+                                  }}
+                                  className={cn(
+                                    "flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all",
+                                    editDiscountMethod === 'percentage' 
+                                      ? "bg-white text-[#D4AF37] shadow-xs" 
+                                      : "text-[#5C5855] hover:text-[#2C2825]"
+                                  )}
+                                >
+                                  % Porcentagem
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditDiscountMethod('value');
+                                    setEditDiscountPercentage('');
+                                  }}
+                                  className={cn(
+                                    "flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all",
+                                    editDiscountMethod === 'value' 
+                                      ? "bg-white text-[#D4AF37] shadow-xs" 
+                                      : "text-[#5C5855] hover:text-[#2C2825]"
+                                  )}
+                                >
+                                  R$ Dinheiro
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">
+                                {editDiscountMethod === 'percentage' ? 'Desconto (%)' : 'Valor do Desconto (R$)'}
+                              </label>
+                              <Input 
+                                placeholder="0"
+                                value={editDiscountMethod === 'percentage' ? editDiscountPercentage : editDiscountValue}
+                                onChange={(e) => {
+                                  if (editDiscountMethod === 'percentage') {
+                                    handleDiscountPercentageChange(e.target.value);
+                                  } else {
+                                    handleDiscountValueChange(e.target.value);
+                                  }
+                                }}
+                                className="bg-white border-[#E5E0D8] h-9 rounded-lg text-xs font-bold"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Observações do Desconto</label>
+                              <Input 
+                                placeholder="Motivo..."
+                                value={editDiscountNotes}
+                                onChange={(e) => setEditDiscountNotes(e.target.value)}
+                                className="bg-white border-[#E5E0D8] h-9 rounded-lg text-xs"
+                              />
+                            </div>
                           </div>
                         </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* BLOCO 3: Resumo Financeiro Completo */}
+                  {editProcedureId && (
+                    <div className="bg-[#FAF6E9]/80 border border-[#E5E0D8] rounded-xl p-3 space-y-1.5 text-[11px]">
+                      <p className="font-black text-[#2C2825] uppercase tracking-widest text-[9px] mb-1">Resumo Financeiro do Agendamento</p>
+                      
+                      <div className="flex justify-between items-center text-neutral-600">
+                        <span>Valor Original do Procedimento:</span>
+                        <span className="font-mono">R$ {calculatePrices().originalBasePrice.toFixed(2)}</span>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">
-                            {editDiscountMethod === 'percentage' ? 'Desconto (%)' : 'Valor do Desconto (R$)'}
-                          </label>
-                          <Input 
-                            placeholder="0"
-                            value={editDiscountMethod === 'percentage' ? editDiscountPercentage : editDiscountValue}
-                            onChange={(e) => {
-                              if (editDiscountMethod === 'percentage') {
-                                handleDiscountPercentageChange(e.target.value);
-                              } else {
-                                handleDiscountValueChange(e.target.value);
-                              }
-                            }}
-                            className="bg-white border-[#E5E0D8] h-9 rounded-lg text-xs font-bold"
-                          />
-                        </div>
+                      <div className="flex justify-between items-center text-neutral-800 font-bold">
+                        <span>Valor Fixo Utilizado:</span>
+                        <span className="font-mono text-[#2C2825]">
+                          R$ {calculatePrices().usedBasePrice.toFixed(2)} {calculatePrices().priceType === 'maintenance' ? '(Manutenção)' : '(Normal)'}
+                        </span>
+                      </div>
 
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider ml-1">Observações do Desconto</label>
-                          <Input 
-                            placeholder="Motivo..."
-                            value={editDiscountNotes}
-                            onChange={(e) => setEditDiscountNotes(e.target.value)}
-                            className="bg-white border-[#E5E0D8] h-9 rounded-lg text-xs"
-                          />
+                      {calculatePrices().manualDiscountVal > 0 && (
+                        <div className="flex justify-between items-center text-rose-600 font-bold">
+                          <span>Desconto Manual Aplicado:</span>
+                          <span className="font-mono">- R$ {calculatePrices().manualDiscountVal.toFixed(2)}</span>
                         </div>
+                      )}
+
+                      <div className="border-t border-[#E5E0D8] pt-1.5 mt-1.5 flex justify-between font-black text-xs text-[#2C2825]">
+                        <span>Valor Final do Atendimento:</span>
+                        <span className="text-[#D4AF37] font-mono text-sm">
+                          R$ {calculatePrices().finalPrice.toFixed(2)}
+                        </span>
                       </div>
                     </div>
-                  ) : (
-                    <p className="text-[9px] text-neutral-400 italic">Profissionais não aplicam descontos.</p>
                   )}
                 </div>
-
-                {/* Recibo/Resumo Financeiro (Edit Mode) */}
-                {editProcedureId && (
-                  <div className="bg-white border border-[#E5E0D8]/60 rounded-xl p-3 space-y-1.5 text-[11px] mt-3">
-                    <div className="flex justify-between items-center text-neutral-600">
-                      <span>Valor Original:</span>
-                      <span className="font-mono">R$ {calculatePrices().originalBasePrice.toFixed(2)}</span>
-                    </div>
-                    {calculatePrices().suggestedBasePrice !== calculatePrices().originalBasePrice && (
-                      <div className="flex justify-between items-center text-neutral-800 font-bold">
-                        <span>Sugerido (Promo/Manut):</span>
-                        <span className="font-mono">R$ {calculatePrices().suggestedBasePrice.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {calculatePrices().manualDiscountVal > 0 && (
-                      <div className="flex justify-between items-center text-rose-600 font-bold">
-                        <span>Desconto Manual:</span>
-                        <span className="font-mono">- R$ {calculatePrices().manualDiscountVal.toFixed(2)}</span>
-                      </div>
-                    )}
-                    <div className="border-t border-[#E5E0D8]/50 pt-1 mt-1 flex justify-between font-black text-[#2C2825]">
-                      <span>Valor Final:</span>
-                      <span className="text-[#D4AF37] font-mono">
-                        R$ {calculatePrices().finalPrice.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                )}
               </div>
             ) : (
               /* Info Cards */
@@ -1132,7 +1295,7 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
            {/* Status Selector */}
            <div className="space-y-2">
               <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Status do Atendimento</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                  <StatusButton 
                    active={status === 'scheduled'} 
                    onClick={() => handleStatusChange('scheduled')}
@@ -1150,14 +1313,6 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
                    label="Concluído"
                    loading={checkingAnamnese}
                  />
-                 <StatusButton 
-                   active={status === 'cancelled'} 
-                   onClick={handleDelete}
-                   icon={XCircle}
-                   color="text-red-500"
-                   bg="bg-red-500/10"
-                   label="Cancelar"
-                 />
               </div>
            </div>
 
@@ -1172,7 +1327,67 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
                />
             </div>
 
-            {/* Ficha de Atendimento (Prontuário) apenas quando concluído */}
+            {/* Visualização de Motivo de Cancelamento caso já esteja cancelado */}
+            {appointment?.status === 'cancelled' && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 space-y-1">
+                <span className="font-bold block flex items-center gap-1.5">
+                  <span>❌</span> Agendamento Cancelado
+                </span>
+                <p className="text-[11px] opacity-90">
+                  <strong>Motivo:</strong> {appointment.cancellation_reason || 'Não informado'}
+                </p>
+                {appointment.cancelled_at && (
+                  <p className="text-[10px] text-rose-700">
+                    Cancelado em {format(new Date(appointment.cancelled_at), 'dd/MM/yyyy HH:mm')}
+                  </p>
+                )}
+              </div>
+            )}
+
+           <Button 
+             onClick={handleSave} 
+             disabled={loading || checkingAnamnese}
+             className="w-full h-12 bg-primary-500 hover:bg-primary-600 text-[#2C2825] font-bold rounded-xl"
+           >
+             {loading ? 'Salvando...' : 'Salvar Alterações'}
+           </Button>
+
+           {/* Botões de Ação Distintos: Cancelar e Excluir */}
+           <div className="flex flex-col gap-2 pt-2 border-t border-[#E5E0D8]">
+             {profile?.role !== 'professional' && (
+               <>
+                 <Button
+                   type="button"
+                   variant="outline"
+                   onClick={() => setShowCancelDialog(true)}
+                   disabled={loading}
+                   className="w-full h-10 border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 font-bold rounded-xl text-xs flex items-center justify-center gap-2"
+                 >
+                   <span>❌</span> Cancelar Agendamento
+                 </Button>
+
+                 {(profile?.role === 'admin' || profile?.role === 'chefe') && (
+                   <Button
+                     type="button"
+                     variant="outline"
+                     onClick={handleHardDelete}
+                     disabled={loading}
+                     className="w-full h-10 border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 font-bold rounded-xl text-xs flex items-center justify-center gap-2"
+                   >
+                     <span>🗑️</span> Excluir Agendamento
+                   </Button>
+                 )}
+               </>
+             )}
+
+             {profile?.role === 'professional' && (
+               <p className="text-[10px] text-center text-neutral-500 italic py-1">
+                 ℹ️ Perfil Profissional: Apenas visualização de agendamentos.
+               </p>
+             )}
+           </div>
+
+           {/* Ficha de Atendimento (Prontuário) apenas quando concluído */}
             {status === 'completed' && (
                <div className="bg-[#FAF6E9] p-4 rounded-2xl border border-[#E5E0D8] space-y-4 animate-fade-in">
                   <h3 className="text-sm font-black text-[#2C2825] uppercase tracking-widest flex items-center gap-2">
@@ -1334,6 +1549,70 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
            </div>
         </div>
       </DialogContent>
+
+      {/* Modal de Confirmação de Cancelamento */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent className="rounded-3xl border-[#E5E0D8] bg-white max-w-md p-6 text-[#2C2825]">
+          <DialogHeader className="space-y-2">
+            <DialogTitle className="text-xl font-bold text-[#2C2825] flex items-center gap-2">
+              <span>❌</span> Confirmar Cancelamento
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#8A847C]">
+              O agendamento será registrado como <strong>Cancelado</strong>. O horário será liberado na agenda e o histórico financeiro será mantido.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-[#5C5855]">Motivo do Cancelamento</Label>
+              <Select value={cancellationReasonOption} onValueChange={setCancellationReasonOption}>
+                <SelectTrigger className="h-10 rounded-xl bg-white border-[#E5E0D8] text-xs font-medium">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Cliente desistiu">Cliente desistiu</SelectItem>
+                  <SelectItem value="Imprevisto profissional">Imprevisto profissional</SelectItem>
+                  <SelectItem value="Reagendamento solicitado">Reagendamento solicitado</SelectItem>
+                  <SelectItem value="Impossibilidade de atendimento">Impossibilidade de atendimento</SelectItem>
+                  <SelectItem value="Outro">Outro motivo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {cancellationReasonOption === 'Outro' && (
+              <div className="space-y-1.5 animate-fade-in">
+                <Label className="text-xs font-bold text-[#5C5855]">Especifique o Motivo</Label>
+                <Input
+                  placeholder="Descreva brevemente o motivo..."
+                  value={customCancellationReason}
+                  onChange={(e) => setCustomCancellationReason(e.target.value)}
+                  className="h-10 rounded-xl bg-white border-[#E5E0D8] text-xs font-medium"
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowCancelDialog(false)}
+              disabled={loading}
+              className="h-10 flex-1 rounded-xl border-[#E5E0D8] text-[#5C5855] font-bold text-xs"
+            >
+              Voltar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmCancel}
+              disabled={loading}
+              className="h-10 flex-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md active:scale-95 transition-all"
+            >
+              {loading ? 'Cancelando...' : 'Confirmar Cancelamento'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

@@ -70,6 +70,13 @@ export default function AnalyticsPage() {
     clientRanking: any[];
     averageAppointments: number;
     topClient: { name: string; value: number } | null;
+    cancellationStats: {
+      totalScheduled: number;
+      totalCancelled: number;
+      cancellationRate: number;
+      reasonRanking: any[];
+      profRanking: any[];
+    };
   }>({
     productRanking: [],
     procedureRanking: [],
@@ -77,7 +84,14 @@ export default function AnalyticsPage() {
     totals: { products: 0, procedures: 0, revenue: 0 },
     clientRanking: [],
     averageAppointments: 0,
-    topClient: null
+    topClient: null,
+    cancellationStats: {
+      totalScheduled: 0,
+      totalCancelled: 0,
+      cancellationRate: 0,
+      reasonRanking: [],
+      profRanking: []
+    }
   });
 
   useEffect(() => {
@@ -213,18 +227,62 @@ export default function AnalyticsPage() {
       // Totals
       const totalRevenue = validAppointments.reduce((acc, curr) => acc + (curr.price_override || curr.procedures?.price || 0), 0);
 
+      // Fetch all appointments for cancellation analytics
+      const { data: allAppointmentsData } = await supabase
+        .from('appointments')
+        .select('*, procedures(name), clients(full_name), professionals(full_name)')
+        .eq('company_id', profile?.company_id);
+
+      const periodAllAppointments = (allAppointmentsData || []).filter(a =>
+        isWithinInterval(new Date(a.start_time), { start, end })
+      );
+
+      const totalScheduled = periodAllAppointments.length;
+      const cancelledApts = periodAllAppointments.filter(a => a.status === 'cancelled');
+      const totalCancelled = cancelledApts.length;
+      const cancellationRate = totalScheduled > 0 ? (totalCancelled / totalScheduled) * 100 : 0;
+
+      // Ranking por motivo
+      const reasonMap: Record<string, number> = {};
+      cancelledApts.forEach(a => {
+        const reason = a.cancellation_reason || 'Não informado';
+        reasonMap[reason] = (reasonMap[reason] || 0) + 1;
+      });
+
+      const reasonRanking = Object.entries(reasonMap)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+
+      // Ranking por profissional
+      const profMap: Record<string, number> = {};
+      cancelledApts.forEach(a => {
+        const profName = a.professionals?.full_name || 'Profissional';
+        profMap[profName] = (profMap[profName] || 0) + 1;
+      });
+
+      const profRanking = Object.entries(profMap)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+
       setData({
         productRanking,
         procedureRanking,
         evolution,
         totals: {
-          products: validProducts.length,
+          products: validProducts.reduce((acc, curr) => acc + Number(curr.quantity), 0),
           procedures: validAppointments.length,
           revenue: totalRevenue
         },
         clientRanking,
         averageAppointments,
-        topClient
+        topClient,
+        cancellationStats: {
+          totalScheduled,
+          totalCancelled,
+          cancellationRate,
+          reasonRanking,
+          profRanking
+        }
       });
     } catch (err) {
       console.error('Error fetching analytics:', err);
@@ -456,6 +514,76 @@ export default function AnalyticsPage() {
                      </div>
                   </div>
                </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Seção de Análise de Cancelamentos */}
+        <Card className="bg-white border-neutral-100 rounded-[2.5rem] shadow-2xl shadow-slate-200/60 lg:col-span-2 overflow-hidden border-2 border-slate-50 mt-4">
+          <CardHeader className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-50 px-10 py-8 bg-rose-50/20">
+            <div>
+              <CardTitle className="text-2xl font-black text-slate-900 tracking-tighter flex items-center gap-3">
+                <span className="text-xl">❌</span>
+                Análise de Cancelamentos
+              </CardTitle>
+              <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-2">
+                Indicadores de cancelamento de agendamentos no período
+              </p>
+            </div>
+            <div className="flex items-center gap-4 mt-4 md:mt-0">
+              <div className="bg-white px-4 py-2 rounded-2xl border border-rose-100 shadow-sm text-center">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Cancelados</p>
+                <p className="text-xl font-black text-rose-600">{data.cancellationStats?.totalCancelled || 0}</p>
+              </div>
+              <div className="bg-white px-4 py-2 rounded-2xl border border-rose-100 shadow-sm text-center">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Taxa de Cancelamento</p>
+                <p className="text-xl font-black text-rose-600">{(data.cancellationStats?.cancellationRate || 0).toFixed(1)}%</p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Motivos mais frequentes */}
+              <div>
+                <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <span>📊</span> Motivos Mais Frequentes
+                </h4>
+                {data.cancellationStats?.reasonRanking && data.cancellationStats.reasonRanking.length > 0 ? (
+                  <div className="space-y-3">
+                    {data.cancellationStats.reasonRanking.map((reason, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="text-xs font-bold text-slate-800">{reason.name}</span>
+                        <Badge className="bg-rose-100 text-rose-800 border-rose-200 font-bold text-xs">
+                          {reason.value} ({((reason.value / (data.cancellationStats.totalCancelled || 1)) * 100).toFixed(0)}%)
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic">Nenhum cancelamento registrado no período.</p>
+                )}
+              </div>
+
+              {/* Cancelamentos por profissional */}
+              <div>
+                <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <span>👨‍⚕️</span> Cancelamentos por Profissional
+                </h4>
+                {data.cancellationStats?.profRanking && data.cancellationStats.profRanking.length > 0 ? (
+                  <div className="space-y-3">
+                    {data.cancellationStats.profRanking.map((prof, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="text-xs font-bold text-slate-800">{prof.name}</span>
+                        <Badge className="bg-amber-100 text-amber-800 border-amber-200 font-bold text-xs">
+                          {prof.value} cancelamentos
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic">Nenhum cancelamento registrado no período.</p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -181,27 +181,58 @@ export default function ClientDetailTabs({
                       <Calendar className="h-6 w-6 text-primary-600" />
                     </div>
                     <div>
-                      <p className="font-bold text-neutral-900">
-                        {(() => {
-                          const primaryName = apt.procedures?.name || 'Procedimento';
-                          if (Array.isArray(apt.additional_procedure_ids) && apt.additional_procedure_ids.length > 0 && procedures) {
-                            const extraNames = apt.additional_procedure_ids
-                              .map((id: string) => procedures.find((p: any) => p.id === id)?.name)
-                              .filter(Boolean);
-                            if (extraNames.length > 0) {
-                              return `${primaryName} + ${extraNames.join(' + ')}`;
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-neutral-900">
+                          {(() => {
+                            const primaryName = apt.procedures?.name || 'Procedimento';
+                            if (Array.isArray(apt.additional_procedure_ids) && apt.additional_procedure_ids.length > 0 && procedures) {
+                              const extraNames = apt.additional_procedure_ids
+                                .map((id: string) => procedures.find((p: any) => p.id === id)?.name)
+                                .filter(Boolean);
+                              if (extraNames.length > 0) {
+                                return `${primaryName} + ${extraNames.join(' + ')}`;
+                              }
                             }
-                          }
-                          return primaryName;
-                        })()}
-                      </p>
+                            return primaryName;
+                          })()}
+                        </p>
+                        {apt.is_maintenance && (
+                          <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-xs font-bold">
+                            🔄 Manutenção
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-sm text-neutral-500">
                         {formatDate(apt.start_time)} às {new Date(apt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        {(apt.price_override !== undefined && apt.price_override !== null) ? ` • R$ ${Number(apt.price_override).toFixed(2)}` : (apt.procedures?.price ? ` • R$ ${Number(apt.procedures.price).toFixed(2)}` : '')}
                       </p>
+                      {apt.status === 'cancelled' && (
+                        <div className="mt-1.5 p-2 bg-rose-50 border border-rose-100 rounded-lg text-xs text-rose-800 space-y-0.5">
+                          <p className="font-semibold flex items-center gap-1">
+                            <span>❌</span> Agendamento Cancelado
+                          </p>
+                          <p className="text-[11px]">
+                            <strong>Motivo:</strong> {apt.cancellation_reason || 'Motivo não informado'}
+                          </p>
+                          {apt.cancelled_at && (
+                            <p className="text-[10px] text-rose-600">
+                              Cancelado em {new Date(apt.cancelled_at).toLocaleDateString('pt-BR')} às {new Date(apt.cancelled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <Badge variant={apt.status === 'confirmed' ? 'success' : 'secondary'}>
-                    {apt.status === 'confirmed' ? 'Confirmado' : 'Agendado'}
+                  <Badge variant={
+                    apt.status === 'completed' ? 'success' :
+                    apt.status === 'confirmed' ? 'success' :
+                    apt.status === 'cancelled' ? 'error' :
+                    'secondary'
+                  }>
+                    {apt.status === 'completed' ? 'Concluído' :
+                     apt.status === 'confirmed' ? 'Confirmado' :
+                     apt.status === 'cancelled' ? '❌ Cancelado' :
+                     'Agendado'}
                   </Badge>
                 </CardContent>
               </Card>

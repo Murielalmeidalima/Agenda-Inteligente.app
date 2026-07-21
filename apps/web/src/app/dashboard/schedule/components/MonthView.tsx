@@ -120,8 +120,8 @@ export const MonthView = ({
                             {dayApts.slice(0, 3).map((apt: any) => {
                               let itemColors = "bg-[#FAF6E9] border-[#E5E0D8] text-[#5C5855]";
                               
-                              if (apt.paymentStatus === 'cancelled') {
-                                itemColors = "bg-neutral-50 border-neutral-200 text-neutral-400 line-through";
+                              if (apt.status === 'cancelled' || apt.paymentStatus === 'cancelled') {
+                                itemColors = "bg-neutral-100 border-neutral-300 text-neutral-400 line-through opacity-75 grayscale";
                               } else if (apt.paymentStatus === 'paid') {
                                 itemColors = "bg-emerald-50 border-emerald-200 text-emerald-800";
                               } else if (apt.paymentStatus === 'advance_payment') {
@@ -137,7 +137,8 @@ export const MonthView = ({
                               const procedureColor = apt.procedures?.color || null;
                               const primaryName = apt.procedures?.name || 'Procedimento';
                               const paymentMethodText = apt.paymentMethod ? apt.paymentMethod.toUpperCase().replace('_', ' ') : '';
-                              const statusText = apt.paymentStatus === 'paid' ? 'Pago' : 
+                              const statusText = (apt.status === 'cancelled' || apt.paymentStatus === 'cancelled') ? '❌ Canc.' : 
+                                                 apt.paymentStatus === 'paid' ? 'Pago' : 
                                                  apt.paymentStatus === 'advance_payment' ? 'Ant.' : 
                                                  apt.paymentStatus === 'partial' ? 'Parc.' : 
                                                  apt.paymentStatus === 'overdue' ? 'Atr.' : 
@@ -164,8 +165,9 @@ export const MonthView = ({
                                   </div>
                                   
                                   {/* Client Name */}
-                                  <p className="font-extrabold text-[9px] truncate">
-                                    {apt.clients?.full_name || 'Cliente'}
+                                  <p className="font-extrabold text-[9px] truncate flex items-center gap-1">
+                                    {apt.is_maintenance && <span title="Agendamento de Manutenção" className="shrink-0 text-[8px]">🔄</span>}
+                                    <span className="truncate">{apt.clients?.full_name || 'Cliente'}</span>
                                   </p>
                                   
                                   {/* Procedure Name */}

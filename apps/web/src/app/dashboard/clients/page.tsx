@@ -295,35 +295,47 @@ export default function ClientsPage() {
                       </div>
                     </TableCell>
                     <TableCell className="pr-4 text-right">
-                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="relative group/menu">
+                       <div className="flex items-center justify-end gap-2 shrink-0">
+                          <Link href={`/dashboard/clients/${client.id}`}>
                             <Button 
-                              size="icon" 
-                              variant="ghost" 
-                              className="h-10 w-10 text-[#8A847C] hover:text-[#D4AF37] hover:bg-white rounded-xl border border-transparent hover:border-[#E5E0D8] shadow-none hover:shadow-sm"
+                              variant="outline" 
+                              size="sm" 
+                              className="h-10 px-3.5 rounded-xl border-blue-200 text-blue-600 bg-blue-50/50 hover:bg-blue-600 hover:text-white font-bold transition-all shadow-sm active:scale-95 text-xs flex items-center gap-1.5"
                             >
-                              <MoreVertical className="h-4 w-4" />
+                              <Eye className="h-4 w-4" />
+                              <span className="hidden xl:inline">Prontuário</span>
                             </Button>
-                            
-                            {/* Custom Action Menu */}
-                            <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-[#E5E0D8] rounded-2xl shadow-xl shadow-black/5 py-2 z-50 invisible group-focus-within/menu:visible opacity-0 group-focus-within/menu:opacity-100 transition-all transform origin-top-right">
-                               <Link href={`/dashboard/clients/${client.id}`} className="flex items-center gap-3 px-4 py-2 text-sm text-[#5C5855] hover:bg-[#FAF9F6] hover:text-[#D4AF37] transition-colors">
-                                  <ChevronRight className="h-4 w-4" /> Visualizar Perfil
-                               </Link>
-                               <Link href={`/dashboard/clients/${client.id}/edit`} className="flex items-center gap-3 px-4 py-2 text-sm text-[#5C5855] hover:bg-[#FAF9F6] hover:text-[#D4AF37] transition-colors">
-                                  <Filter className="h-4 w-4" /> Editar Cadastro
-                               </Link>
-                               <button 
-                                  onClick={() => {
-                                    setClientToDelete(client);
-                                    setDeleteDialogOpen(true);
-                                  }}
-                                  className="flex items-center gap-3 px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors w-full text-left"
-                               >
-                                  <AlertCircle className="h-4 w-4" /> Excluir Cliente
-                               </button>
-                            </div>
-                          </div>
+                          </Link>
+
+                          <Link href={`/dashboard/clients/${client.id}/edit`}>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="h-10 px-3.5 rounded-xl border-[#E5E0D8] text-[#5C5855] bg-white hover:bg-[#D4AF37] hover:text-white font-bold transition-all shadow-sm active:scale-95 text-xs flex items-center gap-1.5"
+                            >
+                              <Edit className="h-4 w-4" />
+                              <span className="hidden xl:inline">Editar</span>
+                            </Button>
+                          </Link>
+
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-10 px-3.5 rounded-xl border-red-200 text-red-600 bg-red-50/50 hover:bg-red-600 hover:text-white font-bold transition-all shadow-sm active:scale-95 text-xs flex items-center gap-1.5"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setClientToDelete(client);
+                              setDeleteDialogOpen(true);
+                            }}
+                            onTouchEnd={(e) => {
+                              e.stopPropagation();
+                              setClientToDelete(client);
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="hidden xl:inline">Excluir</span>
+                          </Button>
                        </div>
                     </TableCell>
                   </TableRow>

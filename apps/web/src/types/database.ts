@@ -85,5 +85,9 @@ export type Appointment = {
   is_maintenance: boolean;
   parent_appointment_id: string | null;
   notes: string | null;
+  cancellation_reason?: string | null;
+  cancelled_at?: string | null;
+  cancelled_by?: string | null;
+  canceller?: { full_name: string } | null;
   created_at: string;
 };

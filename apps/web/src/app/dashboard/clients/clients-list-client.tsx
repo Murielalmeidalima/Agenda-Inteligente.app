@@ -186,30 +186,36 @@ export default function ClientsListClient({ initialClients, companyId }: Clients
                   <TableCell className="font-medium text-[#5C5855]">{formatDate(client.birth_date)}</TableCell>
                   <TableCell className="font-medium text-[#5C5855]">{formatDate(client.created_at)}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-60 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-2 shrink-0">
                       <Link href={`/dashboard/clients/${client.id}`}>
-                        <Button variant="outline" size="sm" className="h-9 px-3 rounded-xl border-blue-200 text-blue-600 bg-blue-50/50 hover:bg-blue-600 hover:text-white hover:border-blue-600 font-bold transition-all shadow-sm">
-                          <Eye className="h-4 w-4 mr-1.5" />
-                          Prontuário
+                        <Button variant="outline" size="sm" className="h-10 px-3.5 rounded-xl border-blue-200 text-blue-600 bg-blue-50/50 hover:bg-blue-600 hover:text-white font-bold transition-all shadow-sm active:scale-95 text-xs flex items-center gap-1.5">
+                          <Eye className="h-4 w-4" />
+                          <span className="hidden xl:inline">Prontuário</span>
                         </Button>
                       </Link>
                       <Link href={`/dashboard/clients/${client.id}/edit`}>
-                        <Button variant="outline" size="sm" className="h-9 px-3 rounded-xl border-[#E5E0D8] text-[#5C5855] bg-white hover:bg-[#D4AF37] hover:text-white hover:border-[#D4AF37] font-bold transition-all shadow-sm">
-                          <Edit className="h-4 w-4 mr-1.5" />
-                          Editar
+                        <Button variant="outline" size="sm" className="h-10 px-3.5 rounded-xl border-[#E5E0D8] text-[#5C5855] bg-white hover:bg-[#D4AF37] hover:text-white font-bold transition-all shadow-sm active:scale-95 text-xs flex items-center gap-1.5">
+                          <Edit className="h-4 w-4" />
+                          <span className="hidden xl:inline">Editar</span>
                         </Button>
                       </Link>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-9 px-3 rounded-xl border-red-200 text-red-600 bg-red-50/50 hover:bg-red-600 hover:text-white hover:border-red-600 font-bold transition-all shadow-sm"
-                        onClick={() => {
+                        className="h-10 px-3.5 rounded-xl border-red-200 text-red-600 bg-red-50/50 hover:bg-red-600 hover:text-white font-bold transition-all shadow-sm active:scale-95 text-xs flex items-center gap-1.5"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setClientToDelete(client);
+                          setDeleteDialogOpen(true);
+                        }}
+                        onTouchEnd={(e) => {
+                          e.stopPropagation();
                           setClientToDelete(client);
                           setDeleteDialogOpen(true);
                         }}
                       >
-                        <Trash2 className="h-4 w-4 mr-1.5" />
-                        Excluir
+                        <Trash2 className="h-4 w-4" />
+                        <span className="hidden xl:inline">Excluir</span>
                       </Button>
                     </div>
                   </TableCell>
