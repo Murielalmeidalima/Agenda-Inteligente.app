@@ -966,7 +966,7 @@ export default function ScheduleCalendarClient({
     : appointments;
 
   return (
-    <div className="flex flex-col h-full bg-white p-8 -m-8 min-h-screen">
+    <div className="flex flex-col h-full bg-white p-3 sm:p-4 md:p-6 min-h-screen w-full overflow-x-hidden space-y-4">
       {isOnlyMaintenance && (
         <div className="bg-[#FAF6E9] border border-[#E5E0D8] rounded-2xl p-4 flex items-center justify-between text-xs text-[#765928] font-bold mb-4 animate-in fade-in shadow-xs">
           <span className="flex items-center gap-2">🛠️ Mostrando apenas agendamentos de Retorno / Manutenção</span>

@@ -19,7 +19,10 @@ import {
   Plus, 
   Calendar as CalendarIcon,
   Settings2,
-  Filter
+  Filter,
+  Search,
+  X,
+  SlidersHorizontal
 } from 'lucide-react';
 import { 
   Button, 
@@ -29,7 +32,9 @@ import {
   SelectTrigger,
   SelectValue,
   SelectContent,
-  SelectItem
+  SelectItem,
+  Input,
+  Badge
 } from '@projeto/ui';
 import { Appointment } from '@/types/database';
 import { MonthView } from './components/MonthView';
@@ -95,20 +100,39 @@ export default function ScheduleCalendarComponent({
     }
   }, [setView]);
 
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
   const [filterPaymentStatus, setFilterPaymentStatus] = useState<string>('all');
   const [filterProfessional, setFilterProfessional] = useState<string>('all');
   const [filterProcedure, setFilterProcedure] = useState<string>('all');
   const [filterPaymentMethod, setFilterPaymentMethod] = useState<string>('all');
 
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filterProfessional !== 'all') count++;
+    if (filterProcedure !== 'all') count++;
+    if (filterPaymentMethod !== 'all') count++;
+    return count;
+  }, [filterProfessional, filterProcedure, filterPaymentMethod]);
+
   const filteredAppointments = useMemo(() => {
     return appointments.filter((apt: any) => {
+      // Filtragem Instantânea por Nome ou Telefone do Cliente
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const clientName = apt.clients?.full_name?.toLowerCase() || '';
+        const clientPhone = apt.clients?.phone || '';
+        if (!clientName.includes(q) && !clientPhone.includes(q)) {
+          return false;
+        }
+      }
       if (filterPaymentStatus !== 'all' && apt.paymentStatus !== filterPaymentStatus) return false;
       if (filterProfessional !== 'all' && apt.professional_id !== filterProfessional) return false;
       if (filterProcedure !== 'all' && apt.procedure_id !== filterProcedure) return false;
       if (filterPaymentMethod !== 'all' && apt.paymentMethod !== filterPaymentMethod) return false;
       return true;
     });
-  }, [appointments, filterPaymentStatus, filterProfessional, filterProcedure, filterPaymentMethod]);
+  }, [appointments, searchQuery, filterPaymentStatus, filterProfessional, filterProcedure, filterPaymentMethod]);
 
   const visibleDays = useMemo(() => {
     if (view === 'day') {
@@ -176,48 +200,47 @@ export default function ScheduleCalendarComponent({
       {loading && (
         <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500 animate-pulse rounded-full z-50" />
       )}
-      {/* Calendar Header */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-        <div className="flex items-center gap-6 text-slate-800">
-           <div className="p-3 bg-[#D4AF37]/10 rounded-2xl">
-              <CalendarIcon className="h-8 w-8 text-[#D4AF37]" />
-           </div>
-           <div>
-              <h2 className="text-2xl font-black text-[#2C2825] capitalize leading-none mb-1 font-serif">
-                {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
-              </h2>
-              <p className={cn(
-                "text-[10px] uppercase font-black tracking-widest transition-colors",
-                isDateInPast ? "text-red-600 font-extrabold" : "text-[#8A847C]"
-              )}>
-                {isDateInPast ? '⚠️ Somente consulta (Data no passado)' : 'Controle de Agendamentos'}
-              </p>
-           </div>
-        </div>
+      {/* Calendar Header — Responsivo para iPad (Portrait/Landscape) e iPhones */}
+      <div className="flex flex-col gap-4 bg-[#FAF9F6] border border-[#E5E0D8] p-4 sm:p-5 rounded-3xl shadow-xs">
+        {/* Top Row: Title + Controls Grid */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 text-slate-800">
+             <div className="p-2.5 bg-[#D4AF37]/10 rounded-2xl shrink-0">
+                <CalendarIcon className="h-6 w-6 text-[#D4AF37]" />
+             </div>
+             <div>
+                <h2 className="text-xl sm:text-2xl font-black text-[#2C2825] capitalize leading-tight font-serif">
+                  {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
+                </h2>
+                <p className={cn(
+                  "text-[9px] sm:text-[10px] uppercase font-black tracking-widest transition-colors",
+                  isDateInPast ? "text-red-600 font-extrabold" : "text-[#8A847C]"
+                )}>
+                  {isDateInPast ? '⚠️ Somente consulta (Data no passado)' : 'Controle de Agendamentos'}
+                </p>
+             </div>
+          </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full xl:w-auto">
-          {/* Group 1: Configuration & View Switcher */}
-          <div className="grid grid-cols-2 gap-3 w-full sm:w-auto">
+          {/* Action Buttons & Controls Bar */}
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2.5 w-full lg:w-auto">
             {/* Bloquear Dias */}
-            <div className="flex items-center bg-white rounded-xl border border-[#E5E0D8] px-2 h-10">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={onOpenBlocks}
-                className="gap-2 text-[#5C5855] hover:text-red-600 font-bold uppercase tracking-widest text-[10px] w-full justify-center"
-              >
-                <Settings2 className="h-3.5 w-3.5" />
-                Bloquear Dias
-              </Button>
-            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={onOpenBlocks}
+              className="h-10 px-3 border-[#E5E0D8] bg-white text-[#5C5855] hover:text-rose-600 font-bold uppercase tracking-wider text-[10px] rounded-xl flex items-center justify-center gap-1.5 shadow-xs"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+              <span>Bloquear</span>
+            </Button>
 
             {/* View Switcher */}
-            <div className="flex items-center bg-white rounded-xl border border-[#E5E0D8] px-2 h-10 w-full sm:w-[140px]">
+            <div className="bg-white rounded-xl border border-[#E5E0D8] px-2 h-10 flex items-center shadow-xs">
               <Select 
                 value={view} 
                 onValueChange={(val) => setView(val as CalendarViewType)}
               >
-                <SelectTrigger className="border-none h-8 p-0 px-2 bg-transparent focus:ring-0 text-xs font-bold text-[#5C5855] w-full uppercase tracking-widest">
+                <SelectTrigger className="border-none h-8 p-0 px-1 bg-transparent focus:ring-0 text-xs font-bold text-[#5C5855] w-full uppercase tracking-wider">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -227,18 +250,15 @@ export default function ScheduleCalendarComponent({
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          {/* Group 2: Date Navigation & New Appointment */}
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
             {/* Date Navigator */}
-            <div className="flex items-center justify-between bg-white rounded-xl border border-[#E5E0D8] p-1 w-full sm:w-auto">
+            <div className="col-span-2 sm:col-span-1 flex items-center justify-between bg-white rounded-xl border border-[#E5E0D8] p-1 h-10 min-w-[160px] shadow-xs">
                <Button size="icon" variant="ghost" className="h-8 w-8 text-[#8A847C] hover:text-[#D4AF37] hover:bg-[#FAF6E9] rounded-lg shrink-0" onClick={() => navigate('prev')}>
                   <ChevronLeft className="h-4 w-4" />
                </Button>
                
-               <div className="relative flex items-center justify-center flex-1 sm:w-[140px] group">
-                 <div className="h-8 flex items-center justify-center bg-transparent group-hover:bg-[#FAF9F6] text-[#2C2825] px-2 text-[11px] font-black uppercase w-full gap-1 rounded-md cursor-pointer transition-colors text-center leading-tight">
+               <div className="relative flex items-center justify-center flex-1 group">
+                 <div className="h-8 flex items-center justify-center bg-transparent group-hover:bg-[#FAF9F6] text-[#2C2825] px-1 text-[11px] font-black uppercase w-full rounded-md cursor-pointer transition-colors text-center leading-tight">
                    {view === 'month' 
                      ? format(currentDate, "MMMM 'de' yyyy", { locale: ptBR }) 
                      : format(currentDate, "dd 'de' MMMM", { locale: ptBR })}
@@ -254,7 +274,7 @@ export default function ScheduleCalendarComponent({
                        }
                      }
                    }}
-                   className="absolute inset-0 opacity-0 cursor-pointer w-full h-full [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer z-10"
+                   className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
                  />
                </div>
 
@@ -266,122 +286,163 @@ export default function ScheduleCalendarComponent({
             {/* Lançar Atendimento */}
             <Button 
               onClick={onLaunchAppointment} 
-              className="h-10 w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold rounded-xl px-4 shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition-all justify-center"
+              className="h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-3 sm:px-4 shadow-md text-xs active:scale-[0.98] transition-all flex items-center justify-center gap-1.5"
             >
-               <Plus className="h-4 w-4 mr-2" />
-               Lançar Atendimento
+               <Plus className="h-3.5 w-3.5" />
+               <span>Lançar</span>
             </Button>
 
             {/* Novo Agendamento */}
             <Button 
               onClick={() => onNewAppointment(currentDate)} 
               disabled={isDateInPast}
-              className="h-10 w-full sm:w-auto bg-gradient-to-r from-[#D4AF37] to-[#B5952F] hover:from-[#C5A028] hover:to-[#A48625] text-white font-bold rounded-xl px-4 shadow-lg shadow-[#D4AF37]/20 active:scale-[0.98] transition-all justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-10 bg-[#D4AF37] hover:bg-[#b8972e] text-white font-bold rounded-xl px-3 sm:px-4 shadow-md text-xs active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-               <Plus className="h-4 w-4 mr-2" />
-               Novo Agendamento
+               <Plus className="h-3.5 w-3.5" />
+               <span>Agendar</span>
             </Button>
           </div>
         </div>
-      </div>
 
-      {/* Visual Legend & Filter Row */}
-      <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-        {/* Legend */}
-        <div className="flex items-center gap-3.5 bg-[#FAF9F6] border border-[#E5E0D8]/60 px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-wider text-[#5C5855] shadow-sm overflow-x-auto w-full md:w-auto whitespace-nowrap scrollbar-none">
-          <span className="text-[#8A847C]">Legenda:</span>
-          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500" /> <span>Pago</span></div>
-          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-orange-500" /> <span>Parcial</span></div>
-          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-500" /> <span>Pendente</span></div>
-          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500" /> <span>Antecipado</span></div>
-          <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-yellow-500" /> <span>Futuro</span></div>
-        </div>
+        {/* Bottom Row: Real-Time Search Bar + Status Touch Chips + Advanced Filters Drawer */}
+        <div className="space-y-3 pt-3 border-t border-[#E5E0D8]/60">
+          {/* Real-time search input & filter trigger */}
+          <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8A847C]" />
+              <Input
+                type="text"
+                placeholder="Buscar cliente por nome ou telefone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 pr-8 h-10 bg-white border-[#E5E0D8] rounded-xl text-xs font-medium focus:ring-[#D4AF37]/20 shadow-xs"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 p-0.5"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
 
-        {/* Quick Filter Bar */}
-        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
-          <div className="text-[9px] font-black text-[#8A847C] uppercase tracking-widest flex items-center gap-1 mr-1">
-            <Filter className="h-3.5 w-3.5 text-[#D4AF37]" />
-            Filtrar:
-          </div>
-
-          {/* Status Selection */}
-          <div className="w-[120px] bg-white rounded-xl border border-[#E5E0D8] px-2 h-9 flex items-center shadow-sm">
-            <Select value={filterPaymentStatus} onValueChange={setFilterPaymentStatus}>
-              <SelectTrigger className="border-none h-7 p-0 px-1 bg-transparent focus:ring-0 text-[10px] font-black text-[#5C5855] w-full uppercase tracking-wider">
-                <SelectValue placeholder="Pagamento" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="text-[10px] font-bold">Todos Status</SelectItem>
-                <SelectItem value="paid" className="text-[10px] font-bold">🟢 Pago</SelectItem>
-                <SelectItem value="partial" className="text-[10px] font-bold">🟠 Parcial</SelectItem>
-                <SelectItem value="overdue" className="text-[10px] font-bold">🔴 Pendente</SelectItem>
-                <SelectItem value="advance_payment" className="text-[10px] font-bold">🔵 Antecipado</SelectItem>
-                <SelectItem value="pending" className="text-[10px] font-bold">🟡 Futuro</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Professional Selection */}
-          <div className="w-[140px] bg-white rounded-xl border border-[#E5E0D8] px-2 h-9 flex items-center shadow-sm">
-            <Select value={filterProfessional} onValueChange={setFilterProfessional}>
-              <SelectTrigger className="border-none h-7 p-0 px-1 bg-transparent focus:ring-0 text-[10px] font-black text-[#5C5855] w-full uppercase tracking-wider">
-                <SelectValue placeholder="Profissional" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="text-[10px] font-bold">Todos Profissionais</SelectItem>
-                {professionals?.map((p: any) => (
-                  <SelectItem key={p.id} value={p.id} className="text-[10px] font-bold">{p.full_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Procedure Selection */}
-          <div className="w-[140px] bg-white rounded-xl border border-[#E5E0D8] px-2 h-9 flex items-center shadow-sm">
-            <Select value={filterProcedure} onValueChange={setFilterProcedure}>
-              <SelectTrigger className="border-none h-7 p-0 px-1 bg-transparent focus:ring-0 text-[10px] font-black text-[#5C5855] w-full uppercase tracking-wider">
-                <SelectValue placeholder="Procedimento" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="text-[10px] font-bold">Todos Procedimentos</SelectItem>
-                {procedures?.map((p: any) => (
-                  <SelectItem key={p.id} value={p.id} className="text-[10px] font-bold">{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Payment Method Selection */}
-          <div className="w-[120px] bg-white rounded-xl border border-[#E5E0D8] px-2 h-9 flex items-center shadow-sm">
-            <Select value={filterPaymentMethod} onValueChange={setFilterPaymentMethod}>
-              <SelectTrigger className="border-none h-7 p-0 px-1 bg-transparent focus:ring-0 text-[10px] font-black text-[#5C5855] w-full uppercase tracking-wider">
-                <SelectValue placeholder="Forma" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="text-[10px] font-bold">Todas Formas</SelectItem>
-                <SelectItem value="pix" className="text-[10px] font-bold">📱 PIX</SelectItem>
-                <SelectItem value="credit_card" className="text-[10px] font-bold">💳 Cartão Crédito</SelectItem>
-                <SelectItem value="debit_card" className="text-[10px] font-bold">💳 Cartão Débito</SelectItem>
-                <SelectItem value="cash" className="text-[10px] font-bold">💵 Dinheiro</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Clear Filters Button */}
-          {(filterPaymentStatus !== 'all' || filterProfessional !== 'all' || filterProcedure !== 'all' || filterPaymentMethod !== 'all') && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => {
-                setFilterPaymentStatus('all');
-                setFilterProfessional('all');
-                setFilterProcedure('all');
-                setFilterPaymentMethod('all');
-              }}
-              className="text-[10px] font-black uppercase text-rose-500 hover:text-rose-700 h-9 px-3 hover:bg-rose-50 rounded-xl"
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className={cn(
+                "h-10 px-3.5 border-[#E5E0D8] rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-xs",
+                showAdvancedFilters || activeFiltersCount > 0 
+                  ? "bg-[#D4AF37]/15 text-[#2C2825] border-[#D4AF37]" 
+                  : "bg-white text-[#5C5855] hover:bg-neutral-50"
+              )}
             >
-              Limpar
+              <SlidersHorizontal className="h-3.5 w-3.5 text-[#D4AF37]" />
+              <span>Filtros Avançados</span>
+              {activeFiltersCount > 0 && (
+                <Badge className="bg-[#D4AF37] text-white text-[9px] px-1.5 py-0.2 rounded-full font-black">
+                  {activeFiltersCount}
+                </Badge>
+              )}
             </Button>
+          </div>
+
+          {/* Quick Payment Status Touch Chips (Estilo iOS) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[10px] font-bold">
+            <span className="text-[#8A847C] uppercase tracking-wider text-[9px] font-black mr-1 shrink-0">Status:</span>
+            {[
+              { id: 'all', label: 'Todos' },
+              { id: 'paid', label: '🟢 Pago' },
+              { id: 'partial', label: '🟠 Parcial' },
+              { id: 'overdue', label: '🔴 Pendente' },
+              { id: 'advance_payment', label: '🔵 Antecipado' },
+              { id: 'pending', label: '🟡 Futuro' }
+            ].map(statusChip => (
+              <button
+                key={statusChip.id}
+                type="button"
+                onClick={() => setFilterPaymentStatus(statusChip.id)}
+                className={cn(
+                  "px-3 py-1.5 rounded-xl transition-all whitespace-nowrap border shadow-2xs font-bold text-[10px]",
+                  filterPaymentStatus === statusChip.id
+                    ? "bg-[#2C2825] text-white border-[#2C2825]"
+                    : "bg-white text-[#5C5855] border-[#E5E0D8] hover:bg-neutral-100"
+                )}
+              >
+                {statusChip.label}
+              </button>
+            ))}
+
+            {(searchQuery || filterPaymentStatus !== 'all' || activeFiltersCount > 0) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setFilterPaymentStatus('all');
+                  setFilterProfessional('all');
+                  setFilterProcedure('all');
+                  setFilterPaymentMethod('all');
+                }}
+                className="px-2.5 py-1.5 rounded-xl text-rose-600 hover:bg-rose-50 text-[10px] font-black uppercase tracking-wider transition-all border border-rose-200"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+
+          {/* Expanded Advanced Filters Drawer/Popover */}
+          {showAdvancedFilters && (
+            <div className="bg-white border border-[#E5E0D8] p-3.5 rounded-2xl grid grid-cols-1 sm:grid-cols-3 gap-3 animate-fade-in shadow-sm">
+              {/* Professional Selection */}
+              <div className="space-y-1">
+                <label className="text-[9px] font-black uppercase tracking-wider text-[#8A847C] ml-1">Profissional</label>
+                <Select value={filterProfessional} onValueChange={setFilterProfessional}>
+                  <SelectTrigger className="bg-white border-[#E5E0D8] h-9 rounded-xl text-xs font-medium">
+                    <SelectValue placeholder="Todos Profissionais" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos Profissionais</SelectItem>
+                    {professionals?.map((p: any) => (
+                      <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Procedure Selection */}
+              <div className="space-y-1">
+                <label className="text-[9px] font-black uppercase tracking-wider text-[#8A847C] ml-1">Procedimento</label>
+                <Select value={filterProcedure} onValueChange={setFilterProcedure}>
+                  <SelectTrigger className="bg-white border-[#E5E0D8] h-9 rounded-xl text-xs font-medium">
+                    <SelectValue placeholder="Todos Procedimentos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos Procedimentos</SelectItem>
+                    {procedures?.map((p: any) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Payment Method Selection */}
+              <div className="space-y-1">
+                <label className="text-[9px] font-black uppercase tracking-wider text-[#8A847C] ml-1">Forma de Pagamento</label>
+                <Select value={filterPaymentMethod} onValueChange={setFilterPaymentMethod}>
+                  <SelectTrigger className="bg-white border-[#E5E0D8] h-9 rounded-xl text-xs font-medium">
+                    <SelectValue placeholder="Todas Formas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas Formas</SelectItem>
+                    <SelectItem value="pix">📱 PIX</SelectItem>
+                    <SelectItem value="credit_card">💳 Cartão Crédito</SelectItem>
+                    <SelectItem value="debit_card">💳 Cartão Débito</SelectItem>
+                    <SelectItem value="cash">💵 Dinheiro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           )}
         </div>
       </div>
