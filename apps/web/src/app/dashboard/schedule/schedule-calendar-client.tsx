@@ -746,20 +746,28 @@ export default function ScheduleCalendarClient({
         }
       }
 
-      // Bypass conflict checks for completed launched appointments
-      const hasConflict = !isLaunching && appointments.some((apt) => {
-        if (apt.status === 'cancelled' || apt.status === 'completed') return false;
-        if (apt.professional_id !== formData.professionalId) return false;
-        
-        const existingStart = new Date(apt.start_time);
-        const existingEnd = apt.end_time ? new Date(apt.end_time) : addMinutes(existingStart, apt.procedures?.duration_minutes || 60);
-        
-        return start < existingEnd && end > existingStart;
-      });
+      // Check for conflicts with existing appointments in the database
+      if (!isLaunching) {
+        const { data: dbConflicts, error: conflictError } = await supabase
+          .from('appointments')
+          .select('id, start_time, end_time, clients(full_name)')
+          .eq('company_id', companyId)
+          .eq('professional_id', formData.professionalId)
+          .neq('status', 'cancelled')
+          .neq('status', 'completed')
+          .lt('start_time', end.toISOString())
+          .gt('end_time', start.toISOString());
 
-      if (hasConflict) {
-        showToast.error('Atenção', 'Este profissional já possui agendamento neste horário.');
-        throw new Error('Conflito de Horário');
+        if (conflictError) {
+          console.error('Erro ao verificar conflitos no banco:', conflictError);
+        } else if (dbConflicts && dbConflicts.length > 0) {
+          const clientsData = dbConflicts[0].clients;
+          const conflictName = (Array.isArray(clientsData) 
+            ? clientsData[0]?.full_name 
+            : (clientsData as any)?.full_name) || 'outro cliente';
+          showToast.error('Atenção', `Este profissional já possui um agendamento ativo com ${conflictName} neste horário.`);
+          throw new Error('Conflito de Horário');
+        }
       }
 
       const prices = calculatePrices();

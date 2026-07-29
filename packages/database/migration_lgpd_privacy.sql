@@ -46,3 +46,6 @@ alter table clients add column if not exists consent_sms boolean default false;
 -- Permite marcar uma empresa para exclusão (processo de esquecimento controlado)
 alter table companies add column if not exists deletion_requested_at timestamp with time zone;
 alter table companies add column if not exists deletion_status text default 'active' check (deletion_status in ('active', 'pending_deletion', 'deleted'));
+
+-- Permissão para usuários autenticados inserirem logs de auditoria (necessário para logs client-side de cancelamento/exclusão)
+create policy "Authenticated users can insert audit logs" on audit_logs for insert with check (auth.role() = 'authenticated');

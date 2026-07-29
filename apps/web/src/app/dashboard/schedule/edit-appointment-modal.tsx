@@ -600,6 +600,30 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
           setLoading(false);
           return;
         }
+
+        // Check for conflicts with existing appointments in the database
+        const { data: dbConflicts, error: conflictError } = await supabase
+          .from('appointments')
+          .select('id, start_time, end_time, clients(full_name)')
+          .eq('company_id', appointment.company_id)
+          .eq('professional_id', editProfessionalId)
+          .neq('id', appointment.id)
+          .neq('status', 'cancelled')
+          .neq('status', 'completed')
+          .lt('start_time', end.toISOString())
+          .gt('end_time', start.toISOString());
+
+        if (conflictError) {
+          console.error('Erro ao verificar conflitos no banco:', conflictError);
+        } else if (dbConflicts && dbConflicts.length > 0) {
+          const clientsData = dbConflicts[0].clients;
+          const conflictName = (Array.isArray(clientsData) 
+            ? clientsData[0]?.full_name 
+            : (clientsData as any)?.full_name) || 'outro cliente';
+          toast.error(`Conflito de Horário: Este profissional já possui um agendamento ativo com ${conflictName} neste horário.`);
+          setLoading(false);
+          return;
+        }
         
         const prices = calculatePrices();
 
@@ -631,6 +655,16 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
         updatePayload.end_time = end.toISOString();
         updatePayload.notes = editNotes;
         updatePayload.additional_procedure_ids = editAdditionalProcedureIds.filter(id => id !== '');
+
+        const hasTimeChanged = appointment?.start_time ? new Date(editStartTime).getTime() !== new Date(appointment.start_time).getTime() : false;
+        const isPreviouslyCancelled = appointment?.status === 'cancelled';
+        
+        if (hasTimeChanged || isPreviouslyCancelled) {
+          updatePayload.status = 'rescheduled';
+          updatePayload.cancellation_reason = null;
+          updatePayload.cancelled_at = null;
+          updatePayload.cancelled_by = null;
+        }
 
         // Save discount details
         updatePayload.original_price = prices.originalBasePrice;
@@ -813,6 +847,13 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
       ? (customCancellationReason.trim() || 'Outro')
       : cancellationReasonOption;
 
+    if (reason === 'Reagendamento solicitado') {
+      setShowCancelDialog(false);
+      setIsEditing(true);
+      toast.info('Selecione a nova data e hora para reagendar.');
+      return;
+    }
+
     setLoading(true);
     const supabase = createBrowserClient();
 
@@ -830,16 +871,20 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
       if (error) throw error;
 
       // Log de auditoria
-      const clientName = appointment.clients?.full_name || 'Cliente';
-      const procName = procObj?.name || 'Procedimento';
-      await supabase.from('audit_logs').insert({
-        company_id: appointment.company_id,
-        user_id: profile?.id || null,
-        action_type: 'UPDATE',
-        table_name: 'appointments',
-        record_id: appointment.id,
-        description: `Cancelamento de agendamento (Cliente: ${clientName}, Procedimento: ${procName}, Motivo: ${reason})`
-      });
+      try {
+        const clientName = appointment.clients?.full_name || 'Cliente';
+        const procName = procObj?.name || 'Procedimento';
+        await supabase.from('audit_logs').insert({
+          company_id: appointment.company_id,
+          user_id: profile?.id || null,
+          action_type: 'UPDATE',
+          table_name: 'appointments',
+          record_id: appointment.id,
+          description: `Cancelamento de agendamento (Cliente: ${clientName}, Procedimento: ${procName}, Motivo: ${reason})`
+        });
+      } catch (logError) {
+        console.error('Erro ao gravar log de auditoria de cancelamento:', logError);
+      }
 
       toast.success('Agendamento cancelado. Horário liberado para novos clientes!');
       setShowCancelDialog(false);
