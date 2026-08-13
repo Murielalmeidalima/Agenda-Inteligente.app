@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAnamnesePublicSchema, submitAnamneseSchema } from '@/lib/validations/anamnese';
+import { isSchemaCacheError } from '@/lib/supabase-helpers';
 import { logger } from '@/lib/logger';
 import { rateLimit, RATE_LIMITS, createRateLimitHeaders } from '@/lib/rate-limit';
 
@@ -199,7 +200,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await supabaseAdmin.from('anamnese_responses')
+    const { error: responseUpdateError } = await supabaseAdmin.from('anamnese_responses')
       .update({ 
         status: 'completed_client', 
         completed_at: new Date().toISOString(),
@@ -214,6 +215,19 @@ export async function POST(request: NextRequest) {
         signature_timestamp: uploadedSignatureUrl ? new Date().toISOString() : null
       })
       .eq('id', tokenData.response_id);
+
+    if (responseUpdateError && isSchemaCacheError(responseUpdateError)) {
+      const { error: fallbackError } = await supabaseAdmin.from('anamnese_responses')
+        .update({ 
+          status: 'completed_client', 
+          completed_at: new Date().toISOString(),
+          ip_address: clientIp
+        })
+        .eq('id', tokenData.response_id);
+      if (fallbackError) throw fallbackError;
+    } else if (responseUpdateError) {
+      throw responseUpdateError;
+    }
 
     await supabaseAdmin.from('anamnese_tokens')
       .update({ used_at: new Date().toISOString() })

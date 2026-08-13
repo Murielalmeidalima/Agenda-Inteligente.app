@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { 
   format, 
   startOfDay, 
+  startOfWeek,
+  addDays,
   isToday,
   isSameDay
 } from 'date-fns';
@@ -16,6 +18,7 @@ import {
 import { cn } from '@projeto/ui';
 import { Appointment } from '@/types/database';
 import { showToast } from '@/lib/toast-helpers';
+import { isClientNearBirthday } from '@/lib/birthday';
 
 interface DayWeekViewProps {
   view: 'day' | 'week';
@@ -23,6 +26,7 @@ interface DayWeekViewProps {
   appointments: any[];
   onNewAppointment: (date: Date) => void;
   onViewAppointment: (id: string) => void;
+  onDaySelect?: (date: Date) => void;
   slotInterval: number; // In minutes, e.g., 15, 30, 60
   scheduleBlocks: any[];
   blockHolidays?: boolean;
@@ -39,6 +43,7 @@ export const DayWeekView = ({
   appointments, 
   onNewAppointment, 
   onViewAppointment,
+  onDaySelect,
   slotInterval,
   scheduleBlocks,
   blockHolidays = false,
@@ -119,8 +124,49 @@ export const DayWeekView = ({
   const slotHeightPx = visualSlotInterval * PIXELS_PER_MINUTE;
   const totalHeightPx = (SCHEDULE_END_HOUR - SCHEDULE_START_HOUR) * 60 * PIXELS_PER_MINUTE;
 
+  // Faixa fixa dos dias da semana (não some ao rolar)
+  const weekStart = startOfWeek(visibleDays[0] || new Date(), { weekStartsOn: 0 });
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const selectedDay = visibleDays[0];
+
+  const getClientBirthDate = (apt: any): string | null => {
+    const c = apt?.clients;
+    if (Array.isArray(c)) return c[0]?.birth_date || null;
+    return c?.birth_date || null;
+  };
+
   return (
-    <div className="flex-1 overflow-auto custom-scrollbar relative w-full h-full bg-white select-none">
+    <div className="flex-1 flex flex-col min-h-0 w-full h-full bg-white select-none">
+
+      {/* Faixa Fixa dos Dias da Semana */}
+      <div className="shrink-0 border-b border-[#E5E0D8] bg-white px-2 pt-2 pb-0 z-50">
+        <div className="grid grid-cols-7 gap-1.5">
+          {weekDays.map((day) => {
+            const active = isSameDay(day, selectedDay);
+            const today = isToday(day);
+            return (
+              <button
+                key={day.toString()}
+                type="button"
+                onClick={() => onDaySelect?.(day)}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 rounded-lg px-1 py-1.5 border transition-colors",
+                  active
+                    ? "bg-[#2C2825] text-white border-[#2C2825] shadow-sm"
+                    : today
+                      ? "bg-[#FAF6EE] text-[#D4AF37] border-[#D4AF37]/40 hover:border-[#D4AF37]"
+                      : "bg-[#FAF9F6] text-[#5C5855] border-[#E5E0D8] hover:bg-[#FAF6EE] hover:border-[#D4AF37]/40"
+                )}
+              >
+                <span className="text-[9px] font-black uppercase tracking-wider">{format(day, 'EEE', { locale: ptBR })}</span>
+                <span className="text-[11px] font-black leading-none">{format(day, 'dd')}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-auto custom-scrollbar relative w-full select-none">
       <div className="inline-block min-w-full align-middle">
         
         {/* 1. STICKY HEADER ROW (Cabeçalho Fixo no Topo) */}
@@ -350,6 +396,11 @@ export const DayWeekView = ({
                                       🔄 Manut.
                                     </span>
                                   )}
+                                  {getClientBirthDate(apt) && isClientNearBirthday(getClientBirthDate(apt)) && (
+                                    <span className="shrink-0 text-[9px] leading-none" title="Aniversário por esses dias 🎂">
+                                      🎂
+                                    </span>
+                                  )}
                                   <p className="font-black text-[11px] leading-tight truncate group-hover/apt:text-[#2C2825] transition-colors">
                                     {apt.clients?.full_name || 'Individual'}
                                   </p>
@@ -544,6 +595,7 @@ export const DayWeekView = ({
           </div>
         );
       })()}
+      </div>
     </div>
   );
 };

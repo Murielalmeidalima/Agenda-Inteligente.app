@@ -29,6 +29,7 @@ import { EditAppointmentModal } from './edit-appointment-modal';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BlockDaysModal } from './components/BlockDaysModal';
 import { showToast } from '@/lib/toast-helpers';
+import { isClientNearBirthday } from '@/lib/birthday';
 import { evaluateClientMaintenanceCycle, shouldGenerateMaintenanceOnCreate, createMaintenanceAppointment } from '@/lib/maintenance-logic';
 import { isWithinInterval, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { useProfile } from '@/providers/profile-provider';
@@ -162,6 +163,10 @@ export default function ScheduleCalendarClient({
   // inline client registration states
   const [isCreatingClient, setIsCreatingClient] = useState(false);
   const [newClientName, setNewClientName] = useState('');
+  const [newClientLastName, setNewClientLastName] = useState('');
+  const [newClientEmail, setNewClientEmail] = useState('');
+  const [newClientBirthDate, setNewClientBirthDate] = useState('');
+  const [newClientInstagram, setNewClientInstagram] = useState('');
   const [newClientPhone, setNewClientPhone] = useState('');
   const [isCreatingClientLoading, setIsCreatingClientLoading] = useState(false);
 
@@ -607,11 +612,15 @@ export default function ScheduleCalendarClient({
     setIsCreatingClientLoading(true);
     try {
       const supabase = createBrowserClient();
+      const fullName = `${newClientName.trim()} ${newClientLastName.trim()}`.trim();
       const { data, error } = await supabase
         .from('clients')
         .insert({
-          full_name: newClientName.trim(),
+          full_name: fullName,
           phone: newClientPhone.trim() || null,
+          email: newClientEmail.trim() || null,
+          birth_date: newClientBirthDate || null,
+          instagram: newClientInstagram.trim() || null,
           company_id: companyId
         })
         .select()
@@ -624,6 +633,10 @@ export default function ScheduleCalendarClient({
       setFormData(prev => ({ ...prev, clientId: data.id }));
       setIsCreatingClient(false);
       setNewClientName('');
+      setNewClientLastName('');
+      setNewClientEmail('');
+      setNewClientBirthDate('');
+      setNewClientInstagram('');
       setNewClientPhone('');
     } catch (err: any) {
       console.error('Error creating client inline:', err);
@@ -849,7 +862,8 @@ export default function ScheduleCalendarClient({
             procedure_id: formData.procedureId,
             start_time: start.toISOString()
           },
-          procObj
+          procObj,
+          isLaunching
         );
         if (created && futureDate) {
           showToast.success('Agendamento Criado!', `Próxima manutenção agendada automaticamente para ${format(futureDate, 'dd/MM/yyyy')}`);
@@ -1129,21 +1143,61 @@ export default function ScheduleCalendarClient({
               {isCreatingClient ? (
                 <div className="bg-[#FAF9F6] border border-[#E5E0D8] rounded-2xl p-4 space-y-3 animate-in fade-in duration-200">
                   <p className="text-[9px] font-black text-[#8A847C] uppercase tracking-wider">Cadastrar Cliente Rápido</p>
-                  <div className="space-y-1">
-                    <Input 
-                      placeholder="Nome Completo *" 
-                      value={newClientName}
-                      onChange={(e) => setNewClientName(e.target.value)}
-                      className="bg-white h-10 rounded-lg text-xs"
-                    />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Input 
+                        placeholder="Nome *" 
+                        value={newClientName}
+                        onChange={(e) => setNewClientName(e.target.value)}
+                        className="bg-white h-10 rounded-lg text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Input 
+                        placeholder="Sobrenome" 
+                        value={newClientLastName}
+                        onChange={(e) => setNewClientLastName(e.target.value)}
+                        className="bg-white h-10 rounded-lg text-xs"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Input 
-                      placeholder="WhatsApp (com DDD) - Opcional" 
-                      value={newClientPhone}
-                      onChange={(e) => setNewClientPhone(e.target.value)}
-                      className="bg-white h-10 rounded-lg text-xs"
-                    />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Input 
+                        type="email"
+                        placeholder="E-mail" 
+                        value={newClientEmail}
+                        onChange={(e) => setNewClientEmail(e.target.value)}
+                        className="bg-white h-10 rounded-lg text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Input 
+                        placeholder="WhatsApp (com DDD)" 
+                        value={newClientPhone}
+                        onChange={(e) => setNewClientPhone(e.target.value)}
+                        className="bg-white h-10 rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Input 
+                        type="date"
+                        placeholder="Data de Nascimento" 
+                        value={newClientBirthDate}
+                        onChange={(e) => setNewClientBirthDate(e.target.value)}
+                        className="bg-white h-10 rounded-lg text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Input 
+                        placeholder="@instagram" 
+                        value={newClientInstagram}
+                        onChange={(e) => setNewClientInstagram(e.target.value)}
+                        className="bg-white h-10 rounded-lg text-xs"
+                      />
+                    </div>
                   </div>
                   <Button 
                     type="button" 
@@ -1156,7 +1210,10 @@ export default function ScheduleCalendarClient({
                 </div>
               ) : (
                 <SearchableSelect
-                  options={localClients.map(c => ({ value: c.id, label: c.full_name }))}
+                  options={localClients.map(c => ({
+                    value: c.id,
+                    label: `${c.full_name}${isClientNearBirthday(c.birth_date) ? ' 🎂' : ''}`
+                  }))}
                   value={formData.clientId}
                   onChange={(val) => setFormData({...formData, clientId: val})}
                   placeholder="Selecione o cliente"

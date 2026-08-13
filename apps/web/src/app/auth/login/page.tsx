@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { AlertCircle, ArrowRight, Lock, Mail, Loader2, CheckCircle2, MailCheck } from 'lucide-react';
 import { LogoImage } from '@/components/ui/Logo';
 import { AnimatedBackground } from '@/components/auth/AnimatedBackground';
+import { Turnstile } from '@/components/auth/Turnstile';
+import { isCaptchaEnabled, captchaAuthOptions, captchaRequiredError } from '@/lib/captcha';
 
 type SpecialState = null | 'email_not_confirmed' | 'pending_approval';
 
@@ -25,6 +27,8 @@ function LoginForm() {
   const [resendingEmail, setResendingEmail] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetSignal, setCaptchaResetSignal] = useState(0);
 
   // Erros vindos da URL (redirect do middleware)
   useEffect(() => {
@@ -61,11 +65,16 @@ function LoginForm() {
 
   const handleResendConfirmation = async () => {
     if (!email) { setError('Insira seu e-mail para reenviar a confirmação.'); return; }
+    if (isCaptchaEnabled() && !captchaToken) { setError(captchaRequiredError()); return; }
     setResendingEmail(true);
     setError('');
     try {
       const supabase = createBrowserClient();
-      const { error: resendError } = await supabase.auth.resend({ type: 'signup', email });
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: captchaAuthOptions(captchaToken)
+      });
       if (resendError) {
         if (resendError.status === 429) throw new Error('Muitas tentativas. Aguarde alguns minutos.');
         throw new Error('Não foi possível reenviar o e-mail.');
@@ -76,6 +85,7 @@ function LoginForm() {
       setError(err.message);
     } finally {
       setResendingEmail(false);
+      setCaptchaResetSignal(s => s + 1);
     }
   };
 
@@ -93,9 +103,15 @@ function LoginForm() {
     console.log('[AUTH][LOGIN] Iniciando autenticação...');
 
     try {
+      if (isCaptchaEnabled() && !captchaToken) throw new Error(captchaRequiredError());
+
       const supabase = createBrowserClient();
 
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+        options: captchaAuthOptions(captchaToken)
+      });
 
       if (signInError) {
         console.error('[AUTH][LOGIN] Erro:', signInError.message);
@@ -160,6 +176,8 @@ function LoginForm() {
       console.error('[AUTH][LOGIN] ❌', err.message);
       setError(err.message || 'Ocorreu um erro ao fazer login.');
       setLoading(false);
+    } finally {
+      setCaptchaResetSignal(s => s + 1);
     }
   };
 
@@ -241,6 +259,14 @@ function LoginForm() {
           </div>
 
           <div className="space-y-3 pt-1">
+            {isCaptchaEnabled() && (
+              <Turnstile
+                siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                onToken={setCaptchaToken}
+                resetSignal={captchaResetSignal}
+              />
+            )}
+
             <Button type="submit"
               className="w-full h-12 bg-gradient-to-r from-[#2C2825] to-[#403c39] hover:from-black hover:to-[#2C2825] text-white font-bold text-base rounded-xl shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
               loading={loading} disabled={loading || !!success}>

@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { AlertCircle, CheckCircle2, ArrowRight, Building, User, Mail, Lock, Loader2, CreditCard, ShieldCheck, MapPin, Phone, FileText } from 'lucide-react';
 import { LogoImage } from '@/components/ui/Logo';
 import { AnimatedBackground } from '@/components/auth/AnimatedBackground';
+import { Turnstile } from '@/components/auth/Turnstile';
+import { isCaptchaEnabled, captchaAuthOptions, captchaRequiredError } from '@/lib/captcha';
 
 // Auxiliares de formatação de máscara
 const formatCPF = (val: string) => {
@@ -88,6 +90,8 @@ function RegisterFormContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [trialAllowed, setTrialAllowed] = useState(true);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetSignal, setCaptchaResetSignal] = useState(0);
 
   const handleChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -147,6 +151,8 @@ function RegisterFormContent() {
     }
 
     try {
+      if (isCaptchaEnabled() && !captchaToken) throw new Error(captchaRequiredError());
+
       // Executar pré-validação antifraude no servidor
       const { fingerprint } = getDeviceDetails();
       const res = await fetch('/api/auth/validate-signup', {
@@ -171,6 +177,7 @@ function RegisterFormContent() {
       const { error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
+        options: captchaAuthOptions(captchaToken),
       });
 
       if (signUpError) {
@@ -180,6 +187,7 @@ function RegisterFormContent() {
           const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email: formData.email,
             password: formData.password,
+            options: captchaAuthOptions(captchaToken),
           });
           if (signInError || !signInData?.user) {
             throw new Error('Este e-mail já possui uma conta cadastrada no Supabase. Faça login com sua senha ou utilize um novo e-mail (ex: teste.novo@gmail.com).');
@@ -197,6 +205,7 @@ function RegisterFormContent() {
       setError(err.message || 'Ocorreu um erro ao validar seus dados de cadastro.');
     } finally {
       setLoading(false);
+      setCaptchaResetSignal(s => s + 1);
     }
   };
 
@@ -206,6 +215,8 @@ function RegisterFormContent() {
     setError('');
 
     try {
+      if (isCaptchaEnabled() && !captchaToken) throw new Error(captchaRequiredError());
+
       const supabase = createBrowserClient();
       let userId: string;
 
@@ -213,6 +224,7 @@ function RegisterFormContent() {
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
+        options: captchaAuthOptions(captchaToken),
       });
 
       if (signUpError) {
@@ -222,6 +234,7 @@ function RegisterFormContent() {
           const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email: formData.email,
             password: formData.password,
+            options: captchaAuthOptions(captchaToken),
           });
           if (signInError || !signInData?.user) {
             setError('Este e-mail já possui uma conta cadastrada no Supabase. Faça login com sua senha ou utilize um novo e-mail (ex: teste.novo@gmail.com).');
@@ -291,6 +304,8 @@ function RegisterFormContent() {
       console.error('[REGISTER] Exceção:', err.message);
       setError('Erro inesperado: ' + (err.message || 'Desconhecido'));
       setLoading(false);
+    } finally {
+      setCaptchaResetSignal(s => s + 1);
     }
   };
 
@@ -475,6 +490,16 @@ function RegisterFormContent() {
                      </div>
                   </label>
                 </div>
+
+                {isCaptchaEnabled() && (
+                  <div className="pt-1">
+                    <Turnstile
+                      siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                      onToken={setCaptchaToken}
+                      resetSignal={captchaResetSignal}
+                    />
+                  </div>
+                )}
 
                 <Button
                   type="submit"

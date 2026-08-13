@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { AlertCircle, Mail, CheckCircle2, Loader2, ArrowLeft, MailCheck } from 'lucide-react';
 import { LogoImage } from '@/components/ui/Logo';
 import { AnimatedBackground } from '@/components/auth/AnimatedBackground';
+import { Turnstile } from '@/components/auth/Turnstile';
+import { isCaptchaEnabled, captchaAuthOptions, captchaRequiredError } from '@/lib/captcha';
 
 import { Suspense } from 'react';
 
@@ -17,6 +19,8 @@ function ResendConfirmationContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetSignal, setCaptchaResetSignal] = useState(0);
 
   useEffect(() => {
     const emailParam = searchParams?.get('email');
@@ -36,10 +40,13 @@ function ResendConfirmationContent() {
     console.log('[AUTH][RESEND] Solicitando reenvio de confirmação...');
 
     try {
+      if (isCaptchaEnabled() && !captchaToken) throw new Error(captchaRequiredError());
+
       const supabase = createBrowserClient();
       const { error: resendError } = await supabase.auth.resend({
         type: 'signup',
         email,
+        options: captchaAuthOptions(captchaToken),
       });
 
       if (resendError) {
@@ -56,6 +63,7 @@ function ResendConfirmationContent() {
       setError(err.message || 'Erro inesperado. Tente novamente.');
     } finally {
       setLoading(false);
+      setCaptchaResetSignal(s => s + 1);
     }
   };
 
@@ -138,6 +146,14 @@ function ResendConfirmationContent() {
                   />
                 </div>
               </div>
+
+              {isCaptchaEnabled() && (
+                <Turnstile
+                  siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                  onToken={setCaptchaToken}
+                  resetSignal={captchaResetSignal}
+                />
+              )}
 
               <Button
                 type="submit"

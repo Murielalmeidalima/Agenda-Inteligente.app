@@ -1,5 +1,5 @@
 import { Appointment, Procedure } from '@/types/database';
-import { addDays, addWeeks, addMonths, isAfter, isSaturday, isSunday, subDays } from 'date-fns';
+import { addDays, addWeeks, addMonths, isAfter, isSaturday, isSunday, format } from 'date-fns';
 
 /**
  * Verifica se um novo agendamento deve ser marcado como 'manutenção'
@@ -56,18 +56,21 @@ export function shouldGenerateAutomaticMaintenance(
 }
 
 /**
- * Valida se a criação de um NOVO agendamento normal deve gerar a manutenção correspondente.
+ * Valida se a criação de um NOVO agendamento deve gerar a manutenção correspondente.
+ * Gera a manutenção quando:
+ *  - o procedimento exige manutenção, E
+ *  - o agendamento NÃO é uma manutenção ainda "só agendada" (aguarda a finalização),
+ *    OU é uma manutenção sendo finalizada/lançada na criação (status completed).
  */
 export function shouldGenerateMaintenanceOnCreate(
   procObj: Record<string, any> | null | undefined,
   isLaunching: boolean,
   isMaintenance: boolean
 ): boolean {
-  if (isLaunching) return false;
-  if (isMaintenance) return false;
   if (!procObj) return false;
   if (!procObj.maintenance_required) return false;
   if (!procObj.maintenance_days_limit || procObj.maintenance_days_limit <= 0) return false;
+  if (isMaintenance && !isLaunching) return false;
   return true;
 }
 
@@ -166,7 +169,8 @@ export async function createMaintenanceAppointment(
     procedure_id: string;
     start_time: string;
   },
-  procObj: Record<string, any>
+  procObj: Record<string, any>,
+  notifyClient: boolean = true
 ) {
   // Verificar se já existe um agendamento de manutenção filho vinculado a este pai
   const { data: existingChild } = await supabase
@@ -208,7 +212,7 @@ export async function createMaintenanceAppointment(
     })
     .select(`
       *,
-      clients(full_name),
+      clients(full_name, phone),
       procedures(name, duration_minutes, color)
     `)
     .single();
@@ -216,6 +220,39 @@ export async function createMaintenanceAppointment(
   if (error) {
     console.error('Erro ao criar manutenção automática:', error);
     return { error, created: false };
+  }
+
+  // Notificar o profissional (e o cliente via WhatsApp) sobre a próxima manutenção
+  try {
+    await supabase.from('notifications').insert({
+      profile_id: parentAppointment.professional_id,
+      company_id: parentAppointment.company_id,
+      title: 'Nova Manutenção Agendada',
+      message: `Próxima manutenção/retorno agendada para ${format(futureDate, 'dd/MM/yyyy')}.`,
+      type: 'reminder',
+      link: '/dashboard/schedule'
+    });
+  } catch (notifError) {
+    console.error('Erro ao notificar profissional sobre manutenção:', notifError);
+  }
+
+  const maintClient = maintApp?.clients;
+  const clientPhone = Array.isArray(maintClient) ? maintClient[0]?.phone : maintClient?.phone;
+  if (maintApp && clientPhone && notifyClient) {
+    try {
+      await supabase.from('message_queue').insert({
+        company_id: parentAppointment.company_id,
+        type: 'whatsapp',
+        recipient: clientPhone,
+        payload: {
+          content: `Olá! Seu retorno/manutenção está agendado para *${format(futureDate, 'dd/MM/yyyy')}*. Qualquer dúvida, estamos à disposição!`
+        },
+        status: 'pending',
+        scheduled_for: new Date().toISOString()
+      });
+    } catch (queueError) {
+      console.error('Erro ao enfileirar mensagem de manutenção:', queueError);
+    }
   }
 
   return { data: maintApp, created: true, futureDate };

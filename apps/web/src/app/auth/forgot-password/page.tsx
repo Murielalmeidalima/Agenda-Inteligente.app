@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { AlertCircle, ArrowLeft, Mail, CheckCircle2, Loader2, ArrowRight } from 'lucide-react';
 import { LogoImage } from '@/components/ui/Logo';
 import { AnimatedBackground } from '@/components/auth/AnimatedBackground'; // Importar
+import { Turnstile } from '@/components/auth/Turnstile';
+import { isCaptchaEnabled, captchaAuthOptions, captchaRequiredError } from '@/lib/captcha';
 
 
 export default function ForgotPasswordPage() {
@@ -14,6 +16,8 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetSignal, setCaptchaResetSignal] = useState(0);
 
   const validateEmail = (email: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -36,9 +40,12 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
+      if (isCaptchaEnabled() && !captchaToken) throw new Error(captchaRequiredError());
+
       const supabase = createBrowserClient();
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/reset-password`,
+        captchaToken: captchaToken || undefined,
       });
 
       if (resetError) {
@@ -56,6 +63,7 @@ export default function ForgotPasswordPage() {
          : 'Se este e-mail estiver cadastrado, você receberá o link de recuperação.');
     } finally {
       setLoading(false);
+      setCaptchaResetSignal(s => s + 1);
     }
   };
 
@@ -141,6 +149,14 @@ export default function ForgotPasswordPage() {
                     </div>
                   </div>
                 </div>
+
+                {isCaptchaEnabled() && (
+                  <Turnstile
+                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                    onToken={setCaptchaToken}
+                    resetSignal={captchaResetSignal}
+                  />
+                )}
 
                 <Button
                   type="submit"

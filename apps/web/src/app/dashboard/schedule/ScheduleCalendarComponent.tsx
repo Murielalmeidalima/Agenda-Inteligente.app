@@ -187,6 +187,7 @@ export default function ScheduleCalendarComponent({
         appointments={filteredAppointments}
         onNewAppointment={onNewAppointment}
         onViewAppointment={onViewAppointment} 
+        onDaySelect={handleDayClick}
         slotInterval={slotInterval}
         scheduleBlocks={scheduleBlocks}
         blockHolidays={blockHolidays}

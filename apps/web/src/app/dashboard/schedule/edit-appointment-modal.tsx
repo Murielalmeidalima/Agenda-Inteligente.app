@@ -23,6 +23,7 @@ import {
 } from '@projeto/ui';
 import { Edit2, CheckCircle2, XCircle, AlertCircle, Banknote, User, UserCheck, Sparkles } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase-browser';
+import { isSchemaCacheError } from '@/lib/supabase-helpers';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { useProfile } from '@/providers/profile-provider';
@@ -680,11 +681,23 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
         updatePayload.notes = notes;
       }
 
-      const { error } = await supabase
+      let updateResult = await supabase
         .from('appointments')
         .update(updatePayload)
         .eq('id', appointment.id);
 
+      if (updateResult.error && isSchemaCacheError(updateResult.error)) {
+        const fallbackPayload = { ...updatePayload };
+        delete fallbackPayload.cancellation_reason;
+        delete fallbackPayload.cancelled_at;
+        delete fallbackPayload.cancelled_by;
+        updateResult = await supabase
+          .from('appointments')
+          .update(fallbackPayload)
+          .eq('id', appointment.id);
+      }
+
+      const { error } = updateResult;
       if (error) throw error;
 
       // Lógica de Manutenção Automática (Agendamento normal ou Manutenção recorrente)
@@ -736,7 +749,7 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
 
          // Registra ficha médica
          if (recordId) {
-             await supabase.from('appointment_medical_records')
+             const { error: recordError } = await supabase.from('appointment_medical_records')
                .update({ 
                   clinical_notes: clinicalNotes, 
                   materials_used: materialsUsed, 
@@ -744,8 +757,9 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
                   updated_at: new Date().toISOString() 
                })
                .eq('id', recordId);
+             if (recordError) toast.warning('Agendamento atualizado, mas a ficha médica não pôde ser salva.');
          } else {
-             await supabase.from('appointment_medical_records')
+             const { error: recordError } = await supabase.from('appointment_medical_records')
                .insert({ 
                   appointment_id: appointment.id,
                   company_id: appointment.company_id,
@@ -755,6 +769,7 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
                   materials_used: materialsUsed,
                   complications
                });
+             if (recordError) toast.warning('Agendamento atualizado, mas a ficha médica não pôde ser salva.');
          }
 
       toast.success('Agendamento atualizado!');
@@ -858,7 +873,7 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
     const supabase = createBrowserClient();
 
     try {
-      const { error } = await supabase
+      const { error: cancelError } = await supabase
         .from('appointments')
         .update({
           status: 'cancelled',
@@ -868,7 +883,15 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
         })
         .eq('id', appointment.id);
 
-      if (error) throw error;
+      if (cancelError && isSchemaCacheError(cancelError)) {
+        const { error: fallbackError } = await supabase
+          .from('appointments')
+          .update({ status: 'cancelled' })
+          .eq('id', appointment.id);
+        if (fallbackError) throw fallbackError;
+      } else if (cancelError) {
+        throw cancelError;
+      }
 
       // Log de auditoria
       try {

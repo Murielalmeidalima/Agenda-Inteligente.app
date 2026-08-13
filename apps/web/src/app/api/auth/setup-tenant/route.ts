@@ -329,20 +329,28 @@ export async function POST(req: NextRequest) {
     const rawCardToken = (subscription as any).creditCard?.creditCardToken || 'MOCK_TOKEN_' + Date.now();
     const cardHash = crypto.createHash('sha256').update(rawCardToken).digest('hex');
 
-    await supabaseAdmin.from('trial_antifraud_records').insert({
-      company_id: companyId,
-      email: data.email,
-      cpf: cleanCpf,
-      phone: cleanPhone,
-      cnpj: cleanCnpj,
-      card_hash: cardHash,
-      ip_address: ip,
-      device_fingerprint: data.deviceFingerprint || null,
-      device_browser: data.deviceBrowser || null,
-      device_os: data.deviceOs || null,
-      score: score,
-      is_blocked: !trialAllowed
-    });
+    try {
+      const { error: antifraudError } = await supabaseAdmin.from('trial_antifraud_records').insert({
+        company_id: companyId,
+        email: data.email,
+        cpf: cleanCpf,
+        phone: cleanPhone,
+        cnpj: cleanCnpj,
+        card_hash: cardHash,
+        ip_address: ip,
+        device_fingerprint: data.deviceFingerprint || null,
+        device_browser: data.deviceBrowser || null,
+        device_os: data.deviceOs || null,
+        score: score,
+        is_blocked: !trialAllowed
+      });
+
+      if (antifraudError) {
+        console.error('[SetupTenant] Erro ao registrar antifraude:', antifraudError);
+      }
+    } catch (antifraudError) {
+      console.error('[SetupTenant] Falha ao registrar antifraude:', antifraudError);
+    }
 
     // ────────────────────────────────────────────────────────────────────────
     // 7. REGISTRAR OS CONSENTIMENTOS DA LGPD
