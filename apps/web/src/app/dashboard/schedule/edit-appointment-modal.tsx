@@ -100,6 +100,9 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
   const [editStartTime, setEditStartTime] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
+  // Encaixe: horário real de término quando o atendimento finaliza antes do previsto
+  const [actualEndTime, setActualEndTime] = useState('');
+
   // Finance integration
   const isOriginallyCompleted = appointment?.status === 'completed';
 
@@ -216,6 +219,7 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
     if (appointment) {
       setStatus(appointment.status);
       setNotes(appointment.notes || '');
+      setActualEndTime(appointment.end_time ? format(new Date(appointment.end_time), 'HH:mm') : '');
 
       setEditClientId(appointment.client_id || '');
       setEditProfessionalId(appointment.professional_id || '');
@@ -511,6 +515,7 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
 
   const handleStatusChange = async (newStatus: string) => {
     if (newStatus === 'completed') {
+      setActualEndTime(appointment.end_time ? format(new Date(appointment.end_time), 'HH:mm') : '');
       // Check Anamnese Requirement
       setCheckingAnamnese(true);
       try {
@@ -680,6 +685,23 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
         updatePayload.price_override = prices.finalPrice;
       } else {
         updatePayload.notes = notes;
+
+        // Encaixe: ao concluir, se informou que terminou antes do previsto,
+        // reduz o end_time para o horário real de término, liberando o restante do horário.
+        if (status === 'completed' && actualEndTime && appointment?.start_time) {
+          const [h, m] = actualEndTime.split(':').map(Number);
+          if (!isNaN(h) && !isNaN(m)) {
+            const startDate = new Date(appointment.start_time);
+            const realEnd = new Date(startDate);
+            realEnd.setHours(h, m, 0, 0);
+            const scheduledEnd = appointment.end_time
+              ? new Date(appointment.end_time)
+              : new Date(startDate.getTime() + (appointment.procedures?.duration_minutes || 60) * 60 * 1000);
+            if (realEnd.getTime() < scheduledEnd.getTime()) {
+              updatePayload.end_time = realEnd.toISOString();
+            }
+          }
+        }
       }
 
       let updateResult = await supabase
@@ -1369,29 +1391,49 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
               </div>
             )}
 
-           {/* Status Selector */}
-           <div className="space-y-2">
-              <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Status do Atendimento</Label>
-              <div className="grid grid-cols-2 gap-3">
-                 <StatusButton 
-                   active={status === 'scheduled'} 
-                   onClick={() => handleStatusChange('scheduled')}
-                   icon={AlertCircle}
-                   color="text-yellow-500"
-                   bg="bg-yellow-500/10"
-                   label="Agendado"
-                 />
-                 <StatusButton 
-                   active={status === 'completed'} 
-                   onClick={() => handleStatusChange('completed')}
-                   icon={CheckCircle2}
-                   color="text-emerald-500"
-                   bg="bg-emerald-500/10"
-                   label="Concluído"
-                   loading={checkingAnamnese}
-                 />
+            {/* Status Selector */}
+            <div className="space-y-2">
+               <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">Status do Atendimento</Label>
+               <div className="grid grid-cols-2 gap-3">
+                  <StatusButton 
+                    active={status === 'scheduled'} 
+                    onClick={() => handleStatusChange('scheduled')}
+                    icon={AlertCircle}
+                    color="text-yellow-500"
+                    bg="bg-yellow-500/10"
+                    label="Agendado"
+                  />
+                  <StatusButton 
+                    active={status === 'completed'} 
+                    onClick={() => handleStatusChange('completed')}
+                    icon={CheckCircle2}
+                    color="text-emerald-500"
+                    bg="bg-emerald-500/10"
+                    label="Concluído"
+                    loading={checkingAnamnese}
+                  />
+               </div>
+            </div>
+
+            {/* Encaixe: Finalizou antes do previsto */}
+            {status === 'completed' && !isEditing && (
+              <div className="space-y-2 p-3 bg-[#FAF9F6] border border-[#E5E0D8] rounded-2xl">
+                <Label className="text-[10px] font-black text-[#8A847C] uppercase tracking-widest ml-1">
+                  ⚡ Finalizou antes do previsto?
+                </Label>
+                <div className="flex items-center gap-3">
+                  <Input
+                    type="time"
+                    value={actualEndTime}
+                    onChange={(e) => setActualEndTime(e.target.value)}
+                    className="bg-white border-[#E5E0D8] h-10 rounded-xl text-xs font-bold w-32"
+                  />
+                  <span className="text-[9px] text-[#8A847C] leading-snug">
+                    Informe o horário real em que o atendimento terminou. O tempo restante será liberado na agenda para encaixes.
+                  </span>
+                </div>
               </div>
-           </div>
+            )}
 
             {/* Notes */}
             <div className="space-y-2">
