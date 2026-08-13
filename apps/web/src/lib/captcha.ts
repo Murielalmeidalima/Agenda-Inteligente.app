@@ -12,7 +12,9 @@ export function getTurnstileSiteKey(): string {
 }
 
 export function isCaptchaEnabled(): boolean {
-  return !!getTurnstileSiteKey();
+  // CAPTCHA temporariamente desativado até o Turnstile funcionar corretamente
+  // em produção. Para reativar: remover o `false` abaixo.
+  return false;
 }
 
 /**
