@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 declare global {
   interface Window {
@@ -30,7 +30,6 @@ interface TurnstileProps {
 export function Turnstile({ siteKey, onToken, resetSignal }: TurnstileProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (!siteKey || !widgetIdRef.current || !window.turnstile) return;
@@ -50,10 +49,9 @@ export function Turnstile({ siteKey, onToken, resetSignal }: TurnstileProps) {
         'expired-callback': () => onToken(null),
         'error-callback': () => onToken(null),
         theme: 'light',
-        size: 'flexible'
+        size: 'normal'
       });
       widgetIdRef.current = widgetId;
-      setReady(true);
     };
 
     const existingScript = document.getElementById('cf-turnstile-script');
@@ -85,7 +83,7 @@ export function Turnstile({ siteKey, onToken, resetSignal }: TurnstileProps) {
   return (
     <div
       ref={containerRef}
-      className={ready ? '' : 'h-[65px] rounded-lg bg-neutral-50 border border-neutral-200'}
+      className="h-[65px] rounded-lg bg-neutral-50 border border-neutral-200"
     />
   );
 }
