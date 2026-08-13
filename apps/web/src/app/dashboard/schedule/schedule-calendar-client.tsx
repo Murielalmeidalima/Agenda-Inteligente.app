@@ -852,7 +852,7 @@ export default function ScheduleCalendarClient({
       // Geração Automática Imediata de Manutenção no ato do agendamento
       const procObj = procedures.find(p => p.id === formData.procedureId);
       if (shouldGenerateMaintenanceOnCreate(procObj, isLaunching, isMaintenance)) {
-        const { created, futureDate } = await createMaintenanceAppointment(
+        const maintResult = await createMaintenanceAppointment(
           supabase,
           {
             id: data.id,
@@ -865,8 +865,10 @@ export default function ScheduleCalendarClient({
           procObj,
           isLaunching
         );
-        if (created && futureDate) {
-          showToast.success('Agendamento Criado!', `Próxima manutenção agendada automaticamente para ${format(futureDate, 'dd/MM/yyyy')}`);
+        if (maintResult?.created && maintResult.futureDate) {
+          showToast.success('Agendamento Criado!', `Próxima manutenção agendada automaticamente para ${format(maintResult.futureDate, 'dd/MM/yyyy')}`);
+        } else if (maintResult?.error) {
+          showToast.error('Aviso', 'O agendamento foi criado, mas não foi possível gerar a manutenção automática. Verifique as migrations do banco.');
         }
       }
 

@@ -181,7 +181,12 @@ export async function createMaintenanceAppointment(
     .maybeSingle();
 
   if (existingChild) {
-    return { data: existingChild, created: false };
+    return {
+      data: existingChild,
+      created: false,
+      alreadyExists: true,
+      futureDate: new Date(existingChild.start_time)
+    };
   }
 
   const futureDate = calculateMaintenanceDate(

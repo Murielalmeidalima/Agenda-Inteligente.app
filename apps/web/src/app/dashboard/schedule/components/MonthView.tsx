@@ -9,6 +9,7 @@ import {
 import { Plus } from 'lucide-react';
 import { Badge, cn } from '@projeto/ui';
 import { Appointment } from '@/types/database';
+import { isClientNearBirthday } from '@/lib/birthday';
 
 interface MonthViewProps {
   visibleDays: Date[];
@@ -164,11 +165,18 @@ export const MonthView = ({
                                     <span className="text-[7px] uppercase tracking-tighter opacity-80">{statusText}</span>
                                   </div>
                                   
-                                  {/* Client Name */}
-                                  <p className="font-extrabold text-[9px] truncate flex items-center gap-1">
-                                    {apt.is_maintenance && <span title="Agendamento de Manutenção" className="shrink-0 text-[8px]">🔄</span>}
-                                    <span className="truncate">{apt.clients?.full_name || 'Cliente'}</span>
-                                  </p>
+                                   {/* Client Name */}
+                                   <p className="font-extrabold text-[9px] truncate flex items-center gap-1">
+                                     {apt.is_maintenance && <span title="Agendamento de Manutenção" className="shrink-0 text-[8px]">🔄</span>}
+                                     {(() => {
+                                       const c = apt?.clients;
+                                       const birthDate = Array.isArray(c) ? c[0]?.birth_date : c?.birth_date;
+                                       return birthDate && isClientNearBirthday(birthDate) ? (
+                                         <span title="Aniversário por esses dias 🎂" className="shrink-0 text-[8px]">🎂</span>
+                                       ) : null;
+                                     })()}
+                                     <span className="truncate">{apt.clients?.full_name || 'Cliente'}</span>
+                                   </p>
                                   
                                   {/* Procedure Name */}
                                   <p className="font-bold opacity-90 truncate text-[8px]">

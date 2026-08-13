@@ -33,6 +33,7 @@ import {
   createMaintenanceAppointment,
   evaluateClientMaintenanceCycle
 } from '@/lib/maintenance-logic';
+import { isClientNearBirthday } from '@/lib/birthday';
 
 interface EditAppointmentModalProps {
   isOpen: boolean;
@@ -712,7 +713,7 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
 
       // 1. Se for uma manutenção sendo confirmada ou concluída -> gera a próxima manutenção recorrente
       if (shouldGenerateNextRecurringMaintenance(procObj, isMaintenanceApt, status, isOriginallyConfirmedOrCompleted)) {
-        const { created, futureDate } = await createMaintenanceAppointment(
+        const maintResult = await createMaintenanceAppointment(
           supabase,
           {
             id: appointment.id,
@@ -724,13 +725,17 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
           },
           procObj
         );
-        if (created && futureDate) {
-          toast.success(`Manutenção confirmada! Próxima manutenção recorrente agendada para ${format(futureDate, 'dd/MM/yyyy')}`);
+        if (maintResult?.created && maintResult.futureDate) {
+          toast.success(`Manutenção confirmada! Próxima manutenção recorrente agendada para ${format(maintResult.futureDate, 'dd/MM/yyyy')}`);
+        } else if (maintResult?.alreadyExists && maintResult.futureDate) {
+          toast.info(`A próxima manutenção já estava agendada para ${format(maintResult.futureDate, 'dd/MM/yyyy')}.`);
+        } else if (maintResult?.error) {
+          toast.error('Não foi possível agendar a próxima manutenção automaticamente. Verifique se as migrations foram aplicadas no banco.');
         }
       } 
       // 2. Se for um agendamento normal sendo concluído/confirmado -> gera a manutenção se ainda não tiver
       else if (shouldGenerateAutomaticMaintenance(procObj, isOriginallyCompleted, status)) {
-        const { created, futureDate } = await createMaintenanceAppointment(
+        const maintResult = await createMaintenanceAppointment(
           supabase,
           {
             id: appointment.id,
@@ -742,8 +747,12 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
           },
           procObj
         );
-        if (created && futureDate) {
-          toast.success(`Atendimento finalizado! Próxima manutenção agendada para ${format(futureDate, 'dd/MM/yyyy')}`);
+        if (maintResult?.created && maintResult.futureDate) {
+          toast.success(`Atendimento finalizado! Próxima manutenção agendada para ${format(maintResult.futureDate, 'dd/MM/yyyy')}`);
+        } else if (maintResult?.alreadyExists && maintResult.futureDate) {
+          toast.info(`A manutenção deste atendimento já está agendada para ${format(maintResult.futureDate, 'dd/MM/yyyy')}.`);
+        } else if (maintResult?.error) {
+          toast.error('Não foi possível agendar a manutenção automaticamente. Verifique se as migrations foram aplicadas no banco.');
         }
       }
 
@@ -1022,7 +1031,7 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
                 <div className="space-y-1">
                   <Label className="text-[10px] font-black text-neutral-600 uppercase tracking-widest ml-1">Cliente</Label>
                   <SearchableSelect
-                    options={clients.map(c => ({ value: c.id, label: c.full_name }))}
+                    options={clients.map(c => ({ value: c.id, label: `${c.full_name}${isClientNearBirthday(c.birth_date) ? ' 🎂' : ''}` }))}
                     value={editClientId}
                     onChange={setEditClientId}
                     placeholder="Selecione o cliente"
