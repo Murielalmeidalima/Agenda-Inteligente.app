@@ -241,7 +241,7 @@ export default function InventoryPage() {
   return (
     <div className="space-y-6 animate-fade-in pb-10">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-4">
             <Package className="h-8 w-8 text-[#B5952F] fill-[#D4AF37]/20" />
@@ -251,7 +251,7 @@ export default function InventoryPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button 
             variant="outline" 
             onClick={handleGenerateReport}

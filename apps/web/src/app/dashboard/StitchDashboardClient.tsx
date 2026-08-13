@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { format } from 'date-fns';
+import { format, startOfWeek, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
   Calendar, 
@@ -28,7 +28,11 @@ import {
   RotateCcw,
   Settings,
   MoreHorizontal,
-  CheckCircle2
+  CheckCircle2,
+  Gift,
+  Phone,
+  Copy,
+  Check
 } from 'lucide-react';
 
 interface StitchDashboardClientProps {
@@ -57,6 +61,7 @@ interface StitchDashboardClientProps {
   nextAppointment?: any | null;
   upcomingAppointments?: any[];
   popularProcedures?: { name: string; count: number; percentage: number }[];
+  birthdayClients?: any[];
 }
 
 export function StitchDashboardClient({
@@ -67,7 +72,8 @@ export function StitchDashboardClient({
   weeklyRevenue: initialWeeklyRevenue,
   nextAppointment: initialNextAppointment,
   upcomingAppointments: initialUpcomingAppointments,
-  popularProcedures: initialPopularProcedures
+  popularProcedures: initialPopularProcedures,
+  birthdayClients: initialBirthdayClients
 }: StitchDashboardClientProps) {
   const router = useRouter();
   
@@ -77,6 +83,8 @@ export function StitchDashboardClient({
   const [nextAppointment, setNextAppointment] = useState<any>(initialNextAppointment || null);
   const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>(initialUpcomingAppointments || []);
   const [popularProcedures, setPopularProcedures] = useState<any[]>(initialPopularProcedures || []);
+  const [birthdayClients, setBirthdayClients] = useState<any[]>(initialBirthdayClients || []);
+  const [copiedPhone, setCopiedPhone] = useState<string | null>(null);
   const [loading, setLoading] = useState(!initialMetrics);
 
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -100,6 +108,7 @@ export function StitchDashboardClient({
           setNextAppointment(parsed.nextAppointment);
           setUpcomingAppointments(parsed.upcomingAppointments || []);
           setPopularProcedures(parsed.popularProcedures || []);
+          setBirthdayClients(parsed.birthdayClients || []);
           setLoading(false);
         } catch (e) {
           console.error('Error parsing dashboard cache:', e);
@@ -117,6 +126,7 @@ export function StitchDashboardClient({
           setNextAppointment(res.nextAppointment);
           setUpcomingAppointments(res.upcomingAppointments || []);
           setPopularProcedures(res.popularProcedures || []);
+          setBirthdayClients(res.birthdayClients || []);
 
           if (typeof window !== 'undefined') {
             localStorage.setItem('dashboard_data_cache', JSON.stringify({
@@ -125,7 +135,8 @@ export function StitchDashboardClient({
               weeklyRevenue: res.weeklyRevenue,
               nextAppointment: res.nextAppointment,
               upcomingAppointments: res.upcomingAppointments,
-              popularProcedures: res.popularProcedures
+              popularProcedures: res.popularProcedures,
+              birthdayClients: res.birthdayClients
             }));
           }
         }
@@ -198,6 +209,21 @@ export function StitchDashboardClient({
 
   const currentMonthYearName = format(new Date(), "MMMM 'de' yyyy", { locale: ptBR });
 
+  const copyPhoneToClipboard = async (phone: string) => {
+    try {
+      await navigator.clipboard.writeText(phone);
+      setCopiedPhone(phone);
+      setTimeout(() => setCopiedPhone(null), 2000);
+    } catch (e) {
+      console.error('Falha ao copiar telefone:', e);
+    }
+  };
+
+  const weekStartDate = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const weekRangeLabel = `${format(weekStartDate, 'dd/MM')} – ${format(addDays(weekStartDate, 6), 'dd/MM')}`;
+  const withApptBirthdays = (birthdayClients || []).filter((c: any) => c.has_appointment_this_week);
+  const withoutApptBirthdays = (birthdayClients || []).filter((c: any) => !c.has_appointment_this_week);
+
   // Regra Estrita: Notificação do início APENAS para agendamentos e pagamentos pendentes (sem estoque, manutenção ou avaliações)
   const hasPendingAppointments = metrics.todayAppointmentsCount > metrics.attendedCount;
   const hasPendingPayments = financialSummary.toPay > 0 || financialSummary.toReceive > 0;
@@ -210,7 +236,7 @@ export function StitchDashboardClient({
   return (
     <div className="min-h-screen bg-[#F7F1E8] text-[#3D2C28] -m-6 p-6 sm:p-10 font-sans">
       {/* TopAppBar / Header (Glassmorphism Aesthetica Pro) */}
-      <header className="sticky top-0 z-30 bg-[#FFF8F6]/80 backdrop-blur-md px-6 sm:px-10 py-6 border-b border-[#D1C5B5]/30 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 rounded-2xl mb-8 shadow-sm">
+      <header className="lg:sticky lg:top-0 z-30 bg-[#FFF8F6]/80 backdrop-blur-md px-6 sm:px-10 py-6 border-b border-[#D1C5B5]/30 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 rounded-2xl mb-8 shadow-sm">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-[#3D2C28] tracking-tight">
             {greeting}, {userName}
@@ -352,6 +378,122 @@ export function StitchDashboardClient({
               <Wrench className="w-6 h-6 text-[#C8A46B] group-hover:scale-110 transition-transform" />
             </div>
           </Link>
+        </section>
+
+        {/* Aniversariantes da Semana */}
+        <section className="bg-white rounded-2xl shadow-sm border border-[#D1C5B5]/30 overflow-hidden">
+          <div className="bg-[#C8A46B]/10 px-6 sm:px-8 py-4 border-b border-[#C8A46B]/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm flex-shrink-0">
+                <Cake className="w-5 h-5 text-[#C8A46B]" />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-[#765928] uppercase tracking-wider">Aniversariantes da Semana</h3>
+                <p className="text-xs text-[#4E463A] mt-0.5">
+                  {birthdayClients.length} cliente(s) · {withApptBirthdays.length} com agenda · {withoutApptBirthdays.length} sem agenda
+                </p>
+              </div>
+            </div>
+            <Link href="/dashboard/marketing?tab=birthday_campaign" className="text-xs font-bold text-[#C8A46B] hover:text-[#b5925a] flex items-center gap-1 transition-colors whitespace-nowrap">
+              Ver todos <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+
+          {birthdayClients.length === 0 ? (
+            <div className="p-8 text-center flex flex-col items-center justify-center">
+              <Cake className="w-8 h-8 text-[#C8A46B]/40 mb-2" />
+              <p className="text-sm font-bold text-[#3D2C28]">Nenhum aniversariante nesta semana</p>
+              <p className="text-xs text-[#4E463A] mt-1">Nenhum cliente cadastrado faz aniversário entre {weekRangeLabel}.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#D1C5B5]/20">
+              {/* Com agendamento */}
+              <div className="p-6 sm:p-8">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <CalendarCheck className="w-4 h-4 text-emerald-600" />
+                    <h4 className="text-xs font-bold text-[#3D2C28] uppercase tracking-wider">Com Agendamento</h4>
+                  </div>
+                  <span className="bg-emerald-100 text-emerald-700 text-[10px] px-2.5 py-1 rounded-md font-bold">{withApptBirthdays.length}</span>
+                </div>
+                <div className="space-y-3">
+                  {withApptBirthdays.length > 0 ? (
+                    withApptBirthdays.map((client: any) => (
+                      <div key={client.id} className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-[#FED8C3] flex items-center justify-center text-[#795C4C] font-bold flex-shrink-0">
+                          {client.full_name.charAt(0)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-[#3D2C28] truncate">{client.full_name}</p>
+                          <p className="text-[11px] text-[#4E463A] capitalize">
+                            {format(new Date(client.birthday_date), "d 'de' MMMM", { locale: ptBR })}
+                          </p>
+                        </div>
+                        <span className="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-[10px] font-bold whitespace-nowrap flex-shrink-0">
+                          ✓ Já retorna
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-xs font-medium text-[#4E463A] bg-[#FFF8F6] rounded-xl border border-dashed border-[#D1C5B5]/50">
+                      Todos os aniversariantes da semana estão sem agenda.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Sem agendamento */}
+              <div className="p-6 sm:p-8 bg-[#FFF8F6]/50">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Gift className="w-4 h-4 text-[#C8A46B]" />
+                    <h4 className="text-xs font-bold text-[#3D2C28] uppercase tracking-wider">Sem Agendamento</h4>
+                  </div>
+                  <span className="bg-[#FFDAD6] text-[#BA1A1A] text-[10px] px-2.5 py-1 rounded-md font-bold">{withoutApptBirthdays.length}</span>
+                </div>
+                <div className="space-y-3">
+                  {withoutApptBirthdays.length > 0 ? (
+                    withoutApptBirthdays.map((client: any) => (
+                      <div key={client.id} className="flex items-center gap-3 p-3 rounded-xl bg-white border border-[#D1C5B5]/25">
+                        <div className="w-10 h-10 rounded-full bg-[#FED8C3] flex items-center justify-center text-[#795C4C] font-bold flex-shrink-0">
+                          {client.full_name.charAt(0)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-[#3D2C28] truncate">{client.full_name}</p>
+                          <p className="text-[11px] text-[#4E463A] capitalize">
+                            {format(new Date(client.birthday_date), "d 'de' MMMM", { locale: ptBR })}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <button
+                            onClick={() => copyPhoneToClipboard(client.phone || '')}
+                            title="Copiar telefone"
+                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#FFF8F6] border border-[#D1C5B5]/30 hover:border-[#C8A46B]/50 transition-all"
+                          >
+                            {copiedPhone === client.phone ? (
+                              <Check className="w-4 h-4 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-4 h-4 text-[#4E463A]" />
+                            )}
+                          </button>
+                          <Link
+                            href="/dashboard/schedule"
+                            className="px-3 py-1.5 rounded-lg bg-[#C8A46B] text-white text-[10px] font-bold uppercase tracking-wider hover:bg-[#b5925a] transition-colors"
+                          >
+                            Agendar
+                          </Link>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-xs font-medium text-[#4E463A] bg-white rounded-xl border border-dashed border-[#D1C5B5]/50">
+                      Todos os aniversariantes da semana já estão agendados.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Layout Split (12 Columns) */}

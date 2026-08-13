@@ -747,18 +747,18 @@ export default function AutomationClient() {
             )}
             {rules.map((rule) => (
               <Card key={rule.id} className="hover:shadow-md transition-all group">
-                <CardContent className="p-6 flex items-center justify-between">
-                  <div className="flex items-start gap-4">
+                <CardContent className="p-6 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-start gap-4 min-w-0">
                     <div className={`p-3 rounded-full ${rule.is_active ? 'bg-green-100 text-green-600' : 'bg-neutral-100 text-neutral-400'}`}>
                       {rule.trigger_type === 'birthday' ? <Gift className="w-6 h-6" /> : 
                        rule.trigger_type === 'inactive_client' ? <UserMinus className="w-6 h-6" /> :
                        rule.trigger_type === 'pre_appointment' ? <Clock className="w-6 h-6" /> : 
                        <MessageSquare className="w-6 h-6" />}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="font-bold text-lg text-foreground">{rule.name}</h3>
                       <p className="text-sm text-muted-foreground line-clamp-1">{rule.message_template}</p>
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex flex-wrap gap-2 mt-2">
                         <span className="text-xs font-medium px-2 py-1 rounded bg-secondary text-secondary-foreground uppercase tracking-wide">
                           {rule.trigger_type === 'birthday' ? 'Aniversário' : 
                            rule.trigger_type === 'inactive_client' ? 'Cliente Inativo' :

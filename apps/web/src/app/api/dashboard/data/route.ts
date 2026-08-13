@@ -48,6 +48,9 @@ export async function GET() {
     const weekStartStr = format(weekStart, 'yyyy-MM-dd') + 'T00:00:00-03:00';
     const weekEndStr = format(addDays(weekStart, 6), 'yyyy-MM-dd') + 'T23:59:59-03:00';
 
+    // MM-DD of each day of the current week (for birthday matching)
+    const weekDays = [0, 1, 2, 3, 4, 5, 6].map(dayOffset => format(addDays(weekStart, dayOffset), 'MM-dd'));
+
     // Fetch Metrics in parallel
     const [
       { count: professionalsCount },
@@ -165,6 +168,8 @@ export async function GET() {
         .from('appointments')
         .select(`
           id,
+          client_id,
+          start_time,
           procedure_id,
           additional_procedure_ids,
           procedures(name)
@@ -266,6 +271,27 @@ export async function GET() {
 
     const attendedCount = appointmentsData?.filter(a => a.status === 'completed' || a.status === 'confirmed').length || 0;
 
+    // Week birthday clients, split by whether they already have an appointment this week
+    const weekAppointmentClientIds = new Set((weeklyAppointmentsData || []).map((a: any) => a.client_id));
+
+    const birthdayClients = (allClientsData || [])
+      .filter((client: any) => {
+        if (!client.birth_date) return false;
+        return weekDays.includes(client.birth_date.slice(5, 10));
+      })
+      .map((client: any) => {
+        const idx = weekDays.indexOf(client.birth_date.slice(5, 10));
+        return {
+          id: client.id,
+          full_name: client.full_name,
+          phone: client.phone,
+          birth_date: client.birth_date,
+          birthday_date: format(addDays(weekStart, idx), 'yyyy-MM-dd'),
+          has_appointment_this_week: weekAppointmentClientIds.has(client.id)
+        };
+      })
+      .sort((a: any, b: any) => a.birthday_date.localeCompare(b.birthday_date));
+
     // Calculate popular procedures
     const weekAppointments = weeklyAppointmentsData || [];
     const proceduresList = proceduresData || [];
@@ -324,7 +350,8 @@ export async function GET() {
       weeklyRevenue,
       nextAppointment,
       upcomingAppointments,
-      popularProcedures
+      popularProcedures,
+      birthdayClients
     });
 
   } catch (error: any) {

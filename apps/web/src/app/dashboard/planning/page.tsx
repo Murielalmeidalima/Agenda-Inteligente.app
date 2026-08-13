@@ -380,7 +380,7 @@ export default function PlanningPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
              <Button 
                 variant="ghost" 
@@ -390,7 +390,7 @@ export default function PlanningPage() {
              >
                 <ChevronLeft className="h-5 w-5" />
              </Button>
-             <span className="px-4 text-sm font-black text-slate-900 uppercase tracking-widest min-w-[140px] text-center">
+             <span className="px-4 text-sm font-black text-slate-900 uppercase tracking-widest min-w-0 sm:min-w-[140px] text-center">
                 {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
              </span>
              <Button 

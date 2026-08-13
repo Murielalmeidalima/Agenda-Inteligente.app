@@ -448,7 +448,7 @@ export default function ScheduleCalendarComponent({
       </div>
 
       {/* Grid Calendar */}
-      <Card className="bg-white/50 border-[#E5E0D8] rounded-3xl overflow-hidden flex flex-col backdrop-blur-sm relative h-[calc(100vh-240px)] min-h-[500px] shadow-sm">
+      <Card className="bg-white/50 border-[#E5E0D8] rounded-3xl overflow-hidden flex flex-col backdrop-blur-sm relative h-[calc(100vh-240px)] h-[calc(100dvh-240px)] min-h-[500px] shadow-sm">
         {renderContent()}
       </Card>
     </div>

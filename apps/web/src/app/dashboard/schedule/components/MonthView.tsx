@@ -62,9 +62,9 @@ export const MonthView = ({
     return null;
   };
   return (
-    <div className="w-full overflow-x-auto custom-scrollbar">
+    <div className="w-full h-full overflow-auto custom-scrollbar">
       <div className="min-w-[950px] flex flex-col h-full bg-white/20">
-        <div className="grid grid-cols-7 border-b border-[#E5E0D8] bg-[#FAF6E9]/50">
+        <div className="sticky top-0 z-30 grid grid-cols-7 border-b border-[#E5E0D8] bg-[#FAF6E9] shadow-xs">
            {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(dayName => (
               <div key={dayName} className="py-3 text-center text-[10px] font-black text-[#8A847C] uppercase tracking-widest">
                  {dayName}

@@ -369,7 +369,7 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Evolutionary Chart */}
         <Card className="bg-white border-neutral-100 rounded-3xl shadow-xl shadow-slate-200/50 lg:col-span-2 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between border-b border-slate-50 px-8 py-6">
+          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-50 px-4 sm:px-8 py-6">
             <div>
               <CardTitle className="text-xl font-black text-slate-900 tracking-tight">Evolução dos Atendimentos</CardTitle>
               <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Produtos vs Procedimentos (Últimos 7 dias)</p>

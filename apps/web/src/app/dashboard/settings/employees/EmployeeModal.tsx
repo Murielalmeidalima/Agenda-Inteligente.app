@@ -327,7 +327,7 @@ export function EmployeeModal({ isOpen, onClose, employee, companyId, onRefresh 
                <div className="h-px flex-1 bg-slate-50" />
             </div>
 
-            <div className="bg-slate-50/50 rounded-[32px] border border-slate-100 overflow-hidden">
+            <div className="bg-slate-50/50 rounded-[32px] border border-slate-100 overflow-x-auto">
                <table className="w-full text-left">
                   <thead>
                      <tr className="bg-slate-50 border-b border-slate-100">
