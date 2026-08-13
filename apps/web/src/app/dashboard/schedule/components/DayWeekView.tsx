@@ -37,6 +37,66 @@ const PIXELS_PER_MINUTE = 2; // 120 pixels per hour
 const SCHEDULE_START_HOUR = 0;
 const SCHEDULE_END_HOUR = 24; // goes up to 23:xx
 
+type OverlapLayoutEntry = { col: number; totalCols: number };
+
+// Calcula o layout de colunas para agendamentos sobrepostos no mesmo dia,
+// exibindo-os lado a lado em vez de empilhá-los escondendo os de baixo.
+function buildOverlapLayout(apts: any[]): Map<string, OverlapLayoutEntry> {
+  const events = apts
+    .map((apt) => {
+      const start = new Date(apt.start_time).getTime();
+      let end: number;
+      if (apt.end_time) {
+        end = new Date(apt.end_time).getTime();
+      } else {
+        const duration = apt.procedures?.duration_minutes || 60;
+        end = start + duration * 60000;
+      }
+      return { apt, start, end };
+    })
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+
+  const layout = new Map<string, OverlapLayoutEntry>();
+
+  let i = 0;
+  while (i < events.length) {
+    const cluster = [events[i]];
+    let clusterEnd = events[i].end;
+    i++;
+    while (i < events.length && events[i].start < clusterEnd) {
+      cluster.push(events[i]);
+      clusterEnd = Math.max(clusterEnd, events[i].end);
+      i++;
+    }
+
+    const colEnds: number[] = [];
+    const assignments: { ev: (typeof events)[number]; col: number }[] = [];
+    for (const ev of cluster) {
+      let assigned = -1;
+      for (let c = 0; c < colEnds.length; c++) {
+        if (colEnds[c] <= ev.start) {
+          assigned = c;
+          break;
+        }
+      }
+      if (assigned === -1) {
+        assigned = colEnds.length;
+        colEnds.push(ev.end);
+      } else {
+        colEnds[assigned] = ev.end;
+      }
+      assignments.push({ ev, col: assigned });
+    }
+
+    const totalCols = colEnds.length;
+    for (const { ev, col } of assignments) {
+      layout.set(ev.apt.id, { col, totalCols });
+    }
+  }
+
+  return layout;
+}
+
 export const DayWeekView = ({ 
   view, 
   visibleDays, 
@@ -332,9 +392,16 @@ export const DayWeekView = ({
                   })()}
 
                   {/* Renderização dos Agendamentos */}
-                  {appointments
-                    .filter((apt: any) => isSameDay(new Date(apt.start_time), day) && apt.status !== 'cancelled')
-                    .map((apt: any) => {
+                  {(() => {
+                    const dayAppointments = appointments
+                      .filter((apt: any) => isSameDay(new Date(apt.start_time), day) && apt.status !== 'cancelled')
+                      .sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+                    const overlapLayout = buildOverlapLayout(dayAppointments);
+
+                    return dayAppointments.map((apt: any) => {
+                      const layout = overlapLayout.get(apt.id) || { col: 0, totalCols: 1 };
+                      const widthPct = 100 / layout.totalCols;
+                      const leftPct = layout.col * widthPct;
                       const startDate = new Date(apt.start_time);
                       const startHour = startDate.getHours();
                       const startMin = startDate.getMinutes();
@@ -378,7 +445,7 @@ export const DayWeekView = ({
                             "absolute left-1.5 right-1.5 rounded-xl p-2 text-[10px] overflow-hidden cursor-pointer shadow-sm transition-all hover:shadow-md hover:scale-[1.02] z-20 group/apt ring-1 ring-inset flex flex-col justify-between",
                             cardColors
                           )}
-                          style={{ top: `${top}px`, height: `${height}px`, minHeight: '24px', ...(procedureColor ? { borderLeft: `6px solid ${procedureColor}` } : {}) }}
+                          style={{ top: `${top}px`, height: `${height}px`, minHeight: '24px', left: `calc(${leftPct}% + 3px)`, width: `calc(${widthPct}% - 6px)`, ...(procedureColor ? { borderLeft: `6px solid ${procedureColor}` } : {}) }}
                           onClick={(e) => {
                             e.stopPropagation();
                             onViewAppointment(apt.id);
@@ -507,7 +574,8 @@ export const DayWeekView = ({
                           </div>
                         </div>
                       );
-                    })}
+                    })
+                    })()}
                 </div>
               </div>
             ))}
