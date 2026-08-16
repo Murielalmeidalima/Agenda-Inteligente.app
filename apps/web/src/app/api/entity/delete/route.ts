@@ -70,11 +70,20 @@ export async function POST(req: Request) {
         try { await supabase.from('transactions').delete().eq('client_id', id).eq('company_id', companyId); } catch (_) {}
         try { await supabase.from('anamnese_responses').delete().eq('client_id', id).eq('company_id', companyId); } catch (_) {}
 
+        // Preservar prontuário / histórico técnico do procedimento antes da exclusão
+        try { await supabase.from('appointment_medical_records').update({ client_id: null }).eq('client_id', id).eq('company_id', companyId); } catch (_) {}
+        try { await supabase.from('patient_progress_notes').update({ client_id: null }).eq('client_id', id).eq('company_id', companyId); } catch (_) {}
+        try { await supabase.from('medical_records').update({ client_id: null }).eq('client_id', id).eq('company_id', companyId); } catch (_) {}
+        try { await supabase.from('medical_attachments').update({ client_id: null }).eq('client_id', id).eq('company_id', companyId); } catch (_) {}
+
         if (apptIds.length > 0) {
           try { await supabase.from('reviews').delete().in('appointment_id', apptIds); } catch (_) {}
           try { await supabase.from('inventory_transactions').delete().in('appointment_id', apptIds).eq('company_id', companyId); } catch (_) {}
           try { await supabase.from('transactions').delete().in('appointment_id', apptIds).eq('company_id', companyId); } catch (_) {}
           try { await supabase.from('anamnese_responses').delete().in('appointment_id', apptIds).eq('company_id', companyId); } catch (_) {}
+          // Desvincula as fichas dos agendamentos (appointment_medical_records) para
+          // não serem apagadas em cascata quando os agendamentos forem excluídos.
+          try { await supabase.from('appointment_medical_records').update({ appointment_id: null }).in('appointment_id', apptIds).eq('company_id', companyId); } catch (_) {}
           try {
             await supabase.from('appointments').update({ parent_appointment_id: null }).in('id', apptIds).eq('company_id', companyId);
             await supabase.from('appointments').update({ parent_appointment_id: null }).in('parent_appointment_id', apptIds).eq('company_id', companyId);

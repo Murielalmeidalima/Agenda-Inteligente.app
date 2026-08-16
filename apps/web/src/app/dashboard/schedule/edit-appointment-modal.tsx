@@ -34,6 +34,7 @@ import {
   evaluateClientMaintenanceCycle
 } from '@/lib/maintenance-logic';
 import { isClientNearBirthday } from '@/lib/birthday';
+import { ProcedureHistorySection } from './components/ProcedureHistorySection';
 
 interface EditAppointmentModalProps {
   isOpen: boolean;
@@ -1506,6 +1507,22 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
              )}
            </div>
 
+           {/* Histórico do procedimento (observações técnicas de atendimentos anteriores) */}
+           {appointment?.client_id && appointment?.procedure_id && (
+             <ProcedureHistorySection
+               companyId={appointment.company_id || ''}
+               clientId={appointment.client_id}
+               procedureId={appointment.procedure_id}
+               clientName={
+                 (Array.isArray(appointment.clients) ? appointment.clients[0]?.full_name : appointment.clients?.full_name) || null
+               }
+               procedureName={
+                 (Array.isArray(appointment.procedures) ? appointment.procedures[0]?.name : appointment.procedures?.name) || null
+               }
+               excludeAppointmentId={appointment.id}
+             />
+           )}
+
            {/* Ficha de Atendimento (Prontuário) apenas quando concluído */}
             {status === 'completed' && (
                <div className="bg-[#FAF6E9] p-4 rounded-2xl border border-[#E5E0D8] space-y-4 animate-fade-in">
@@ -1513,23 +1530,26 @@ export function EditAppointmentModal({ isOpen, onClose, appointment, onUpdate, p
                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                      Ficha de Atendimento
                   </h3>
+                  <p className="text-[10px] text-[#8A847C] -mt-2">
+                     Registro técnico do procedimento. É exibido como histórico nos próximos agendamentos deste cliente.
+                  </p>
                   <div className="space-y-3">
                      <div className="space-y-1">
-                        <Label className="text-xs font-bold text-[#5C5855]">Evolução / Notas Clínicas</Label>
+                        <Label className="text-xs font-bold text-[#5C5855]">Observações Técnicas / Evolução</Label>
                         <TextArea 
                           value={clinicalNotes}
                           onChange={e => setClinicalNotes(e.target.value)}
                           className="bg-white border-[#E5E0D8] rounded-xl text-sm min-h-[80px]"
-                          placeholder="Ex: Paciente apresentou melhora. Procedimento realizado sem intercorrências..."
+                          placeholder="Ex: Técnica aplicada, cor utilizada, preferências da cliente, cuidados indicados..."
                         />
                      </div>
                      <div className="space-y-1">
-                        <Label className="text-xs font-bold text-[#5C5855]">Materiais e Insumos Utilizados</Label>
+                        <Label className="text-xs font-bold text-[#5C5855]">Materiais Utilizados (produto, quantidade, lote)</Label>
                         <TextArea 
                           value={materialsUsed}
                           onChange={e => setMaterialsUsed(e.target.value)}
                           className="bg-white border-[#E5E0D8] rounded-xl text-sm min-h-[60px]"
-                          placeholder="Ex: Seringa 3ml, Toxina 50u, Anestésico tópico..."
+                          placeholder="Ex: Toxina 50u, anestésico tópico, quantidade por região..."
                         />
                      </div>
                      <div className="space-y-1">

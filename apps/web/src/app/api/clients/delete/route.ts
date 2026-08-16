@@ -171,6 +171,12 @@ export async function POST(req: NextRequest) {
       try { await supabase.from('reviews').update({ client_id: null }).in('client_id', clientIds); } catch (_) {}
       try { await supabase.from('anamnese_responses').update({ client_id: null }).in('client_id', clientIds).eq('company_id', companyId); } catch (_) {}
 
+      // Preservar prontuário / histórico técnico do procedimento (mesma política das transações)
+      try { await supabase.from('appointment_medical_records').update({ client_id: null }).in('client_id', clientIds).eq('company_id', companyId); } catch (_) {}
+      try { await supabase.from('patient_progress_notes').update({ client_id: null }).in('client_id', clientIds).eq('company_id', companyId); } catch (_) {}
+      try { await supabase.from('medical_records').update({ client_id: null }).in('client_id', clientIds).eq('company_id', companyId); } catch (_) {}
+      try { await supabase.from('medical_attachments').update({ client_id: null }).in('client_id', clientIds).eq('company_id', companyId); } catch (_) {}
+
       // Desvincular agendamentos
       try {
         await supabase.from('appointments').update({ client_id: null }).in('client_id', clientIds).eq('company_id', companyId);
@@ -184,6 +190,10 @@ export async function POST(req: NextRequest) {
       try { await supabase.from('inventory_transactions').delete().in('client_id', clientIds).eq('company_id', companyId); } catch (_) {}
       try { await supabase.from('transactions').delete().in('client_id', clientIds).eq('company_id', companyId); } catch (_) {}
       try { await supabase.from('anamnese_responses').delete().in('client_id', clientIds).eq('company_id', companyId); } catch (_) {}
+      try { await supabase.from('appointment_medical_records').delete().in('client_id', clientIds).eq('company_id', companyId); } catch (_) {}
+      try { await supabase.from('patient_progress_notes').delete().in('client_id', clientIds).eq('company_id', companyId); } catch (_) {}
+      try { await supabase.from('medical_records').delete().in('client_id', clientIds).eq('company_id', companyId); } catch (_) {}
+      try { await supabase.from('medical_attachments').delete().in('client_id', clientIds).eq('company_id', companyId); } catch (_) {}
 
       if (allApptIds.length > 0) {
         try { await supabase.from('reviews').delete().in('appointment_id', allApptIds); } catch (_) {}

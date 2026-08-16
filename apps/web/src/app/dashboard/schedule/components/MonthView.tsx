@@ -6,10 +6,17 @@ import {
   isSameDay,
   isSameMonth
 } from 'date-fns';
+import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Badge, cn } from '@projeto/ui';
 import { Appointment } from '@/types/database';
 import { isClientNearBirthday } from '@/lib/birthday';
+import {
+  procedureHistoryKey,
+  type ProcedureHistoryMap
+} from '@/lib/procedure-history';
+import { HistoryIndicator } from './HistoryIndicator';
+import { ProcedureHistoryModal } from './ProcedureHistoryModal';
 
 interface MonthViewProps {
   visibleDays: Date[];
@@ -19,6 +26,8 @@ interface MonthViewProps {
   onViewAppointment: (id: string) => void;
   scheduleBlocks: any[];
   blockHolidays?: boolean;
+  historyMap?: ProcedureHistoryMap;
+  companyId?: string;
 }
 
 export const MonthView = ({ 
@@ -28,8 +37,11 @@ export const MonthView = ({
   onDayClick,
   onViewAppointment,
   scheduleBlocks,
-  blockHolidays = false
+  blockHolidays = false,
+  historyMap = new Map(),
+  companyId
 }: MonthViewProps) => {
+  const [historyApt, setHistoryApt] = useState<any | null>(null);
   const checkIsBlocked = (day: Date) => {
     const dayOfWeek = day.getDay();
     const dateStr = format(day, 'yyyy-MM-dd');
@@ -175,6 +187,10 @@ export const MonthView = ({
                                          <span title="Aniversário por esses dias 🎂" className="shrink-0 text-[8px]">🎂</span>
                                        ) : null;
                                      })()}
+                                     <HistoryIndicator
+                                       record={historyMap.get(procedureHistoryKey(apt.client_id, apt.procedure_id))}
+                                       onOpen={() => setHistoryApt(apt)}
+                                     />
                                      <span className="truncate">{apt.clients?.full_name || 'Cliente'}</span>
                                    </p>
                                   
@@ -203,9 +219,28 @@ export const MonthView = ({
                     </div>
                  </div>
               );
-           })}
+            })}
+          </div>
          </div>
+         <ProcedureHistoryModal
+          isOpen={Boolean(historyApt)}
+          onClose={() => setHistoryApt(null)}
+          companyId={companyId || historyApt?.company_id || ''}
+          clientId={historyApt?.client_id}
+          procedureId={historyApt?.procedure_id}
+          clientName={
+            (() => {
+              const c = historyApt?.clients;
+              return (Array.isArray(c) ? c[0]?.full_name : c?.full_name) || null;
+            })()
+          }
+          procedureName={
+            (() => {
+              const p = historyApt?.procedures;
+              return (Array.isArray(p) ? p[0]?.name : p?.name) || null;
+            })()
+          }
+        />
       </div>
-    </div>
   );
 };

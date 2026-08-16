@@ -17,6 +17,14 @@ import { cn } from '@projeto/ui';
 import { Appointment } from '@/types/database';
 import { showToast } from '@/lib/toast-helpers';
 import { isClientNearBirthday } from '@/lib/birthday';
+import {
+  procedureHistoryKey,
+  formatObservationSummary,
+  hasProcedureObservation,
+  type ProcedureHistoryMap
+} from '@/lib/procedure-history';
+import { HistoryIndicator } from './HistoryIndicator';
+import { ProcedureHistoryModal } from './ProcedureHistoryModal';
 
 interface DayWeekViewProps {
   view: 'day' | 'week';
@@ -28,6 +36,8 @@ interface DayWeekViewProps {
   scheduleBlocks: any[];
   blockHolidays?: boolean;
   procedures?: any[];
+  historyMap?: ProcedureHistoryMap;
+  companyId?: string;
 }
 
 const PIXELS_PER_MINUTE = 2; // 120 pixels per hour
@@ -103,10 +113,13 @@ export const DayWeekView = ({
   slotInterval,
   scheduleBlocks,
   blockHolidays = false,
-  procedures = []
+  procedures = [],
+  historyMap = new Map(),
+  companyId
 }: DayWeekViewProps) => {
   const [hoveredAptId, setHoveredAptId] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [historyApt, setHistoryApt] = useState<any | null>(null);
 
   const handleMouseEnter = (e: React.MouseEvent, aptId: string) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -431,6 +444,10 @@ export const DayWeekView = ({
                                       🎂
                                     </span>
                                   )}
+                                  <HistoryIndicator
+                                    record={historyMap.get(procedureHistoryKey(apt.client_id, apt.procedure_id))}
+                                    onOpen={() => setHistoryApt(apt)}
+                                  />
                                   <p className="font-black text-[11px] leading-tight truncate group-hover/apt:text-[#2C2825] transition-colors">
                                     {apt.clients?.full_name || 'Individual'}
                                   </p>
@@ -623,10 +640,55 @@ export const DayWeekView = ({
                 <p className="text-neutral-300 italic font-medium leading-relaxed break-words">{apt.notes}</p>
               </div>
             )}
+            {(() => {
+              const record = historyMap.get(procedureHistoryKey(apt.client_id, apt.procedure_id));
+              if (!record || !hasProcedureObservation(record)) return null;
+              return (
+                <div className="border-t border-neutral-800 pt-1.5 mt-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-[#7DD3FC] block uppercase font-black tracking-wider">Histórico do procedimento</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setHoveredAptId(null);
+                        setHistoryApt(apt);
+                      }}
+                      className="text-[10px] font-black text-[#7DD3FC] hover:text-[#0EA5E9] uppercase tracking-wider cursor-pointer pointer-events-auto"
+                    >
+                      Ver completo
+                    </button>
+                  </div>
+                  <p className="text-neutral-300 font-medium leading-relaxed break-words line-clamp-3 mt-0.5">
+                    {formatObservationSummary(record)}
+                  </p>
+                </div>
+              );
+            })()}
           </div>
         );
       })()}
       </div>
+
+      <ProcedureHistoryModal
+        isOpen={Boolean(historyApt)}
+        onClose={() => setHistoryApt(null)}
+        companyId={companyId || historyApt?.company_id || ''}
+        clientId={historyApt?.client_id}
+        procedureId={historyApt?.procedure_id}
+        clientName={
+          (() => {
+            const c = historyApt?.clients;
+            return (Array.isArray(c) ? c[0]?.full_name : c?.full_name) || null;
+          })()
+        }
+        procedureName={
+          (() => {
+            const p = historyApt?.procedures;
+            return (Array.isArray(p) ? p[0]?.name : p?.name) || null;
+          })()
+        }
+      />
     </div>
   );
 };

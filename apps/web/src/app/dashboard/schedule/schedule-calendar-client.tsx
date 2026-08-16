@@ -33,6 +33,8 @@ import { isClientNearBirthday } from '@/lib/birthday';
 import { evaluateClientMaintenanceCycle, shouldGenerateMaintenanceOnCreate, createMaintenanceAppointment } from '@/lib/maintenance-logic';
 import { isWithinInterval, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { useProfile } from '@/providers/profile-provider';
+import { fetchProcedureHistoryMap, type ProcedureHistoryMap } from '@/lib/procedure-history';
+import { ProcedureHistorySection } from './components/ProcedureHistorySection';
 
 interface ScheduleCalendarClientProps {
   initialAppointments: any[];
@@ -89,6 +91,7 @@ export default function ScheduleCalendarClient({
   const [appointments, setAppointments] = useState(initialAppointments);
   const [loading, setLoading] = useState(false);
   const cacheRef = useRef<Record<string, any[]>>({});
+  const [historyMap, setHistoryMap] = useState<ProcedureHistoryMap>(new Map());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [slotInterval, setSlotInterval] = useState<number>(30);
@@ -377,8 +380,13 @@ export default function ScheduleCalendarClient({
   const [showHolidays, setShowHolidays] = useState(false);
   const [blockHolidays, setBlockHolidays] = useState(false);
 
-  const fetchPromotions = async () => {
-    try {
+  const refreshHistoryMap = async () => {
+    const supabase = createBrowserClient();
+    const map = await fetchProcedureHistoryMap(supabase, companyId);
+    setHistoryMap(map);
+  };
+
+  const fetchPromotions = async () => {    try {
       const supabase = createBrowserClient();
       const { data, error } = await supabase
         .from('procedure_promotions')
@@ -567,6 +575,17 @@ export default function ScheduleCalendarClient({
     fetchSettings();
     fetchHolidays();
     fetchPromotions();
+  }, [companyId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createBrowserClient();
+    fetchProcedureHistoryMap(supabase, companyId).then((map) => {
+      if (!cancelled) setHistoryMap(map);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [companyId]);
 
   const handleNewAppointment = (date: Date) => {
@@ -961,6 +980,7 @@ export default function ScheduleCalendarClient({
       // Refresh the page data from server to get all hydrated properties properly
       router.refresh();
       fetchLatestAppointments(true);
+      refreshHistoryMap();
       
       setIsModalOpen(false);
       setFormData({
@@ -1023,6 +1043,8 @@ export default function ScheduleCalendarClient({
         blockHolidays={blockHolidays}
         professionals={professionals}
         procedures={procedures}
+        historyMap={historyMap}
+        companyId={companyId}
         currentDate={currentDate}
         setCurrentDate={setCurrentDate}
         view={view}
@@ -1040,6 +1062,7 @@ export default function ScheduleCalendarClient({
         onUpdate={() => {
            router.refresh();
            fetchLatestAppointments(true);
+           refreshHistoryMap();
         }}
       />
 
@@ -1407,6 +1430,14 @@ export default function ScheduleCalendarClient({
                 className="bg-white border-[#E5E0D8] rounded-2xl text-[#2C2825] placeholder:text-neutral-700 min-h-[100px] focus:ring-primary-500/10"
               />
             </div>
+
+            <ProcedureHistorySection
+              companyId={companyId}
+              clientId={formData.clientId}
+              procedureId={formData.procedureId}
+              clientName={localClients.find(c => c.id === formData.clientId)?.full_name || null}
+              procedureName={procedures.find(p => p.id === formData.procedureId)?.name || null}
+            />
 
             {/* Reestruturação da Seção de Preços: Bloco 1, Bloco 2 e Bloco 3 */}
             <div className="space-y-4 pt-4 border-t border-[#E5E0D8]">

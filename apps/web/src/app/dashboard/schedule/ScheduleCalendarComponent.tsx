@@ -39,6 +39,7 @@ import {
 import { Appointment } from '@/types/database';
 import { MonthView } from './components/MonthView';
 import { DayWeekView } from './components/DayWeekView';
+import type { ProcedureHistoryMap } from '@/lib/procedure-history';
 
 // ----------------------------------------------------------------------
 
@@ -59,6 +60,8 @@ interface ScheduleCalendarProps {
   blockHolidays: boolean;
   professionals?: any[];
   procedures?: any[];
+  historyMap?: ProcedureHistoryMap;
+  companyId?: string;
   currentDate: Date;
   setCurrentDate: (date: Date) => void;
   view: CalendarViewType;
@@ -80,6 +83,8 @@ export default function ScheduleCalendarComponent({
   blockHolidays,
   professionals = [],
   procedures = [],
+  historyMap = new Map(),
+  companyId,
   currentDate,
   setCurrentDate,
   view,
@@ -176,6 +181,8 @@ export default function ScheduleCalendarComponent({
           onViewAppointment={onViewAppointment}
           scheduleBlocks={scheduleBlocks}
           blockHolidays={blockHolidays}
+          historyMap={historyMap}
+          companyId={companyId}
         />
       );
     }
@@ -191,6 +198,8 @@ export default function ScheduleCalendarComponent({
         scheduleBlocks={scheduleBlocks}
         blockHolidays={blockHolidays}
         procedures={procedures}
+        historyMap={historyMap}
+        companyId={companyId}
       />
     );
   };
